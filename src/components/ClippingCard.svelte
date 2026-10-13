@@ -4,10 +4,12 @@
 
   interface Props {
     clipping: ClippingRow;
+    copied: boolean;
     onToggleFavorite: (id: number) => void;
+    onCopy: (id: number) => void;
   }
 
-  const { clipping, onToggleFavorite }: Props = $props();
+  const { clipping, copied, onToggleFavorite, onCopy }: Props = $props();
   const reference = $derived(formatReference(clipping.page, clipping.location));
 </script>
 
@@ -44,6 +46,19 @@
     {/if}
     <span>{formatAddedOn(clipping.added_on, clipping.added_on_raw)}</span>
     <span class="flex-1"></span>
+    {#if clipping.content}
+      <button
+        type="button"
+        onclick={() => onCopy(clipping.id)}
+        aria-label="Copiar contenido"
+        title={copied ? "¡Copiado!" : "Copiar contenido"}
+        class="rounded-full p-1.5 text-base leading-none transition {copied
+          ? 'text-green-600 dark:text-green-400'
+          : 'text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-300'}"
+      >
+        {copied ? "✓" : "⧉"}
+      </button>
+    {/if}
     <button
       type="button"
       onclick={() => onToggleFavorite(clipping.id)}

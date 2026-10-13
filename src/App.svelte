@@ -5,7 +5,13 @@
   import ThemeToggle from "./components/ThemeToggle.svelte";
   import { getDb, listBooks, listClippings, toggleFavorite } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
-  import { applyFavoriteToggle, clampPage, debounce, KIND_LABELS } from "./lib/library";
+  import {
+    applyFavoriteToggle,
+    clampPage,
+    copyClippingContent,
+    debounce,
+    KIND_LABELS,
+  } from "./lib/library";
   import type {
     Book,
     ClippingFilter,
@@ -29,6 +35,8 @@
 
   let importing = $state(false);
   let importStatus = $state<string | null>(null);
+  let copiedId = $state<number | null>(null);
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
   const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kind, favoritesOnly });
 
@@ -93,8 +101,24 @@
     page = 1;
   }
 
-  async function toggleStar(id: number): Promise<void> {
-    const current = result?.items.find((item) => item.id === id);
+  async function copyContent(id: number): Promise<void> {
+    const target = result?.items.find((item) => item.id === id);
+    if (!target?.content) return;
+    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+    const ok = await copyClippingContent(writeText, target.content);
+    if (ok) {
+      copiedId = id;
+      if (copyTimer !== null) {
+        clearTimeout(copyTimer);
+      }
+      copyTimer = setTimeout(() => {
+        copiedId = null;
+        copyTimer = null;
+      }, 1500);
+    }
+  }
+
+  async function toggleStar(id: number): Promise<void> {    const current = result?.items.find((item) => item.id === id);
     if (!current || !result) return;
     const next = !current.favorite;
     result = { ...result, items: applyFavoriteToggle(result.items, id, next) };
@@ -264,7 +288,12 @@
         <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">
           {#if result && result.items.length > 0}
             {#each result.items as clipping (clipping.id)}
-              <ClippingCard {clipping} onToggleFavorite={toggleStar} />
+              <ClippingCard
+                {clipping}
+                copied={clipping.id === copiedId}
+                onToggleFavorite={toggleStar}
+                onCopy={copyContent}
+              />
             {/each}
           {:else if !loading}
             <div class="py-16 text-center">

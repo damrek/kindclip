@@ -99,6 +99,19 @@ export function applyFavoriteToggle(
   return items.map((item) => (item.id === id ? { ...item, favorite } : item));
 }
 
+/** Copy card content to the clipboard; `false` when the write fails (T9). */
+export async function copyClippingContent(
+  write: (text: string) => Promise<void>,
+  text: string,
+): Promise<boolean> {
+  try {
+    await write(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Human date for a card; falls back to the raw Kindle string. */
 export function formatAddedOn(addedOn: string | null, raw: string): string {
   if (addedOn === null) {

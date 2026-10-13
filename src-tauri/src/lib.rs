@@ -27,6 +27,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![commands::parse_clippings_file])
         .run(tauri::generate_context!())
         .expect("error while running kindclip");

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyFavoriteToggle,
   clampPage,
+  copyClippingContent,
   debounce,
   emptyFilter,
   formatAddedOn,
@@ -147,5 +148,18 @@ describe("applyFavoriteToggle", () => {
   it("leaves unknown ids untouched", () => {
     const items = [row(1, false)];
     expect(applyFavoriteToggle(items, 99, true)).toEqual(items);
+  });
+});
+
+describe("copyClippingContent", () => {
+  it("returns true when the write succeeds", async () => {
+    await expect(copyClippingContent(async () => {}, "text")).resolves.toBe(true);
+  });
+
+  it("returns false when the write fails", async () => {
+    const denied = async (): Promise<void> => {
+      throw new Error("denied");
+    };
+    await expect(copyClippingContent(denied, "text")).resolves.toBe(false);
   });
 });
