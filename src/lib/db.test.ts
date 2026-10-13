@@ -3,9 +3,14 @@ import {
   buildCountQuery,
   buildListQuery,
   escapeLike,
+  getSetting,
   importParsedClippings,
+  loadFilterState,
+  saveFilterState,
+  setSetting,
   toggleFavorite,
   type DbPort,
+  type StoredFilterState,
 } from "./db";
 import type { ClippingDto } from "./types";
 
@@ -30,14 +35,22 @@ class FakePort implements DbPort {
   existingFiles = new Map<string, number>();
   books = new Map<string, number>();
   favorites = new Set<number>();
+  settings = new Map<string, string>();
   insertedClippings: string[] = [];
   fileUpdates: Array<{ id: number; added: number }> = [];
   lastId = 100;
   fileId = 7;
 
-  async select<T>(sql: string): Promise<T[]> {
+  async select<T>(sql: string, params?: unknown[]): Promise<T[]> {
     if (sql.includes("content_hash")) {
       return [...this.existingHashes].map((h) => ({ content_hash: h }) as T);
+    }
+    if (sql.includes("FROM settings")) {
+      const rows = [...this.settings].map(([key, value]) => ({ key, value }) as T);
+      if (params && params.length > 0) {
+        return rows.filter((row) => (row as { key: string }).key === params[0]);
+      }
+      return rows;
     }
     if (sql.includes("FROM files")) {
       return [...this.existingFiles].map(([hash, id]) => ({ id, file_hash: hash }) as T);
@@ -64,6 +77,10 @@ class FakePort implements DbPort {
       const id = ++this.lastId;
       this.books.set(key, id);
       return { lastInsertId: id, rowsAffected: 1 };
+    }
+    if (sql.includes("INTO settings")) {
+      this.settings.set(params?.[0] as string, params?.[1] as string);
+      return { rowsAffected: 1 };
     }
     if (sql.includes("INSERT INTO files")) {
       return { lastInsertId: this.fileId, rowsAffected: 1 };
@@ -206,5 +223,48 @@ describe("toggleFavorite", () => {
     const port = new FakePort();
     expect(await toggleFavorite(port, 42)).toBe(true);
     expect(await toggleFavorite(port, 42)).toBe(false);
+  });
+});
+
+describe("settings", () => {
+  it("returns null for missing keys", async () => {
+    const port = new FakePort();
+    await expect(getSetting(port, "nope")).resolves.toBe(null);
+  });
+
+  it("roundtrips values and overwrites them", async () => {
+    const port = new FakePort();
+    await setSetting(port, "theme", "dark");
+    await expect(getSetting(port, "theme")).resolves.toBe("dark");
+    await setSetting(port, "theme", "light");
+    await expect(getSetting(port, "theme")).resolves.toBe("light");
+  });
+
+  it("saves and loads filter state", async () => {
+    const port = new FakePort();
+    const state: StoredFilterState = {
+      query: "stoic",
+      bookId: 3,
+      kind: "note",
+      favoritesOnly: true,
+      pageSize: 50,
+    };
+    await saveFilterState(port, state);
+    await expect(loadFilterState(port)).resolves.toEqual(state);
+  });
+
+  it("returns null when nothing was stored", async () => {
+    const port = new FakePort();
+    await expect(loadFilterState(port)).resolves.toBe(null);
+  });
+
+  it("rejects corrupt filter payloads", async () => {
+    const port = new FakePort();
+    await setSetting(port, "filter", "not-json{{");
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 999, bookId: null, kind: null }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 20, bookId: null, kind: "bogus" }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
   });
 });

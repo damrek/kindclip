@@ -3,11 +3,13 @@ import type {
   Book,
   ClippingDto,
   ClippingFilter,
+  ClippingKind,
   ClippingRow,
   ImportReport,
   PagedResult,
   PageRequest,
 } from "./types";
+import { PAGE_SIZES } from "./library";
 
 /** Minimal SQL surface the store needs; real (plugin) or fake (tests). */
 export interface DbPort {
@@ -125,8 +127,7 @@ export async function listBooks(): Promise<Book[]> {
   return port.select<Book>(LIST_BOOKS_SQL);
 }
 
-export async function toggleFavorite(port: DbPort, clippingId: number): Promise<boolean> {
-  const rows = await port.select<{ clipping_id: number }>(
+export async function toggleFavorite(port: DbPort, clippingId: number): Promise<boolean> {  const rows = await port.select<{ clipping_id: number }>(
     "SELECT clipping_id FROM favorites WHERE clipping_id = $1",
     [clippingId],
   );
@@ -246,4 +247,69 @@ export async function importParsedClippings(
     bookCount: bookIds.size,
     alreadyImported: knownFile !== null && inserted === 0,
   };
+}
+
+/** Setting keys for user preferences (locale, theme, filters). */
+export const SETTINGS_KEYS = {
+  locale: "locale",
+  theme: "theme",
+  filter: "filter",
+} as const;
+
+export async function getSetting(port: DbPort, key: string): Promise<string | null> {
+  const rows = await port.select<{ value: string }>(
+    "SELECT value FROM settings WHERE key = $1",
+    [key],
+  );
+  return rows[0]?.value ?? null;
+}
+
+export async function setSetting(port: DbPort, key: string, value: string): Promise<void> {
+  await port.execute(
+    "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    [key, value],
+  );
+}
+
+/** Persisted filter + pagination state (page itself always restarts at 1). */
+export interface StoredFilterState {
+  query: string;
+  bookId: number | null;
+  kind: ClippingKind | null;
+  favoritesOnly: boolean;
+  pageSize: number;
+}
+
+const CLIPPING_KINDS: ClippingKind[] = ["highlight", "note", "bookmark"];
+
+export async function saveFilterState(port: DbPort, state: StoredFilterState): Promise<void> {
+  await setSetting(port, SETTINGS_KEYS.filter, JSON.stringify(state));
+}
+
+export async function loadFilterState(port: DbPort): Promise<StoredFilterState | null> {
+  const raw = await getSetting(port, SETTINGS_KEYS.filter);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredFilterState>;
+    if (
+      typeof parsed.query !== "string" ||
+      (parsed.bookId !== null && typeof parsed.bookId !== "number") ||
+      (parsed.kind !== null && !CLIPPING_KINDS.includes(parsed.kind as ClippingKind)) ||
+      typeof parsed.favoritesOnly !== "boolean" ||
+      !PAGE_SIZES.includes(parsed.pageSize as number)
+    ) {
+      return null;
+    }
+    return {
+      query: parsed.query,
+      bookId: parsed.bookId ?? null,
+      kind: parsed.kind ?? null,
+      favoritesOnly: parsed.favoritesOnly,
+      pageSize: parsed.pageSize as number,
+    };
+  } catch {
+    return null;
+  }
 }

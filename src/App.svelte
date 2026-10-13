@@ -8,6 +8,7 @@
   import { setContext } from "svelte";
   import {
     I18N_CONTEXT_KEY,
+    isLocale,
     loadLocale,
     translate,
     type I18nContext,
@@ -15,13 +16,33 @@
     type Locale,
     type TranslateParams,
   } from "./lib/i18n";
-  import { getDb, listBooks, listClippings, toggleFavorite } from "./lib/db";
+  import {
+    applyThemeClass,
+    loadThemeChoice,
+    nextTheme,
+    resolveTheme,
+    saveThemeChoice,
+    systemPrefersDark,
+    type ThemeChoice,
+  } from "./lib/theme";
+  import {
+    getDb,
+    getSetting,
+    listBooks,
+    listClippings,
+    loadFilterState,
+    setSetting,
+    SETTINGS_KEYS,
+    toggleFavorite,
+    type StoredFilterState,
+  } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import {
     applyFavoriteToggle,
     clampPage,
     copyClippingContent,
     debounce,
+    totalClippings,
   } from "./lib/library";
   import type {
     Book,
@@ -49,6 +70,7 @@
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
+  let themeChoice = $state<ThemeChoice>(loadThemeChoice());
 
   function readStoredLocale(): string | null {
     try {
@@ -69,6 +91,25 @@
     } catch {
       // Non-fatal: the language simply won't persist.
     }
+    void persistSetting(SETTINGS_KEYS.locale, next);
+  }
+
+  /** Best-effort DB write; preferences must never break the UI. */
+  async function persistSetting(key: string, value: string): Promise<void> {
+    try {
+      const port = await getDb();
+      await setSetting(port, key, value);
+    } catch {
+      // Non-fatal.
+    }
+  }
+
+  function cycleTheme(): void {
+    const next = nextTheme(themeChoice);
+    themeChoice = next;
+    saveThemeChoice(next); // fast cache for the pre-paint script
+    applyThemeClass(document.documentElement, resolveTheme(next, systemPrefersDark()));
+    void persistSetting(SETTINGS_KEYS.theme, next);
   }
 
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
@@ -106,10 +147,69 @@
     try {
       await getDb();
       books = await listBooks();
+      if (bookId !== null && !books.some((book) => book.id === bookId)) {
+        // Persisted book gone (fresh DB, re-import, …): fall back to all.
+        bookId = null;
+        page = 1;
+      }
     } catch (error) {
       loadError = error instanceof Error ? error.message : String(error);
     }
   }
+
+  /** Once on startup: DB is the source of truth, caches seed it on first run. */
+  async function loadPreferences(): Promise<void> {
+    try {
+      const port = await getDb();
+      const [dbLocale, dbTheme, dbFilter] = await Promise.all([
+        getSetting(port, SETTINGS_KEYS.locale),
+        getSetting(port, SETTINGS_KEYS.theme),
+        loadFilterState(port),
+      ]);
+      if (dbLocale && isLocale(dbLocale)) {
+        locale = dbLocale;
+      } else {
+        await setSetting(port, SETTINGS_KEYS.locale, locale);
+      }
+      if (dbTheme === "light" || dbTheme === "dark" || dbTheme === "system") {
+        themeChoice = dbTheme;
+        saveThemeChoice(dbTheme);
+        applyThemeClass(
+          document.documentElement,
+          resolveTheme(dbTheme, systemPrefersDark()),
+        );
+      } else {
+        await setSetting(port, SETTINGS_KEYS.theme, themeChoice);
+      }
+      if (dbFilter) {
+        query = dbFilter.query;
+        debouncedQuery = dbFilter.query;
+        bookId = dbFilter.bookId;
+        kind = dbFilter.kind;
+        favoritesOnly = dbFilter.favoritesOnly;
+        pageSize = dbFilter.pageSize;
+        page = 1;
+      } else {
+        await persistFilterState({
+          query: debouncedQuery,
+          bookId,
+          kind,
+          favoritesOnly,
+          pageSize,
+        });
+      }
+    } catch {
+      // Non-fatal: the app works with defaults and in-memory filters.
+    }
+  }
+
+  async function persistFilterState(state: StoredFilterState): Promise<void> {
+    await persistSetting(SETTINGS_KEYS.filter, JSON.stringify(state));
+  }
+
+  const saveFilters = debounce((state: StoredFilterState) => {
+    void persistFilterState(state);
+  }, 500);
 
   $effect(() => {
     scheduleQuery(query);
@@ -125,6 +225,16 @@
 
   $effect(() => {
     void loadBooks();
+  });
+
+  $effect(() => {
+    void loadPreferences();
+  });
+
+  // Snapshot passed synchronously (see the loadList NOTE above): the debounced
+  // write itself runs outside tracking, but the state snapshot is captured here.
+  $effect(() => {
+    saveFilters({ query: debouncedQuery, bookId, kind, favoritesOnly, pageSize });
   });
 
   $effect(() => {
@@ -230,6 +340,7 @@
   }
 
   const hasLibrary = $derived(books.length > 0);
+  const libraryTotal = $derived(totalClippings(books));
   const hasActiveFilters = $derived(
     debouncedQuery.trim() !== "" || bookId !== null || kind !== null || favoritesOnly,
   );
@@ -245,7 +356,7 @@
     </h1>
     <div class="flex items-center gap-1">
       <LanguageSelector />
-      <ThemeToggle />
+      <ThemeToggle choice={themeChoice} onCycle={cycleTheme} />
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
       {/if}
@@ -292,7 +403,7 @@
   {:else}
     <div class="flex min-h-0 flex-1">
       <aside class="hidden w-64 shrink-0 border-r border-neutral-200 p-3 md:block dark:border-neutral-800">
-        <BookSidebar books={books} selectedId={bookId} totalCount={result?.total ?? 0} onSelect={selectBook} />
+        <BookSidebar books={books} selectedId={bookId} totalCount={libraryTotal} onSelect={selectBook} />
       </aside>
 
       <main class="flex min-w-0 flex-1 flex-col">

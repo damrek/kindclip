@@ -9,9 +9,11 @@ import {
   formatReference,
   PAGE_SIZES,
   pageWindow,
+  totalClippings,
   totalPages,
 } from "./library";
 import type { ClippingRow } from "./types";
+import type { Book } from "./types";
 
 describe("totalPages", () => {
   it("computes page counts", () => {
@@ -158,5 +160,19 @@ describe("copyClippingContent", () => {
       throw new Error("denied");
     };
     await expect(copyClippingContent(denied, "text")).resolves.toBe(false);
+  });
+});
+
+describe("totalClippings", () => {
+  it("sums clipping counts across books", () => {
+    const books: Book[] = [
+      { id: 1, title: "A", author: null, clipping_count: 10 },
+      { id: 2, title: "B", author: "X", clipping_count: 5 },
+    ];
+    expect(totalClippings(books)).toBe(15);
+  });
+
+  it("is zero for an empty library", () => {
+    expect(totalClippings([])).toBe(0);
   });
 });

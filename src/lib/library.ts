@@ -1,10 +1,15 @@
-import type { ClippingFilter, ClippingRow } from "./types";
+import type { Book, ClippingFilter, ClippingRow } from "./types";
 
 /** Page sizes offered by the pagination control (S4). */
 export const PAGE_SIZES = [20, 50, 100];
 
 export function emptyFilter(): ClippingFilter {
   return { query: "", bookId: null, kind: null, favoritesOnly: false };
+}
+
+/** Library-wide clipping count for the "All books" badge (not the filtered total). */
+export function totalClippings(books: Book[]): number {
+  return books.reduce((sum, book) => sum + book.clipping_count, 0);
 }
 
 export function totalPages(total: number, pageSize: number): number {
