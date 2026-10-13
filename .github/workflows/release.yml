@@ -45,6 +45,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Sync version from tag
+        # bash on ALL OSes: pwsh (the windows-latest default) cannot run
+        # `${GITHUB_REF_NAME#v}` and has no /tmp — this exact mismatch
+        # killed the v0.1.1 release job.
+        shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
