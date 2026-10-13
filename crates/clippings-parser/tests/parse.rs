@@ -37,7 +37,10 @@ fn parses_english_file() {
     assert_eq!(parens_title.title, "Refactoring (2nd Edition)");
     assert_eq!(parens_title.author.as_deref(), Some("Martin Fowler"));
     // 11:30 PM -> 23:30
-    assert_eq!(parens_title.added_on.as_deref(), Some("2020-01-09T23:30:00"));
+    assert_eq!(
+        parens_title.added_on.as_deref(),
+        Some("2020-01-09T23:30:00")
+    );
 
     let no_author = &clips[5];
     assert_eq!(no_author.title, "Anonymous Notes");
@@ -59,10 +62,7 @@ fn parses_spanish_file() {
 
     let note = &clips[1];
     assert_eq!(note.kind, ClippingKind::Note);
-    assert_eq!(
-        note.content.as_deref(),
-        Some("Releer este capítulo.")
-    );
+    assert_eq!(note.content.as_deref(), Some("Releer este capítulo."));
 }
 
 #[test]
@@ -135,8 +135,22 @@ fn content_hash_is_stable_and_unique() {
     assert_eq!(hashes.len(), first_run.len());
 
     // Direct API determinism.
-    let h1 = Clipping::hash_of("T", Some("A"), ClippingKind::Highlight, Some(1), Some("1-2"), Some("x"));
-    let h2 = Clipping::hash_of("T", Some("A"), ClippingKind::Highlight, Some(1), Some("1-2"), Some("x"));
+    let h1 = Clipping::hash_of(
+        "T",
+        Some("A"),
+        ClippingKind::Highlight,
+        Some(1),
+        Some("1-2"),
+        Some("x"),
+    );
+    let h2 = Clipping::hash_of(
+        "T",
+        Some("A"),
+        ClippingKind::Highlight,
+        Some(1),
+        Some("1-2"),
+        Some("x"),
+    );
     assert_eq!(h1, h2);
 }
 
@@ -144,5 +158,7 @@ fn content_hash_is_stable_and_unique() {
 fn skips_malformed_entries() {
     assert!(parse_clippings("").is_empty());
     assert!(parse_clippings("just some text\n==========\n").is_empty());
-    assert!(parse_clippings("Title (Author)\nno meta line here\n\nContent\n==========\n").is_empty());
+    assert!(
+        parse_clippings("Title (Author)\nno meta line here\n\nContent\n==========\n").is_empty()
+    );
 }

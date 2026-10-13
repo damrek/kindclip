@@ -14,8 +14,7 @@ pub struct ParsedFile {
 /// Read `My Clippings.txt` from disk, hash it (S5 dedupe key) and parse it (S2).
 #[tauri::command]
 pub fn parse_clippings_file(path: String) -> Result<ParsedFile, String> {
-    let bytes =
-        std::fs::read(&path).map_err(|err| format!("cannot read file '{path}': {err}"))?;
+    let bytes = std::fs::read(&path).map_err(|err| format!("cannot read file '{path}': {err}"))?;
     let file_hash: String = Sha256::digest(&bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))

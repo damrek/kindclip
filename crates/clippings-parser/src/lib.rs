@@ -109,7 +109,7 @@ pub fn decode_bytes(bytes: &[u8]) -> String {
         Err(_) => {
             // No BOM and not valid UTF-8: most likely UTF-16LE without BOM.
             // Only trust it if the decoded text looks like clippings.
-            if bytes.len() % 2 == 0 {
+            if bytes.len().is_multiple_of(2) {
                 let candidate = utf16_to_string(bytes, false);
                 if candidate.contains("==========") {
                     return candidate;
@@ -157,7 +157,10 @@ pub fn parse_clippings(text: &str) -> Vec<Clipping> {
 }
 
 fn parse_block(block: &[&str]) -> Option<Clipping> {
-    let mut lines = block.iter().map(|line| line.trim()).filter(|line| !line.is_empty());
+    let mut lines = block
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty());
     let title_line = lines.next()?;
     let meta_line = lines.next()?;
     if !meta_line.trim_start().starts_with('-') {
@@ -165,7 +168,11 @@ fn parse_block(block: &[&str]) -> Option<Clipping> {
     }
     let content = {
         let joined = lines.collect::<Vec<_>>().join("\n").trim().to_string();
-        if joined.is_empty() { None } else { Some(joined) }
+        if joined.is_empty() {
+            None
+        } else {
+            Some(joined)
+        }
     };
 
     let (title, author) = parse_title_author(title_line);
@@ -245,7 +252,13 @@ fn parse_meta(meta: &str) -> Option<(ClippingKind, Option<u32>, Option<String>, 
 }
 
 fn detect_kind(lower_meta: &str) -> Option<ClippingKind> {
-    const BOOKMARK: &[&str] = &["bookmark", "marcador", "lesezeichen", "signet", "segnalibro"];
+    const BOOKMARK: &[&str] = &[
+        "bookmark",
+        "marcador",
+        "lesezeichen",
+        "signet",
+        "segnalibro",
+    ];
     const NOTE: &[&str] = &["note", "nota", "notiz"];
     const HIGHLIGHT: &[&str] = &[
         "highlight",
@@ -272,8 +285,7 @@ fn number_after(haystack: &str, keyword: &str) -> Option<u32> {
     let idx = haystack.find(keyword)?;
     haystack[idx + keyword.len()..]
         .split(|c: char| !c.is_ascii_digit())
-        .filter(|part| !part.is_empty())
-        .next()?
+        .find(|part| !part.is_empty())?
         .parse()
         .ok()
 }
@@ -423,7 +435,9 @@ fn normalize_date(raw: &str) -> Option<String> {
         .map(|(value, _)| *value)?;
 
     let (hour, minute, second) = time_token(&lower)?;
-    Some(format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}"))
+    Some(format!(
+        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}"
+    ))
 }
 
 /// All integer tokens with their byte positions.
@@ -456,7 +470,9 @@ fn time_token(text: &str) -> Option<(u32, u32, u32)> {
         let clean = word.trim_matches(|c: char| !c.is_ascii_digit() && c != ':');
         let parts: Vec<&str> = clean.split(':').collect();
         if parts.len() == 3
-            && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
         {
             let mut hour: u32 = parts[0].parse().ok()?;
             let minute: u32 = parts[1].parse().ok()?;
