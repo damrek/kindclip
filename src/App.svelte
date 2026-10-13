@@ -2,6 +2,7 @@
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
   import Pagination from "./components/Pagination.svelte";
+  import ThemeToggle from "./components/ThemeToggle.svelte";
   import { getDb, listBooks, listClippings, toggleFavorite } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { applyFavoriteToggle, clampPage, debounce, KIND_LABELS } from "./lib/library";
@@ -158,7 +159,8 @@
     class="flex items-center justify-between gap-4 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800"
   >
     <h1 class="text-base font-semibold tracking-tight">kindclip</h1>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-1">
+      <ThemeToggle />
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
       {/if}
