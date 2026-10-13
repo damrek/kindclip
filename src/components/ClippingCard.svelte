@@ -4,9 +4,10 @@
 
   interface Props {
     clipping: ClippingRow;
+    onToggleFavorite: (id: number) => void;
   }
 
-  const { clipping }: Props = $props();
+  const { clipping, onToggleFavorite }: Props = $props();
   const reference = $derived(formatReference(clipping.page, clipping.location));
 </script>
 
@@ -42,5 +43,18 @@
       <span>{reference}</span>
     {/if}
     <span>{formatAddedOn(clipping.added_on, clipping.added_on_raw)}</span>
+    <span class="flex-1"></span>
+    <button
+      type="button"
+      onclick={() => onToggleFavorite(clipping.id)}
+      aria-label={clipping.favorite ? "Quitar de favoritos" : "Marcar como favorito"}
+      aria-pressed={clipping.favorite}
+      title={clipping.favorite ? "Quitar de favoritos" : "Marcar como favorito"}
+      class="rounded-full p-1.5 text-lg leading-none transition {clipping.favorite
+        ? 'text-amber-500 hover:text-amber-600'
+        : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600 dark:hover:text-amber-400'}"
+    >
+      {clipping.favorite ? "★" : "☆"}
+    </button>
   </div>
 </article>

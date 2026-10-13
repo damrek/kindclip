@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  applyFavoriteToggle,
   clampPage,
   debounce,
   emptyFilter,
@@ -10,6 +11,7 @@ import {
   pageWindow,
   totalPages,
 } from "./library";
+import type { ClippingRow } from "./types";
 
 describe("totalPages", () => {
   it("computes page counts", () => {
@@ -116,5 +118,34 @@ describe("formatAddedOn", () => {
 
   it("falls back to raw on garbage", () => {
     expect(formatAddedOn("not-a-date", "raw")).toBe("raw");
+  });
+});
+
+function row(id: number, favorite: boolean): ClippingRow {
+  return {
+    id,
+    title: "B",
+    author: null,
+    kind: "highlight",
+    page: null,
+    location: null,
+    added_on_raw: "",
+    added_on: null,
+    content: "c",
+    content_hash: `h${id}`,
+    favorite,
+  };
+}
+
+describe("applyFavoriteToggle", () => {
+  it("flips the favorite flag of one row, keeping the rest", () => {
+    const items = [row(1, false), row(2, true)];
+    expect(applyFavoriteToggle(items, 1, true)).toEqual([row(1, true), row(2, true)]);
+    expect(applyFavoriteToggle(items, 2, false)).toEqual([row(1, false), row(2, false)]);
+  });
+
+  it("leaves unknown ids untouched", () => {
+    const items = [row(1, false)];
+    expect(applyFavoriteToggle(items, 99, true)).toEqual(items);
   });
 });

@@ -2,9 +2,9 @@
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
   import Pagination from "./components/Pagination.svelte";
-  import { getDb, listBooks, listClippings } from "./lib/db";
+  import { getDb, listBooks, listClippings, toggleFavorite } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
-  import { clampPage, debounce, KIND_LABELS } from "./lib/library";
+  import { applyFavoriteToggle, clampPage, debounce, KIND_LABELS } from "./lib/library";
   import type {
     Book,
     ClippingFilter,
@@ -22,13 +22,14 @@
   let debouncedQuery = $state("");
   let bookId = $state<number | null>(null);
   let kind = $state<ClippingKind | null>(null);
+  let favoritesOnly = $state(false);
   let page = $state(1);
   let pageSize = $state(20);
 
   let importing = $state(false);
   let importStatus = $state<string | null>(null);
 
-  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kind, favoritesOnly: false });
+  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kind, favoritesOnly });
 
   const scheduleQuery = debounce((value: string) => {
     debouncedQuery = value;
@@ -82,6 +83,30 @@
     page = 1;
   }
 
+  function toggleFavoritesOnly(): void {
+    favoritesOnly = !favoritesOnly;
+    page = 1;
+  }
+
+  async function toggleStar(id: number): Promise<void> {
+    const current = result?.items.find((item) => item.id === id);
+    if (!current || !result) return;
+    const next = !current.favorite;
+    result = { ...result, items: applyFavoriteToggle(result.items, id, next) };
+    try {
+      const port = await getDb();
+      const confirmed = await toggleFavorite(port, id);
+      result = { ...result, items: applyFavoriteToggle(result.items, id, confirmed) };
+      if (favoritesOnly && !confirmed) {
+        // The unstarred card no longer belongs to this view.
+        await loadList();
+      }
+    } catch (error) {
+      result = { ...result, items: applyFavoriteToggle(result.items, id, current.favorite) };
+      loadError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
   function changePageSize(size: number): void {
     pageSize = size;
     page = 1;
@@ -90,6 +115,7 @@
   function clearFilters(): void {
     query = "";
     debouncedQuery = "";
+    favoritesOnly = false;
     selectBook(null);
     selectKind("");
   }
@@ -123,7 +149,7 @@
 
   const hasLibrary = $derived(books.length > 0);
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" || bookId !== null || kind !== null,
+    debouncedQuery.trim() !== "" || bookId !== null || kind !== null || favoritesOnly,
   );
 </script>
 
@@ -215,12 +241,23 @@
             <option value="note">{KIND_LABELS.note}</option>
             <option value="bookmark">{KIND_LABELS.bookmark}</option>
           </select>
+          <button
+            type="button"
+            onclick={toggleFavoritesOnly}
+            aria-pressed={favoritesOnly}
+            title="Mostrar solo favoritos"
+            class="rounded-full border px-3 py-2 text-sm font-medium transition {favoritesOnly
+              ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300'
+              : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+          >
+            ★ Favoritos
+          </button>
         </div>
 
         <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">
           {#if result && result.items.length > 0}
             {#each result.items as clipping (clipping.id)}
-              <ClippingCard {clipping} />
+              <ClippingCard {clipping} onToggleFavorite={toggleStar} />
             {/each}
           {:else if !loading}
             <div class="py-16 text-center">

@@ -1,4 +1,4 @@
-import type { ClippingFilter, ClippingKind } from "./types";
+import type { ClippingFilter, ClippingKind, ClippingRow } from "./types";
 
 /** Page sizes offered by the pagination control (S4). */
 export const PAGE_SIZES = [20, 50, 100];
@@ -88,6 +88,15 @@ export function formatReference(page: number | null, location: string | null): s
     parts.push(`pos. ${location}`);
   }
   return parts.join(" · ");
+}
+
+/** Optimistic favorite flip for the visible page (T6). */
+export function applyFavoriteToggle(
+  items: ClippingRow[],
+  id: number,
+  favorite: boolean,
+): ClippingRow[] {
+  return items.map((item) => (item.id === id ? { ...item, favorite } : item));
 }
 
 /** Human date for a card; falls back to the raw Kindle string. */
