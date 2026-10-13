@@ -32,10 +32,10 @@
     </p>
   {/if}
 
-  <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-    <span class="font-medium text-neutral-900 dark:text-neutral-100">{clipping.title}</span>
+  <div class="mt-4 text-sm">
+    <span class="block font-medium text-neutral-900 dark:text-neutral-100">{clipping.title}</span>
     {#if clipping.author}
-      <span class="text-neutral-500 dark:text-neutral-400">{clipping.author}</span>
+      <span class="block text-neutral-500 dark:text-neutral-400">{clipping.author}</span>
     {/if}
   </div>
 
