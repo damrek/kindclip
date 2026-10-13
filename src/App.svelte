@@ -37,14 +37,14 @@
     page = 1;
   }, 250);
 
-  async function loadList(): Promise<void> {
+  async function loadList(f: ClippingFilter, p: number, s: number): Promise<void> {
     loading = true;
     loadError = null;
     try {
       await getDb();
-      const first = await listClippings(filter, { page, pageSize });
-      const last = clampPage(page, first.total, pageSize);
-      result = last === page ? first : await listClippings(filter, { page: last, pageSize });
+      const first = await listClippings(f, { page: p, pageSize: s });
+      const last = clampPage(p, first.total, s);
+      result = last === p ? first : await listClippings(f, { page: last, pageSize: s });
       page = last;
     } catch (error) {
       loadError = error instanceof Error ? error.message : String(error);
@@ -66,8 +66,12 @@
     scheduleQuery(query);
   });
 
+  // NOTE: $effect only tracks state read SYNCHRONOUSLY in its body.
+  // loadList reads filter/page/pageSize after an await, so they must be
+  // passed as arguments here — otherwise the list loads once on mount
+  // and filters/pagination/sidebar silently stop working.
   $effect(() => {
-    void loadList();
+    void loadList(filter, page, pageSize);
   });
 
   $effect(() => {
@@ -100,7 +104,7 @@
       result = { ...result, items: applyFavoriteToggle(result.items, id, confirmed) };
       if (favoritesOnly && !confirmed) {
         // The unstarred card no longer belongs to this view.
-        await loadList();
+        await loadList(filter, page, pageSize);
       }
     } catch (error) {
       result = { ...result, items: applyFavoriteToggle(result.items, id, current.favorite) };
@@ -140,6 +144,7 @@
           : `Importados ${report.inserted} de ${report.total} (${report.duplicates} duplicados, ${report.bookCount} libros).`;
         page = 1;
         await loadBooks();
+        await loadList(filter, 1, pageSize);
       }
     } catch (error) {
       importStatus = `Error: ${error instanceof Error ? error.message : String(error)}`;
