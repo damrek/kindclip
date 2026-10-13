@@ -15,6 +15,9 @@ target/
 .DS_Store
 Thumbs.db
 
+# Local ODD workdir (decision log lives in Engram memory instead)
+odd/
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
