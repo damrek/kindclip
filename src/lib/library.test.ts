@@ -7,7 +7,6 @@ import {
   emptyFilter,
   formatAddedOn,
   formatReference,
-  KIND_LABELS,
   PAGE_SIZES,
   pageWindow,
   totalPages,
@@ -92,12 +91,6 @@ describe("PAGE_SIZES", () => {
   });
 });
 
-describe("KIND_LABELS", () => {
-  it("labels every kind in Spanish", () => {
-    expect(KIND_LABELS).toEqual({ highlight: "Subrayado", note: "Nota", bookmark: "Marcador" });
-  });
-});
-
 describe("formatReference", () => {
   it("combines page and location", () => {
     expect(formatReference(12, "234-236")).toBe("p. 12 · pos. 234-236");
@@ -115,6 +108,10 @@ describe("formatAddedOn", () => {
 
   it("renders the normalized date with year", () => {
     expect(formatAddedOn("2020-01-06T10:15:00", "raw")).toContain("2020");
+  });
+
+  it("renders month names in the requested locale", () => {
+    expect(formatAddedOn("2020-01-06T10:15:00", "raw", "en-US")).toContain("Jan");
   });
 
   it("falls back to raw on garbage", () => {

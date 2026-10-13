@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { getContext } from "svelte";
+  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { PAGE_SIZES, pageWindow } from "../lib/library";
 
   interface Props {
@@ -10,6 +12,7 @@
   }
 
   const { page, total, pageSize, onSelect, onSizeChange }: Props = $props();
+  const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const pages = $derived(Math.max(1, Math.ceil(total / pageSize)));
   const window = $derived(pageWindow(page, pages));
   const from = $derived(total === 0 ? 0 : (page - 1) * pageSize + 1);
@@ -26,7 +29,7 @@
 
 <div class="flex flex-wrap items-center justify-between gap-3">
   <p class="text-sm text-neutral-500 dark:text-neutral-400" aria-live="polite">
-    {from}–{to} de {total}
+    {i18n.t("pg.range", { from, to, total })}
   </p>
 
   <div class="flex items-center gap-1">
@@ -34,7 +37,7 @@
       type="button"
       onclick={prev}
       disabled={page <= 1}
-      aria-label="Página anterior"
+      aria-label={i18n.t("pg.prev")}
       class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30 dark:text-neutral-300 dark:hover:bg-neutral-800"
     >
       ‹
@@ -47,7 +50,7 @@
         <button
           type="button"
           onclick={() => onSelect(item)}
-          aria-label={`Página ${item}`}
+          aria-label={i18n.t("pg.page", { n: item })}
           aria-current={item === page ? "page" : undefined}
           class="min-w-8 rounded-lg px-2 py-1.5 text-sm transition {item === page
             ? 'bg-neutral-900 font-medium text-white dark:bg-white dark:text-neutral-900'
@@ -62,7 +65,7 @@
       type="button"
       onclick={next}
       disabled={page >= pages}
-      aria-label="Página siguiente"
+      aria-label={i18n.t("pg.next")}
       class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30 dark:text-neutral-300 dark:hover:bg-neutral-800"
     >
       ›
@@ -70,7 +73,7 @@
   </div>
 
   <label class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-    Por página
+    {i18n.t("pg.perPage")}
     <select
       value={pageSize}
       onchange={(event) => onSizeChange(Number(event.currentTarget.value))}

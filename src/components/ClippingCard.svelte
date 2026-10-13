@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { formatAddedOn, formatReference, KIND_LABELS } from "../lib/library";
+  import { getContext } from "svelte";
+  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { formatAddedOn, formatReference } from "../lib/library";
   import type { ClippingRow } from "../lib/types";
 
   interface Props {
@@ -10,7 +12,9 @@
   }
 
   const { clipping, copied, onToggleFavorite, onCopy }: Props = $props();
+  const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const reference = $derived(formatReference(clipping.page, clipping.location));
+  const kindLabel = $derived(i18n.t(`kind.${clipping.kind}`));
 </script>
 
 <article
@@ -24,7 +28,7 @@
     </blockquote>
   {:else}
     <p class="text-sm text-neutral-400 italic dark:text-neutral-500">
-      {KIND_LABELS[clipping.kind]} sin texto
+      {i18n.t("card.noText", { kind: kindLabel })}
     </p>
   {/if}
 
@@ -39,19 +43,19 @@
     <span
       class="rounded-full bg-neutral-100 px-2.5 py-0.5 font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
     >
-      {KIND_LABELS[clipping.kind]}
+      {kindLabel}
     </span>
     {#if reference !== ""}
       <span>{reference}</span>
     {/if}
-    <span>{formatAddedOn(clipping.added_on, clipping.added_on_raw)}</span>
+    <span>{formatAddedOn(clipping.added_on, clipping.added_on_raw, i18n.locale)}</span>
     <span class="flex-1"></span>
     {#if clipping.content}
       <button
         type="button"
         onclick={() => onCopy(clipping.id)}
-        aria-label="Copiar contenido"
-        title={copied ? "¡Copiado!" : "Copiar contenido"}
+        aria-label={i18n.t("card.copy")}
+        title={copied ? i18n.t("card.copied") : i18n.t("card.copy")}
         class="rounded-full p-1.5 text-base leading-none transition {copied
           ? 'text-green-600 dark:text-green-400'
           : 'text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-300'}"
@@ -62,9 +66,9 @@
     <button
       type="button"
       onclick={() => onToggleFavorite(clipping.id)}
-      aria-label={clipping.favorite ? "Quitar de favoritos" : "Marcar como favorito"}
+      aria-label={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
       aria-pressed={clipping.favorite}
-      title={clipping.favorite ? "Quitar de favoritos" : "Marcar como favorito"}
+      title={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
       class="rounded-full p-1.5 text-lg leading-none transition {clipping.favorite
         ? 'text-amber-500 hover:text-amber-600'
         : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600 dark:hover:text-amber-400'}"

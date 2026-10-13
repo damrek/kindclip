@@ -7,6 +7,10 @@
     saveThemeChoice,
     type ThemeChoice,
   } from "../lib/theme";
+  import { getContext } from "svelte";
+  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+
+  const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
   let choice = $state<ThemeChoice>(loadThemeChoice());
 
@@ -27,7 +31,11 @@
 
   const icon = $derived(choice === "light" ? "☀" : choice === "dark" ? "☾" : "◐");
   const label = $derived(
-    choice === "light" ? "Tema claro (cambiar)" : choice === "dark" ? "Tema oscuro (cambiar)" : "Tema del sistema (cambiar)",
+    choice === "light"
+      ? i18n.t("theme.light")
+      : choice === "dark"
+        ? i18n.t("theme.dark")
+        : i18n.t("theme.system"),
   );
 </script>
 

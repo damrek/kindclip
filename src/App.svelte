@@ -1,8 +1,20 @@
 <script lang="ts">
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
+  import LanguageSelector from "./components/LanguageSelector.svelte";
   import Pagination from "./components/Pagination.svelte";
   import ThemeToggle from "./components/ThemeToggle.svelte";
+  import appIcon from "./assets/icon.png";
+  import { setContext } from "svelte";
+  import {
+    I18N_CONTEXT_KEY,
+    loadLocale,
+    translate,
+    type I18nContext,
+    type I18nKey,
+    type Locale,
+    type TranslateParams,
+  } from "./lib/i18n";
   import { getDb, listBooks, listClippings, toggleFavorite } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import {
@@ -10,7 +22,6 @@
     clampPage,
     copyClippingContent,
     debounce,
-    KIND_LABELS,
   } from "./lib/library";
   import type {
     Book,
@@ -37,6 +48,36 @@
   let importStatus = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
+  let locale = $state<Locale>(loadLocale(readStoredLocale()));
+
+  function readStoredLocale(): string | null {
+    try {
+      return localStorage.getItem("kindclip-locale");
+    } catch {
+      return null;
+    }
+  }
+
+  function t(key: I18nKey, params?: TranslateParams): string {
+    return translate(locale, key, params);
+  }
+
+  function setLocale(next: Locale): void {
+    locale = next;
+    try {
+      localStorage.setItem("kindclip-locale", next);
+    } catch {
+      // Non-fatal: the language simply won't persist.
+    }
+  }
+
+  setContext<I18nContext>(I18N_CONTEXT_KEY, {
+    get locale() {
+      return locale;
+    },
+    t,
+    setLocale,
+  });
 
   const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kind, favoritesOnly });
 
@@ -84,6 +125,10 @@
 
   $effect(() => {
     void loadBooks();
+  });
+
+  $effect(() => {
+    document.documentElement.lang = locale;
   });
 
   function selectBook(id: number | null): void {
@@ -152,26 +197,33 @@
   async function onImport(): Promise<void> {
     if (importing) return;
     importing = true;
-    importStatus = "Leyendo fichero…";
+    importStatus = t("import.reading");
     try {
       const outcome = await runImportFlow(tauriImportDeps(), (done, total) => {
-        importStatus = `Importando ${done}/${total}…`;
+        importStatus = t("import.progress", { done, total });
       });
       if (outcome.status === "cancelled") {
         importStatus = null;
       } else if (outcome.status === "empty") {
-        importStatus = `Sin clippings en ${outcome.path}.`;
+        importStatus = t("import.empty", { path: outcome.path });
       } else {
         const report = outcome.report;
         importStatus = report.alreadyImported
-          ? "Ese fichero ya estaba importado."
-          : `Importados ${report.inserted} de ${report.total} (${report.duplicates} duplicados, ${report.bookCount} libros).`;
+          ? t("import.duplicate")
+          : t("import.done", {
+              inserted: report.inserted,
+              total: report.total,
+              duplicates: report.duplicates,
+              books: report.bookCount,
+            });
         page = 1;
         await loadBooks();
         await loadList(filter, 1, pageSize);
       }
     } catch (error) {
-      importStatus = `Error: ${error instanceof Error ? error.message : String(error)}`;
+      importStatus = t("import.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       importing = false;
     }
@@ -187,8 +239,12 @@
   <header
     class="flex items-center justify-between gap-4 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800"
   >
-    <h1 class="text-base font-semibold tracking-tight">kindclip</h1>
+    <h1 class="flex items-center gap-2 text-base font-semibold tracking-tight">
+      <img src={appIcon} alt="" width="24" height="24" class="h-6 w-6 rounded-[6px]" />
+      kindclip
+    </h1>
     <div class="flex items-center gap-1">
+      <LanguageSelector />
       <ThemeToggle />
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
@@ -199,7 +255,7 @@
         disabled={importing}
         class="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
       >
-        {importing ? "Importando…" : "Importar"}
+        {importing ? t("header.importing") : t("header.import")}
       </button>
     </div>
   </header>
@@ -219,9 +275,9 @@
         >
           &#10077;
         </div>
-        <h2 class="text-base font-medium">Todavía no hay clippings</h2>
+        <h2 class="text-base font-medium">{t("empty.title")}</h2>
         <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Importa tu fichero <span class="font-mono">My Clippings.txt</span> para empezar.
+          {t("empty.body")}
         </p>
         <button
           type="button"
@@ -229,7 +285,7 @@
           disabled={importing}
           class="mt-4 rounded-full bg-neutral-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
         >
-          {importing ? "Importando…" : "Importar clippings"}
+          {importing ? t("header.importing") : t("empty.cta")}
         </button>
       </div>
     </main>
@@ -246,15 +302,15 @@
             <input
               type="search"
               bind:value={query}
-              placeholder="Buscar en texto, libros y autores…"
-              aria-label="Buscar clippings"
+              placeholder={t("search.placeholder")}
+              aria-label={t("search.placeholder")}
               class="w-full rounded-full border border-neutral-200 bg-neutral-50 py-2 pr-8 pl-9 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
             />
             {#if query !== ""}
               <button
                 type="button"
                 onclick={() => (query = "")}
-                aria-label="Limpiar búsqueda"
+                aria-label={t("search.clear")}
                 class="absolute top-1/2 right-2 -translate-y-1/2 rounded-full px-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
               >
                 ×
@@ -264,24 +320,24 @@
           <select
             value={kind ?? ""}
             onchange={(event) => selectKind(event.currentTarget.value)}
-            aria-label="Filtrar por tipo"
+            aria-label={t("kind.all")}
             class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
           >
-            <option value="">Todos los tipos</option>
-            <option value="highlight">{KIND_LABELS.highlight}</option>
-            <option value="note">{KIND_LABELS.note}</option>
-            <option value="bookmark">{KIND_LABELS.bookmark}</option>
+            <option value="">{t("kind.all")}</option>
+            <option value="highlight">{t("kind.highlight")}</option>
+            <option value="note">{t("kind.note")}</option>
+            <option value="bookmark">{t("kind.bookmark")}</option>
           </select>
           <button
             type="button"
             onclick={toggleFavoritesOnly}
             aria-pressed={favoritesOnly}
-            title="Mostrar solo favoritos"
+            title={t("fav.hint")}
             class="rounded-full border px-3 py-2 text-sm font-medium transition {favoritesOnly
               ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300'
               : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
           >
-            ★ Favoritos
+            {t("fav.toggle")}
           </button>
         </div>
 
@@ -297,12 +353,12 @@
             {/each}
           {:else if !loading}
             <div class="py-16 text-center">
-              <p class="text-base font-medium">Sin resultados</p>
+              <p class="text-base font-medium">{t("results.empty")}</p>
               <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
                 {#if hasActiveFilters}
-                  Ningún clipping coincide con estos filtros.
+                  {t("results.noMatch")}
                 {:else}
-                  Esta selección no tiene clippings.
+                  {t("results.noItems")}
                 {/if}
               </p>
               {#if hasActiveFilters}
@@ -311,7 +367,7 @@
                   onclick={clearFilters}
                   class="mt-4 rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-medium transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
                 >
-                  Limpiar filtros
+                  {t("results.clear")}
                 </button>
               {/if}
             </div>

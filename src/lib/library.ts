@@ -1,14 +1,7 @@
-import type { ClippingFilter, ClippingKind, ClippingRow } from "./types";
+import type { ClippingFilter, ClippingRow } from "./types";
 
 /** Page sizes offered by the pagination control (S4). */
 export const PAGE_SIZES = [20, 50, 100];
-
-/** UI labels for clipping kinds (the app speaks Spanish). */
-export const KIND_LABELS: Record<ClippingKind, string> = {
-  highlight: "Subrayado",
-  note: "Nota",
-  bookmark: "Marcador",
-};
 
 export function emptyFilter(): ClippingFilter {
   return { query: "", bookId: null, kind: null, favoritesOnly: false };
@@ -112,8 +105,8 @@ export async function copyClippingContent(
   }
 }
 
-/** Human date for a card; falls back to the raw Kindle string. */
-export function formatAddedOn(addedOn: string | null, raw: string): string {
+/** Human date for a card in the given locale; falls back to the raw Kindle string. */
+export function formatAddedOn(addedOn: string | null, raw: string, locale?: string): string {
   if (addedOn === null) {
     return raw;
   }
@@ -121,11 +114,11 @@ export function formatAddedOn(addedOn: string | null, raw: string): string {
   if (Number.isNaN(date.getTime())) {
     return raw;
   }
-  const day = date.toLocaleDateString(undefined, {
+  const day = date.toLocaleDateString(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
-  const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   return `${day}, ${time}`;
 }

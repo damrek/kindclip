@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { getContext } from "svelte";
+  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import type { Book } from "../lib/types";
 
   interface Props {
@@ -9,9 +11,10 @@
   }
 
   const { books, selectedId, totalCount, onSelect }: Props = $props();
+  const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 </script>
 
-<nav class="flex h-full flex-col" aria-label="Libros">
+<nav class="flex h-full flex-col" aria-label={i18n.t("sidebar.nav")}>
   <button
     type="button"
     onclick={() => onSelect(null)}
@@ -20,7 +23,7 @@
       ? 'bg-neutral-900 font-medium text-white dark:bg-white dark:text-neutral-900'
       : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900'}"
   >
-    <span>Todos los libros</span>
+    <span>{i18n.t("sidebar.all")}</span>
     <span
       class="rounded-full px-2 py-0.5 text-xs {selectedId === null
         ? 'bg-white/20 dark:bg-neutral-900/10'
