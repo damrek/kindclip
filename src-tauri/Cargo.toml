@@ -5,6 +5,10 @@ description = "Kindle clippings viewer"
 authors = []
 edition = "2021"
 
+[lib]
+name = "kindclip_lib"
+path = "src/lib.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
