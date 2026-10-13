@@ -63,6 +63,12 @@ npx tauri dev      # do NOT use plain `npm run dev`: without the Tauri runtime t
 npx tauri build    # .deb/.rpm/.AppImage on Linux — see target/release/bundle
 ```
 
+Releases are automated: pushing a `v*` tag (e.g. `v0.2.0`) runs
+`.github/workflows/release.yml`, which syncs the version from the tag, checks,
+tests and publishes bundles for macOS (ARM + Intel), Linux and Windows.
+Note: macOS/Windows artifacts are unsigned — Gatekeeper/SmartScreen will warn
+until signing is configured.
+
 ## Tests & checks
 
 ```bash
