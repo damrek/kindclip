@@ -20,8 +20,10 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
 
 ## Usage
 
-1. Install the app (`.deb` on Ubuntu, `.AppImage` on other Linux distros;
-   Windows/macOS installers via `npx tauri build` on those machines).
+1. Download an installer from
+   [Releases](https://github.com/damrek/kindclip/releases/latest):
+   `.AppImage` / `.deb` / `.rpm` on Linux, `.exe` setup or `.msi` on Windows,
+   and `.dmg` on macOS (Apple Silicon and Intel).
 2. Plug in your Kindle over USB and grab `documents/My Clippings.txt`.
 3. Hit **Import**, pick the file, browse. Re-import any time: duplicates are
    detected by hash, and files that previously failed to parse get healed.
@@ -65,7 +67,8 @@ npx tauri build    # .deb/.rpm/.AppImage on Linux — see target/release/bundle
 
 Releases are automated: pushing a `v*` tag (e.g. `v0.2.0`) runs
 `.github/workflows/release.yml`, which syncs the version from the tag, checks,
-tests and publishes bundles for macOS (ARM + Intel), Linux and Windows.
+tests and attaches the bundles to a GitHub Release for macOS (ARM + Intel),
+Linux and Windows.
 Note: macOS/Windows artifacts are unsigned — Gatekeeper/SmartScreen will warn
 until signing is configured.
 
