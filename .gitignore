@@ -27,3 +27,6 @@ odd/
 *.njsproj
 *.sln
 *.sw?
+
+# Local agent workflow data
+.atl/
