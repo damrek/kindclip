@@ -27,10 +27,11 @@ function clipping(overrides: Partial<ClippingDto> = {}): ClippingDto {
 /** Minimal in-memory fake of the SQL port, scripted by SQL shape. */
 class FakePort implements DbPort {
   existingHashes = new Set<string>();
-  existingFiles = new Set<string>();
+  existingFiles = new Map<string, number>();
   books = new Map<string, number>();
   favorites = new Set<number>();
   insertedClippings: string[] = [];
+  fileUpdates: Array<{ id: number; added: number }> = [];
   lastId = 100;
   fileId = 7;
 
@@ -39,7 +40,7 @@ class FakePort implements DbPort {
       return [...this.existingHashes].map((h) => ({ content_hash: h }) as T);
     }
     if (sql.includes("FROM files")) {
-      return [...this.existingFiles].map((h) => ({ file_hash: h }) as T);
+      return [...this.existingFiles].map(([hash, id]) => ({ id, file_hash: hash }) as T);
     }
     if (sql.includes("FROM books") && sql.includes("WHERE")) {
       return [] as T[];
@@ -66,6 +67,10 @@ class FakePort implements DbPort {
     }
     if (sql.includes("INSERT INTO files")) {
       return { lastInsertId: this.fileId, rowsAffected: 1 };
+    }
+    if (sql.includes("UPDATE files")) {
+      this.fileUpdates.push({ id: params?.[3] as number, added: params?.[1] as number });
+      return { rowsAffected: 1 };
     }
     if (sql.includes("INSERT INTO favorites")) {
       this.favorites.add(params?.[0] as number);
@@ -164,17 +169,35 @@ describe("importParsedClippings", () => {
     expect(report.duplicates).toBe(1);
   });
 
-  it("skips re-import of a known file hash", async () => {
+  it("skips re-import of a known file hash with nothing new", async () => {
     const port = new FakePort();
-    port.existingFiles.add("file-9");
+    port.existingFiles.set("file-9", 7);
+    const known = clipping({ content_hash: "dup" });
+    port.existingHashes.add("dup");
     const report = await importParsedClippings(
       port,
-      { path: "/tmp/f.txt", fileHash: "file-9", clippings: [clipping()] },
+      { path: "/tmp/f.txt", fileHash: "file-9", clippings: [known] },
       () => {},
     );
     expect(report.alreadyImported).toBe(true);
     expect(report.inserted).toBe(0);
     expect(port.insertedClippings).toHaveLength(0);
+    expect(port.fileUpdates).toHaveLength(0);
+  });
+
+  it("re-import of a known file picks up newly parseable clippings", async () => {
+    const port = new FakePort();
+    port.existingFiles.set("file-9", 7);
+    const report = await importParsedClippings(
+      port,
+      { path: "/tmp/f.txt", fileHash: "file-9", clippings: [clipping({ content_hash: "new-1" })] },
+      () => {},
+    );
+    expect(report.alreadyImported).toBe(false);
+    expect(report.fileId).toBe(7);
+    expect(report.inserted).toBe(1);
+    expect(port.insertedClippings).toEqual(["new-1"]);
+    expect(port.fileUpdates).toEqual([{ id: 7, added: 1 }]);
   });
 });
 

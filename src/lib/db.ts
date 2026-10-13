@@ -154,20 +154,11 @@ export async function importParsedClippings(
 ): Promise<ImportReport> {
   const total = input.clippings.length;
 
-  const knownFiles = await port.select<{ file_hash: string }>(
-    "SELECT file_hash FROM files WHERE file_hash = $1",
+  const knownFileRows = await port.select<{ id: number; file_hash: string }>(
+    "SELECT id, file_hash FROM files WHERE file_hash = $1",
     [input.fileHash],
   );
-  if (knownFiles.length > 0) {
-    return {
-      fileId: -1,
-      total,
-      inserted: 0,
-      duplicates: total,
-      bookCount: 0,
-      alreadyImported: true,
-    };
-  }
+  const knownFile = knownFileRows[0] ?? null;
 
   const knownHashes = new Set(
     (await port.select<{ content_hash: string }>("SELECT content_hash FROM clippings")).map(
@@ -184,11 +175,24 @@ export async function importParsedClippings(
   });
 
   const now = new Date().toISOString();
-  const fileResult = await port.execute(
-    "INSERT INTO files (path, file_hash, clipping_count, imported_at) VALUES ($1, $2, $3, $4)",
-    [input.path, input.fileHash, fresh.length, now],
-  );
-  const fileId = fileResult.lastInsertId ?? -1;
+  let fileId: number;
+  if (knownFile) {
+    // Re-import (e.g. after a parser fix): pick up entries that were
+    // previously unparseable instead of silently skipping the file.
+    fileId = knownFile.id;
+    if (fresh.length > 0) {
+      await port.execute(
+        "UPDATE files SET path = $1, clipping_count = clipping_count + $2, imported_at = $3 WHERE id = $4",
+        [input.path, fresh.length, now, fileId],
+      );
+    }
+  } else {
+    const fileResult = await port.execute(
+      "INSERT INTO files (path, file_hash, clipping_count, imported_at) VALUES ($1, $2, $3, $4)",
+      [input.path, input.fileHash, fresh.length, now],
+    );
+    fileId = fileResult.lastInsertId ?? -1;
+  }
 
   const bookIds = new Map<string, number>();
   let inserted = 0;
@@ -240,6 +244,6 @@ export async function importParsedClippings(
     inserted,
     duplicates: total - inserted,
     bookCount: bookIds.size,
-    alreadyImported: false,
+    alreadyImported: knownFile !== null && inserted === 0,
   };
 }

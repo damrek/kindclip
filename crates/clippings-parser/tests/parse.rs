@@ -162,3 +162,51 @@ fn skips_malformed_entries() {
         parse_clippings("Title (Author)\nno meta line here\n\nContent\n==========\n").is_empty()
     );
 }
+
+/// Real-world sample: modern Spanish firmware writes "Tu resaltado" for
+/// highlights and "El marcador" for bookmarks, and embeds U+FEFF at the
+/// start of some entries mid-file.
+#[test]
+fn parses_modern_spanish_firmware_entries() {
+    let text = "Muchas vidas, muchos maestros (Brian Weiss)\n\
+        - El marcador en la página 8 | posición 111 | Añadido el martes, 25 de noviembre de 2025 21:35:19\n\
+        \n\n==========\n\
+        \u{FEFF}Muchas vidas, muchos maestros (Brian Weiss)\n\
+        - Tu resaltado en la página 8 | posición 112-113 | Añadido el martes, 25 de noviembre de 2025 21:38:25\n\
+        \npsicoterapia intensiva; Catherine venía a verme una o dos veces por semana.\n==========\n\
+        \u{FEFF}Muchas vidas, muchos maestros (Brian Weiss)\n\
+        - El marcador en la página 16 | posición 235 | Añadido el miércoles, 26 de noviembre de 2025 0:01:43\n\
+        \n\n==========\n";
+    let clips = parse_clippings(text);
+    assert_eq!(clips.len(), 3);
+
+    for clip in &clips {
+        assert_eq!(clip.title, "Muchas vidas, muchos maestros");
+        assert_eq!(clip.author.as_deref(), Some("Brian Weiss"));
+    }
+
+    let bookmark = &clips[0];
+    assert_eq!(bookmark.kind, ClippingKind::Bookmark);
+    assert_eq!(bookmark.page, Some(8));
+    assert_eq!(bookmark.location.as_deref(), Some("111"));
+    assert_eq!(bookmark.added_on.as_deref(), Some("2025-11-25T21:35:19"));
+    assert_eq!(bookmark.content, None);
+
+    let highlight = &clips[1];
+    assert_eq!(highlight.kind, ClippingKind::Highlight);
+    assert_eq!(highlight.location.as_deref(), Some("112-113"));
+    assert_eq!(highlight.added_on.as_deref(), Some("2025-11-25T21:38:25"));
+    assert!(highlight
+        .content
+        .as_deref()
+        .unwrap()
+        .starts_with("psicoterapia intensiva"));
+
+    let second_bookmark = &clips[2];
+    assert_eq!(second_bookmark.kind, ClippingKind::Bookmark);
+    assert_eq!(second_bookmark.page, Some(16));
+    assert_eq!(
+        second_bookmark.added_on.as_deref(),
+        Some("2025-11-26T00:01:43")
+    );
+}

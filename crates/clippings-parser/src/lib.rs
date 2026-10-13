@@ -159,7 +159,7 @@ pub fn parse_clippings(text: &str) -> Vec<Clipping> {
 fn parse_block(block: &[&str]) -> Option<Clipping> {
     let mut lines = block
         .iter()
-        .map(|line| line.trim())
+        .map(|line| clean_line(line))
         .filter(|line| !line.is_empty());
     let title_line = lines.next()?;
     let meta_line = lines.next()?;
@@ -197,6 +197,15 @@ fn parse_block(block: &[&str]) -> Option<Clipping> {
         content,
         content_hash,
     })
+}
+
+/// Trim a raw line and drop a stray U+FEFF. Kindle files can embed a
+/// byte-order mark not only at the start of the file but also at the
+/// start of entries mid-file; left in place it would corrupt titles
+/// (splitting one book into two) and break meta-line matching.
+fn clean_line(line: &str) -> &str {
+    let trimmed = line.trim();
+    trimmed.strip_prefix('\u{FEFF}').unwrap_or(trimmed).trim()
 }
 
 /// Split `"Title (Author)"` on the LAST parenthesized suffix.
@@ -263,6 +272,7 @@ fn detect_kind(lower_meta: &str) -> Option<ClippingKind> {
     const HIGHLIGHT: &[&str] = &[
         "highlight",
         "subrayado",
+        "resaltado",
         "markierung",
         "surlign",
         "evidenzia",
