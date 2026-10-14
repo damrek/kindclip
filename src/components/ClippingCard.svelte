@@ -15,10 +15,13 @@
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const reference = $derived(formatReference(clipping.page, clipping.location));
   const kindLabel = $derived(i18n.t(`kind.${clipping.kind}`));
+  const addedOnLabel = $derived(
+    formatAddedOn(clipping.added_on, clipping.added_on_raw, i18n.locale),
+  );
 </script>
 
 <article
-  class="clipping-card rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+  class="clipping-card rounded-2xl border border-neutral-200 bg-white p-5 transition-colors hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700"
 >
   {#if clipping.content}
     <blockquote
@@ -48,7 +51,7 @@
     {#if reference !== ""}
       <span>{reference}</span>
     {/if}
-    <span>{formatAddedOn(clipping.added_on, clipping.added_on_raw, i18n.locale)}</span>
+    <span>{addedOnLabel}</span>
     <span class="flex-1"></span>
     {#if clipping.content}
       <button
