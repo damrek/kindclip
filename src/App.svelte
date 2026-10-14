@@ -68,7 +68,7 @@
   let query = $state("");
   let debouncedQuery = $state("");
   let bookId = $state<number | null>(null);
-  let kind = $state<ClippingKind | null>(null);
+  let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let page = $state(1);
   let pageSize = $state(20);
@@ -149,7 +149,7 @@
     setLocale,
   });
 
-  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kind, favoritesOnly });
+  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kinds, favoritesOnly });
 
   const scheduleQuery = debounce((value: string) => {
     debouncedQuery = value;
@@ -222,7 +222,7 @@
         query = dbFilter.query;
         debouncedQuery = dbFilter.query;
         bookId = dbFilter.bookId;
-        kind = dbFilter.kind;
+        kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
         pageSize = dbFilter.pageSize;
         page = 1;
@@ -230,7 +230,7 @@
         await persistFilterState({
           query: debouncedQuery,
           bookId,
-          kind,
+          kinds,
           favoritesOnly,
           pageSize,
         });
@@ -271,7 +271,7 @@
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
   $effect(() => {
-    saveFilters({ query: debouncedQuery, bookId, kind, favoritesOnly, pageSize });
+    saveFilters({ query: debouncedQuery, bookId, kinds, favoritesOnly, pageSize });
   });
 
   $effect(() => {
@@ -283,8 +283,8 @@
     page = 1;
   }
 
-  function selectKind(value: string): void {
-    kind = value === "" ? null : (value as ClippingKind);
+  function toggleKind(next: ClippingKind): void {
+    kinds = kinds.includes(next) ? kinds.filter((kind) => kind !== next) : [...kinds, next];
     page = 1;
   }
 
@@ -337,8 +337,8 @@
     query = "";
     debouncedQuery = "";
     favoritesOnly = false;
+    kinds = [];
     selectBook(null);
-    selectKind("");
   }
 
   async function onImport(): Promise<void> {
@@ -379,8 +379,10 @@
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" || bookId !== null || kind !== null || favoritesOnly,
+    debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly,
   );
+
+  const KIND_OPTIONS: ClippingKind[] = ["highlight", "note", "bookmark"];
 </script>
 
 <div class="flex h-full flex-col">
@@ -466,17 +468,21 @@
               </button>
             {/if}
           </div>
-          <select
-            value={kind ?? ""}
-            onchange={(event) => selectKind(event.currentTarget.value)}
-            aria-label={t("kind.all")}
-            class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-          >
-            <option value="">{t("kind.all")}</option>
-            <option value="highlight">{t("kind.highlight")}</option>
-            <option value="note">{t("kind.note")}</option>
-            <option value="bookmark">{t("kind.bookmark")}</option>
-          </select>
+          <div class="flex items-center gap-1.5" role="group" aria-label={t("kind.group")}>
+            {#each KIND_OPTIONS as option (option)}
+              {@const active = kinds.includes(option)}
+              <button
+                type="button"
+                onclick={() => toggleKind(option)}
+                aria-pressed={active}
+                class="rounded-full border px-3 py-2 text-sm font-medium transition {active
+                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+              >
+                {t(`kind.${option}`)}
+              </button>
+            {/each}
+          </div>
           <button
             type="button"
             onclick={toggleFavoritesOnly}

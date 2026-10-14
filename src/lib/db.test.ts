@@ -110,7 +110,7 @@ describe("escapeLike", () => {
 describe("buildListQuery", () => {
   it("filters by text across content, title and author", () => {
     const { sql, params } = buildListQuery(
-      { query: "stoic", bookId: null, kind: null, favoritesOnly: false },
+      { query: "stoic", bookId: null, kinds: [], favoritesOnly: false },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("LIKE");
@@ -122,16 +122,25 @@ describe("buildListQuery", () => {
 
   it("applies book, kind and favorites filters with pagination", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: 3, kind: "note", favoritesOnly: true },
+      { query: "", bookId: 3, kinds: ["note"], favoritesOnly: true },
       { page: 2, pageSize: 50 },
     );
     expect(sql).toContain("b.id =");
-    expect(sql).toContain("c.kind =");
+    expect(sql).toContain("c.kind IN");
     expect(sql).toContain("f.clipping_id IS NOT NULL");
     expect(params).toContain(3);
     expect(params).toContain("note");
     // LIMIT 50 OFFSET 50
     expect(params.slice(-2)).toEqual([50, 50]);
+  });
+
+  it("matches any of several selected kinds", () => {
+    const { sql, params } = buildListQuery(
+      { query: "", bookId: null, kinds: ["highlight", "note"], favoritesOnly: false },
+      { page: 1, pageSize: 20 },
+    );
+    expect(sql).toContain("c.kind IN ($1, $2)");
+    expect(params.slice(0, 2)).toEqual(["highlight", "note"]);
   });
 });
 
@@ -140,7 +149,7 @@ describe("buildCountQuery", () => {
     const { sql, params } = buildCountQuery({
       query: "x",
       bookId: null,
-      kind: null,
+      kinds: [],
       favoritesOnly: true,
     });
     expect(sql).toContain("COUNT");
@@ -245,7 +254,7 @@ describe("settings", () => {
     const state: StoredFilterState = {
       query: "stoic",
       bookId: 3,
-      kind: "note",
+      kinds: ["note"],
       favoritesOnly: true,
       pageSize: 50,
     };
@@ -262,9 +271,37 @@ describe("settings", () => {
     const port = new FakePort();
     await setSetting(port, "filter", "not-json{{");
     await expect(loadFilterState(port)).resolves.toBe(null);
-    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 999, bookId: null, kind: null }));
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 999, bookId: null, kinds: [] }));
     await expect(loadFilterState(port)).resolves.toBe(null);
-    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 20, bookId: null, kind: "bogus" }));
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 20, bookId: null, kinds: ["bogus"] }));
     await expect(loadFilterState(port)).resolves.toBe(null);
+  });
+
+  it("migrates the legacy single-kind payload", async () => {
+    const port = new FakePort();
+    await setSetting(
+      port,
+      "filter",
+      JSON.stringify({ query: "", favoritesOnly: false, pageSize: 20, bookId: null, kind: "note" }),
+    );
+    await expect(loadFilterState(port)).resolves.toEqual({
+      query: "",
+      bookId: null,
+      kinds: ["note"],
+      favoritesOnly: false,
+      pageSize: 20,
+    });
+    await setSetting(
+      port,
+      "filter",
+      JSON.stringify({ query: "", favoritesOnly: false, pageSize: 20, bookId: null, kind: null }),
+    );
+    await expect(loadFilterState(port)).resolves.toEqual({
+      query: "",
+      bookId: null,
+      kinds: [],
+      favoritesOnly: false,
+      pageSize: 20,
+    });
   });
 });

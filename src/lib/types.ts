@@ -32,7 +32,8 @@ export interface ClippingFilter {
   /** Free text matched against content, title and author. */
   query: string;
   bookId: number | null;
-  kind: ClippingKind | null;
+  /** Selected kinds; empty means all. */
+  kinds: ClippingKind[];
   favoritesOnly: boolean;
 }
 

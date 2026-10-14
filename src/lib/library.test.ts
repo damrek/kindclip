@@ -83,7 +83,7 @@ describe("debounce", () => {
 
 describe("emptyFilter", () => {
   it("returns the default filter", () => {
-    expect(emptyFilter()).toEqual({ query: "", bookId: null, kind: null, favoritesOnly: false });
+    expect(emptyFilter()).toEqual({ query: "", bookId: null, kinds: [], favoritesOnly: false });
   });
 });
 
