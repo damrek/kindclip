@@ -13,15 +13,16 @@ pub struct ParsedFile {
 
 /// Absolute path of the SQLite file owned by tauri-plugin-sql.
 ///
-/// `sqlite:kindclip.db` is resolved by the plugin against the app data dir,
-/// so revealing this path shows the user where their library lives.
+/// Relative `sqlite:` URLs are resolved by the plugin against the app config
+/// dir, so revealing this path shows the user where their library lives.
 #[tauri::command]
 pub fn db_file_path(app: tauri::AppHandle) -> Result<String, String> {
     use tauri::Manager;
     let dir = app
         .path()
-        .app_data_dir()
-        .map_err(|err| format!("cannot resolve app data dir: {err}"))?;
+        .app_config_dir()
+        .map_err(|err| format!("cannot resolve app config dir: {err}"))?;
+    std::fs::create_dir_all(&dir).map_err(|err| format!("cannot create app config dir: {err}"))?;
     Ok(dir.join("kindclip.db").to_string_lossy().to_string())
 }
 
