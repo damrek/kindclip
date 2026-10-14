@@ -1,6 +1,7 @@
 <script lang="ts">
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
+  import FontScaleToggle from "./components/FontScaleToggle.svelte";
   import LanguageSelector from "./components/LanguageSelector.svelte";
   import Pagination from "./components/Pagination.svelte";
   import ThemeToggle from "./components/ThemeToggle.svelte";
@@ -26,6 +27,13 @@
     type ThemeChoice,
   } from "./lib/theme";
   import {
+    applyFontScale,
+    loadFontScale,
+    nextFontScale,
+    saveFontScale,
+    type FontScale,
+  } from "./lib/font";
+  import {
     getDb,
     getSetting,
     listBooks,
@@ -37,6 +45,7 @@
     type StoredFilterState,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
+  import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
     applyFavoriteToggle,
     clampPage,
@@ -60,17 +69,31 @@
   let query = $state("");
   let debouncedQuery = $state("");
   let bookId = $state<number | null>(null);
-  let kind = $state<ClippingKind | null>(null);
+  let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let page = $state(1);
   let pageSize = $state(20);
 
   let importing = $state(false);
+  let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
   let themeChoice = $state<ThemeChoice>(loadThemeChoice());
+  let fontScale = $state<FontScale>(loadStoredFontScale());
+
+  function readStoredFontScale(): string | null {
+    try {
+      return localStorage.getItem("kindclip-font-scale");
+    } catch {
+      return null;
+    }
+  }
+
+  function loadStoredFontScale(): FontScale {
+    return loadFontScale(readStoredFontScale());
+  }
 
   function readStoredLocale(): string | null {
     try {
@@ -112,6 +135,14 @@
     void persistSetting(SETTINGS_KEYS.theme, next);
   }
 
+  function cycleFontScale(): void {
+    const next = nextFontScale(fontScale);
+    fontScale = next;
+    saveFontScale(next); // fast cache for the pre-paint script
+    applyFontScale(document.documentElement, next);
+    void persistSetting(SETTINGS_KEYS.fontScale, next);
+  }
+
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
       return locale;
@@ -120,7 +151,7 @@
     setLocale,
   });
 
-  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kind, favoritesOnly });
+  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kinds, favoritesOnly });
 
   const scheduleQuery = debounce((value: string) => {
     debouncedQuery = value;
@@ -161,9 +192,10 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbFilter] = await Promise.all([
+      const [dbLocale, dbTheme, dbFontScale, dbFilter] = await Promise.all([
         getSetting(port, SETTINGS_KEYS.locale),
         getSetting(port, SETTINGS_KEYS.theme),
+        getSetting(port, SETTINGS_KEYS.fontScale),
         loadFilterState(port),
       ]);
       if (dbLocale && isLocale(dbLocale)) {
@@ -181,11 +213,18 @@
       } else {
         await setSetting(port, SETTINGS_KEYS.theme, themeChoice);
       }
+      if (dbFontScale === "small" || dbFontScale === "medium" || dbFontScale === "large") {
+        fontScale = dbFontScale;
+        saveFontScale(dbFontScale);
+        applyFontScale(document.documentElement, dbFontScale);
+      } else {
+        await setSetting(port, SETTINGS_KEYS.fontScale, fontScale);
+      }
       if (dbFilter) {
         query = dbFilter.query;
         debouncedQuery = dbFilter.query;
         bookId = dbFilter.bookId;
-        kind = dbFilter.kind;
+        kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
         pageSize = dbFilter.pageSize;
         page = 1;
@@ -193,7 +232,7 @@
         await persistFilterState({
           query: debouncedQuery,
           bookId,
-          kind,
+          kinds,
           favoritesOnly,
           pageSize,
         });
@@ -234,7 +273,7 @@
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
   $effect(() => {
-    saveFilters({ query: debouncedQuery, bookId, kind, favoritesOnly, pageSize });
+    saveFilters({ query: debouncedQuery, bookId, kinds, favoritesOnly, pageSize });
   });
 
   $effect(() => {
@@ -246,8 +285,8 @@
     page = 1;
   }
 
-  function selectKind(value: string): void {
-    kind = value === "" ? null : (value as ClippingKind);
+  function toggleKind(next: ClippingKind): void {
+    kinds = kinds.includes(next) ? kinds.filter((kind) => kind !== next) : [...kinds, next];
     page = 1;
   }
 
@@ -300,8 +339,8 @@
     query = "";
     debouncedQuery = "";
     favoritesOnly = false;
+    kinds = [];
     selectBook(null);
-    selectKind("");
   }
 
   async function onImport(): Promise<void> {
@@ -339,11 +378,27 @@
     }
   }
 
+  async function onOpenDbLocation(): Promise<void> {
+    if (locatingDb) return;
+    locatingDb = true;
+    try {
+      await revealDbLocation(tauriDbLocationDeps());
+    } catch (error) {
+      importStatus = t("db.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      locatingDb = false;
+    }
+  }
+
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" || bookId !== null || kind !== null || favoritesOnly,
+    debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly,
   );
+
+  const KIND_OPTIONS: ClippingKind[] = ["highlight", "note", "bookmark"];
 </script>
 
 <div class="flex h-full flex-col">
@@ -357,9 +412,20 @@
     <div class="flex items-center gap-1">
       <LanguageSelector />
       <ThemeToggle choice={themeChoice} onCycle={cycleTheme} />
+      <FontScaleToggle scale={fontScale} onCycle={cycleFontScale} />
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
       {/if}
+      <button
+        type="button"
+        onclick={onOpenDbLocation}
+        disabled={locatingDb}
+        title={t("db.open")}
+        aria-label={t("db.open")}
+        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        📁
+      </button>
       <button
         type="button"
         onclick={onImport}
@@ -428,17 +494,21 @@
               </button>
             {/if}
           </div>
-          <select
-            value={kind ?? ""}
-            onchange={(event) => selectKind(event.currentTarget.value)}
-            aria-label={t("kind.all")}
-            class="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-          >
-            <option value="">{t("kind.all")}</option>
-            <option value="highlight">{t("kind.highlight")}</option>
-            <option value="note">{t("kind.note")}</option>
-            <option value="bookmark">{t("kind.bookmark")}</option>
-          </select>
+          <div class="flex items-center gap-1.5" role="group" aria-label={t("kind.group")}>
+            {#each KIND_OPTIONS as option (option)}
+              {@const active = kinds.includes(option)}
+              <button
+                type="button"
+                onclick={() => toggleKind(option)}
+                aria-pressed={active}
+                class="rounded-full border px-3 py-2 text-sm font-medium transition {active
+                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+              >
+                {t(`kind.${option}`)}
+              </button>
+            {/each}
+          </div>
           <button
             type="button"
             onclick={toggleFavoritesOnly}

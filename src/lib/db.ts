@@ -66,8 +66,9 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
   if (filter.bookId !== null) {
     conditions.push(`b.id = ${next(filter.bookId)}`);
   }
-  if (filter.kind !== null) {
-    conditions.push(`c.kind = ${next(filter.kind)}`);
+  if (filter.kinds.length > 0) {
+    const placeholders = filter.kinds.map((kind) => next(kind));
+    conditions.push(`c.kind IN (${placeholders.join(", ")})`);
   }
   if (filter.favoritesOnly) {
     conditions.push("f.clipping_id IS NOT NULL");
@@ -253,6 +254,7 @@ export async function importParsedClippings(
 export const SETTINGS_KEYS = {
   locale: "locale",
   theme: "theme",
+  fontScale: "fontScale",
   filter: "filter",
 } as const;
 
@@ -275,7 +277,7 @@ export async function setSetting(port: DbPort, key: string, value: string): Prom
 export interface StoredFilterState {
   query: string;
   bookId: number | null;
-  kind: ClippingKind | null;
+  kinds: ClippingKind[];
   favoritesOnly: boolean;
   pageSize: number;
 }
@@ -292,11 +294,18 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
     return null;
   }
   try {
-    const parsed = JSON.parse(raw) as Partial<StoredFilterState>;
+    const parsed = JSON.parse(raw) as Partial<StoredFilterState> & {
+      /** Legacy single-kind shape (pre multi-select): migrated below. */
+      kind?: ClippingKind | null;
+    };
+    const kinds =
+      parsed.kinds ??
+      (parsed.kind === undefined || parsed.kind === null ? [] : [parsed.kind]);
     if (
       typeof parsed.query !== "string" ||
       (parsed.bookId !== null && typeof parsed.bookId !== "number") ||
-      (parsed.kind !== null && !CLIPPING_KINDS.includes(parsed.kind as ClippingKind)) ||
+      !Array.isArray(kinds) ||
+      !kinds.every((kind) => CLIPPING_KINDS.includes(kind)) ||
       typeof parsed.favoritesOnly !== "boolean" ||
       !PAGE_SIZES.includes(parsed.pageSize as number)
     ) {
@@ -305,7 +314,7 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
     return {
       query: parsed.query,
       bookId: parsed.bookId ?? null,
-      kind: parsed.kind ?? null,
+      kinds,
       favoritesOnly: parsed.favoritesOnly,
       pageSize: parsed.pageSize as number,
     };

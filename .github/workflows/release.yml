@@ -53,6 +53,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > /tmp/tauri.conf.json && mv /tmp/tauri.conf.json src-tauri/tauri.conf.json
+          # Keep the Rust packages in sync too (drift caused v0.1.0 locals vs v0.1.2 tags).
+          sed -i.bak -E 's/^version = ".*"/version = "'"$VERSION"'"/' src-tauri/Cargo.toml crates/clippings-parser/Cargo.toml && rm -f src-tauri/Cargo.toml.bak crates/clippings-parser/Cargo.toml.bak
 
       - run: npm ci
 

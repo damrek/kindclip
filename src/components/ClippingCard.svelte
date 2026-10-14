@@ -18,7 +18,7 @@
 </script>
 
 <article
-  class="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+  class="clipping-card rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
 >
   {#if clipping.content}
     <blockquote

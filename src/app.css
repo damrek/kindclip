@@ -35,3 +35,11 @@ body {
   outline: 2px solid rgb(245 158 11 / 0.7);
   outline-offset: 2px;
 }
+
+/* Scroll performance: skip rendering offscreen cards entirely and reserve
+   an estimated height so the scrollbar doesn't jump. The `auto` keyword
+   lets the browser remember each card's real height after first paint. */
+.clipping-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}

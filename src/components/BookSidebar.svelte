@@ -44,12 +44,13 @@
           : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-900'}"
       >
         <span class="min-w-0">
-          <span class="block truncate">{book.title}</span>
+          <span class="block truncate" title={book.title}>{book.title}</span>
           {#if book.author}
             <span
               class="block truncate text-xs {selectedId === book.id
                 ? 'opacity-70'
                 : 'text-neutral-400 dark:text-neutral-500'}"
+              title={book.author}
             >
               {book.author}
             </span>

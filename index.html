@@ -13,6 +13,9 @@
           stored === "dark" ||
           (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         if (dark) document.documentElement.classList.add("dark");
+        var fontScale = localStorage.getItem("kindclip-font-scale");
+        if (fontScale === "small") document.documentElement.style.fontSize = "87.5%";
+        else if (fontScale === "large") document.documentElement.style.fontSize = "112.5%";
       } catch (e) {}
     </script>
   </head>
