@@ -27,6 +27,8 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
 2. Plug in your Kindle over USB and grab `documents/My Clippings.txt`.
 3. Hit **Import**, pick the file, browse. Re-import any time: duplicates are
    detected by hash, and files that previously failed to parse get healed.
+   The 📁 button next to **Import** reveals the database file in your file
+   manager.
 
 ## Features
 
@@ -34,11 +36,15 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
   localized dates (en, es, de, fr, it, pt) and Highlight / Note / Bookmark
   kinds — including modern Spanish firmware wording («Tu resaltado»).
 - **Multi-file library** with content-hash dedupe across imports.
-- **Filters**: full-text search over content, title and author, plus book, kind
-  and favorites-only filters. Configurable **pagination** (20/50/100).
+- **Filters**: full-text search over content, title and author, plus book,
+  multi-select kind chips and favorites-only filters. Configurable
+  **pagination** (20/50/100) and a **font-size control** (S/M/L) for
+  accessibility.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
-- **UI in 5 languages** (es, en, fr, de, it — Spanish by default) and a
-  **system/light/dark theme**, both persisted.
+- **UI in 5 languages** (es, en, fr, de, it — Spanish by default),
+  a **system/light/dark theme** and the font size above, all persisted.
+- A header button reveals **`kindclip.db` in the file manager**, and long
+  book titles in the sidebar show the full title on hover.
 - Bundled **Inter** typeface, custom icons and a minimal macOS-style UI over
   the native window frame.
 
@@ -89,19 +95,22 @@ cargo fmt --all -- --check
 src/                        # Svelte 5 + Tailwind v4 frontend
   lib/
     db.ts                   # SQL port (plugin-sql): queries + import orchestration
+    db-location.ts          # Reveal kindclip.db in the file manager (tested)
+    font.ts                 # S/M/L font-size scale with persistence (tested)
     importer.ts             # Import flow: pick → parse → persist
     library.ts              # Pagination, debounce, formatting (tested)
     i18n.ts                 # es/en/fr/de/it dictionaries (parity tested)
     theme.ts                # system/light/dark theme
     types.ts                # Shared frontend/backend contracts
-  components/               # BookSidebar, ClippingCard, Pagination, ...
+  components/               # BookSidebar, ClippingCard, Pagination, FontScaleToggle, ...
   assets/icon.png           # App icon, also shown in the header
 src-tauri/
   src/
     lib.rs                  # Migrations + plugin and command registration
     commands.rs             # parse_clippings_file (reads, SHA-256 hashes, parses)
+                          # + db_file_path (absolute path of kindclip.db)
   migrations/001_init.sql   # Schema: files, books, clippings, favorites
-  capabilities/             # Least-privilege permissions (sql, dialog, clipboard write)
+  capabilities/             # Least-privilege permissions (sql, dialog, clipboard write, opener)
 crates/clippings-parser/    # Pure My Clippings.txt parser (no Tauri deps)
 odd/tasks/kindclip.md       # Decision and task log of the project
 ```
@@ -116,6 +125,8 @@ The SQL plugin resolves `sqlite:kindclip.db` to the standard per-OS config dir
 - macOS: `~/Library/Application Support/app.kindclip/kindclip.db`
 
 To wipe the library and re-import from scratch, just delete that file.
+You can also open it straight from the app: the 📁 button next to **Import**
+reveals it in your file manager.
 Quick inspection:
 ```bash
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
