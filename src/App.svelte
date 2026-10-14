@@ -45,6 +45,7 @@
     type StoredFilterState,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
+  import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
     applyFavoriteToggle,
     clampPage,
@@ -74,6 +75,7 @@
   let pageSize = $state(20);
 
   let importing = $state(false);
+  let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -376,6 +378,20 @@
     }
   }
 
+  async function onOpenDbLocation(): Promise<void> {
+    if (locatingDb) return;
+    locatingDb = true;
+    try {
+      await revealDbLocation(tauriDbLocationDeps());
+    } catch (error) {
+      importStatus = t("db.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      locatingDb = false;
+    }
+  }
+
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const hasActiveFilters = $derived(
@@ -400,6 +416,16 @@
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
       {/if}
+      <button
+        type="button"
+        onclick={onOpenDbLocation}
+        disabled={locatingDb}
+        title={t("db.open")}
+        aria-label={t("db.open")}
+        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        📁
+      </button>
       <button
         type="button"
         onclick={onImport}

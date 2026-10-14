@@ -11,6 +11,20 @@ pub struct ParsedFile {
     pub clippings: Vec<clippings_parser::Clipping>,
 }
 
+/// Absolute path of the SQLite file owned by tauri-plugin-sql.
+///
+/// `sqlite:kindclip.db` is resolved by the plugin against the app data dir,
+/// so revealing this path shows the user where their library lives.
+#[tauri::command]
+pub fn db_file_path(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| format!("cannot resolve app data dir: {err}"))?;
+    Ok(dir.join("kindclip.db").to_string_lossy().to_string())
+}
+
 /// Read `My Clippings.txt` from disk, hash it (S5 dedupe key) and parse it (S2).
 #[tauri::command]
 pub fn parse_clippings_file(path: String) -> Result<ParsedFile, String> {
