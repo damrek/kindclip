@@ -53,6 +53,9 @@ const es = {
   "theme.dark": "Tema oscuro (cambiar)",
   "theme.system": "Tema del sistema (cambiar)",
   "lang.label": "Idioma",
+  "font.small": "Fuente pequeña (cambiar)",
+  "font.medium": "Fuente mediana (cambiar)",
+  "font.large": "Fuente grande (cambiar)",
 };
 
 export type I18nKey = keyof typeof es;
@@ -101,6 +104,9 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "theme.dark": "Dark theme (switch)",
     "theme.system": "System theme (switch)",
     "lang.label": "Language",
+  "font.small": "Small font (switch)",
+  "font.medium": "Medium font (switch)",
+  "font.large": "Large font (switch)",
   },
   fr: {
     "app.tagline": "Vos surlignages Kindle, au même endroit.",
@@ -143,6 +149,9 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "theme.dark": "Thème sombre (changer)",
     "theme.system": "Thème du système (changer)",
     "lang.label": "Langue",
+  "font.small": "Petite police (changer)",
+  "font.medium": "Police moyenne (changer)",
+  "font.large": "Grande police (changer)",
   },
   de: {
     "app.tagline": "Deine Kindle-Markierungen, alle an einem Ort.",
@@ -185,6 +194,9 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "theme.dark": "Dunkles Theme (wechseln)",
     "theme.system": "System-Theme (wechseln)",
     "lang.label": "Sprache",
+  "font.small": "Kleine Schrift (wechseln)",
+  "font.medium": "Mittlere Schrift (wechseln)",
+  "font.large": "Große Schrift (wechseln)",
   },
   it: {
     "app.tagline": "Le tue evidenziazioni Kindle, tutte in un unico posto.",
@@ -227,6 +239,9 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "theme.dark": "Tema scuro (cambia)",
     "theme.system": "Tema di sistema (cambia)",
     "lang.label": "Lingua",
+  "font.small": "Carattere piccolo (cambia)",
+  "font.medium": "Carattere medio (cambia)",
+  "font.large": "Carattere grande (cambia)",
   },
 };
 

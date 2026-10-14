@@ -253,6 +253,7 @@ export async function importParsedClippings(
 export const SETTINGS_KEYS = {
   locale: "locale",
   theme: "theme",
+  fontScale: "fontScale",
   filter: "filter",
 } as const;
 

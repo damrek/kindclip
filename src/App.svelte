@@ -1,6 +1,7 @@
 <script lang="ts">
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
+  import FontScaleToggle from "./components/FontScaleToggle.svelte";
   import LanguageSelector from "./components/LanguageSelector.svelte";
   import Pagination from "./components/Pagination.svelte";
   import ThemeToggle from "./components/ThemeToggle.svelte";
@@ -25,6 +26,13 @@
     systemPrefersDark,
     type ThemeChoice,
   } from "./lib/theme";
+  import {
+    applyFontScale,
+    loadFontScale,
+    nextFontScale,
+    saveFontScale,
+    type FontScale,
+  } from "./lib/font";
   import {
     getDb,
     getSetting,
@@ -71,6 +79,19 @@
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
   let themeChoice = $state<ThemeChoice>(loadThemeChoice());
+  let fontScale = $state<FontScale>(loadStoredFontScale());
+
+  function readStoredFontScale(): string | null {
+    try {
+      return localStorage.getItem("kindclip-font-scale");
+    } catch {
+      return null;
+    }
+  }
+
+  function loadStoredFontScale(): FontScale {
+    return loadFontScale(readStoredFontScale());
+  }
 
   function readStoredLocale(): string | null {
     try {
@@ -110,6 +131,14 @@
     saveThemeChoice(next); // fast cache for the pre-paint script
     applyThemeClass(document.documentElement, resolveTheme(next, systemPrefersDark()));
     void persistSetting(SETTINGS_KEYS.theme, next);
+  }
+
+  function cycleFontScale(): void {
+    const next = nextFontScale(fontScale);
+    fontScale = next;
+    saveFontScale(next); // fast cache for the pre-paint script
+    applyFontScale(document.documentElement, next);
+    void persistSetting(SETTINGS_KEYS.fontScale, next);
   }
 
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
@@ -161,9 +190,10 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbFilter] = await Promise.all([
+      const [dbLocale, dbTheme, dbFontScale, dbFilter] = await Promise.all([
         getSetting(port, SETTINGS_KEYS.locale),
         getSetting(port, SETTINGS_KEYS.theme),
+        getSetting(port, SETTINGS_KEYS.fontScale),
         loadFilterState(port),
       ]);
       if (dbLocale && isLocale(dbLocale)) {
@@ -180,6 +210,13 @@
         );
       } else {
         await setSetting(port, SETTINGS_KEYS.theme, themeChoice);
+      }
+      if (dbFontScale === "small" || dbFontScale === "medium" || dbFontScale === "large") {
+        fontScale = dbFontScale;
+        saveFontScale(dbFontScale);
+        applyFontScale(document.documentElement, dbFontScale);
+      } else {
+        await setSetting(port, SETTINGS_KEYS.fontScale, fontScale);
       }
       if (dbFilter) {
         query = dbFilter.query;
@@ -357,6 +394,7 @@
     <div class="flex items-center gap-1">
       <LanguageSelector />
       <ThemeToggle choice={themeChoice} onCycle={cycleTheme} />
+      <FontScaleToggle scale={fontScale} onCycle={cycleFontScale} />
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
       {/if}
