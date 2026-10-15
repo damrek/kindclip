@@ -60,7 +60,8 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
     const p2 = next(like);
     const p3 = next(like);
     conditions.push(
-      `(c.content LIKE ${p1} ESCAPE '\\' OR b.title LIKE ${p2} ESCAPE '\\' OR b.author LIKE ${p3} ESCAPE '\\')`,
+      `(COALESCE(c.content_edited, c.content) LIKE ${p1} ESCAPE '\\' ` +
+        `OR b.title LIKE ${p2} ESCAPE '\\' OR b.author LIKE ${p3} ESCAPE '\\')`,
     );
   }
   if (filter.bookId !== null) {
@@ -87,6 +88,7 @@ export function buildListQuery(
   const sql =
     "SELECT c.id, b.title, b.author, c.kind, c.page, c.location, " +
     "c.added_on_raw, c.added_on, c.content, c.content_hash, " +
+    "c.content_edited, c.edited_at, " +
     "CASE WHEN f.clipping_id IS NULL THEN 0 ELSE 1 END AS favorite " +
     `${LIST_FROM} ${where} ` +
     `ORDER BY COALESCE(c.added_on, '') DESC, c.id DESC LIMIT ${limit} OFFSET ${offset}`;
@@ -141,6 +143,25 @@ export async function toggleFavorite(port: DbPort, clippingId: number): Promise<
     new Date().toISOString(),
   ]);
   return true;
+}
+
+/** Overlay edit for a note (V2): the original content and its dedupe
+ * hash stay untouched, so re-imports remain idempotent. */
+export async function updateNote(port: DbPort, clippingId: number, content: string): Promise<boolean> {
+  const result = await port.execute(
+    "UPDATE clippings SET content_edited = $1, edited_at = $2 WHERE id = $3 AND kind = 'note'",
+    [content, new Date().toISOString(), clippingId],
+  );
+  return (result.rowsAffected ?? 0) > 0;
+}
+
+/** Discard the overlay edit and show the original Kindle text again. */
+export async function resetNote(port: DbPort, clippingId: number): Promise<boolean> {
+  const result = await port.execute(
+    "UPDATE clippings SET content_edited = NULL, edited_at = NULL WHERE id = $1 AND kind = 'note'",
+    [clippingId],
+  );
+  return (result.rowsAffected ?? 0) > 0;
 }
 
 export interface ImportInput {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyFavoriteToggle,
+  applyNoteEdit,
   clampPage,
   copyClippingContent,
   debounce,
@@ -134,6 +135,8 @@ function row(id: number, favorite: boolean): ClippingRow {
     content: "c",
     content_hash: `h${id}`,
     favorite,
+    content_edited: null,
+    edited_at: null,
   };
 }
 
@@ -147,6 +150,26 @@ describe("applyFavoriteToggle", () => {
   it("leaves unknown ids untouched", () => {
     const items = [row(1, false)];
     expect(applyFavoriteToggle(items, 99, true)).toEqual(items);
+  });
+});
+
+describe("applyNoteEdit", () => {
+  it("patches the overlay columns of the matching row", () => {
+    const items = [row(1, false), row(2, false)];
+    const patched = applyNoteEdit(items, 2, { content_edited: "new", edited_at: "2026-10-15" });
+    expect(patched[1]).toEqual({ ...row(2, false), content_edited: "new", edited_at: "2026-10-15" });
+    expect(patched[0]).toEqual(row(1, false));
+  });
+
+  it("reset passes nulls through and clears a previous edit", () => {
+    const edited = { ...row(1, false), content_edited: "old edit", edited_at: "2026-01-01" };
+    const patched = applyNoteEdit([edited], 1, { content_edited: null, edited_at: null });
+    expect(patched[0]).toEqual(row(1, false));
+  });
+
+  it("leaves unknown ids untouched", () => {
+    const items = [row(1, false)];
+    expect(applyNoteEdit(items, 99, { content_edited: "x", edited_at: null })).toEqual(items);
   });
 });
 

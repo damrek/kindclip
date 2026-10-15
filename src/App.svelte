@@ -39,15 +39,18 @@
     listBooks,
     listClippings,
     loadFilterState,
+    resetNote,
     setSetting,
     SETTINGS_KEYS,
     toggleFavorite,
+    updateNote,
     type StoredFilterState,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
     applyFavoriteToggle,
+    applyNoteEdit,
     clampPage,
     copyClippingContent,
     debounce,
@@ -79,6 +82,8 @@
   let importStatus = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Note pending reset confirmation (dialog rendered at app root). */
+  let resetTarget = $state<ClippingRow | null>(null);
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
   let themeChoice = $state<ThemeChoice>(loadThemeChoice());
   let fontScale = $state<FontScale>(loadStoredFontScale());
@@ -297,9 +302,10 @@
 
   async function copyContent(id: number): Promise<void> {
     const target = result?.items.find((item) => item.id === id);
-    if (!target?.content) return;
+    const text = target ? (target.content_edited ?? target.content) : null;
+    if (!text) return;
     const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-    const ok = await copyClippingContent(writeText, target.content);
+    const ok = await copyClippingContent(writeText, text);
     if (ok) {
       copiedId = id;
       if (copyTimer !== null) {
@@ -333,6 +339,58 @@
   function changePageSize(size: number): void {
     pageSize = size;
     page = 1;
+  }
+
+  /** Overlay note edit (V2): reconciled write, then patch the visible row. */
+  async function editNote(id: number, content: string): Promise<boolean> {
+    if (!result) return false;
+    try {
+      const port = await getDb();
+      const confirmed = await updateNote(port, id, content);
+      if (confirmed) {
+        result = {
+          ...result,
+          items: applyNoteEdit(result.items, id, {
+            content_edited: content,
+            edited_at: new Date().toISOString(),
+          }),
+        };
+      }
+      return confirmed;
+    } catch (error) {
+      loadError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
+  }
+
+  async function resetNoteToOriginal(id: number): Promise<boolean> {
+    if (!result) return false;
+    try {
+      const port = await getDb();
+      const confirmed = await resetNote(port, id);
+      if (confirmed) {
+        result = {
+          ...result,
+          items: applyNoteEdit(result.items, id, { content_edited: null, edited_at: null }),
+        };
+      }
+      return confirmed;
+    } catch (error) {
+      loadError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
+  }
+
+  /** Open the reset confirmation dialog for a note (rendered at app root). */
+  function requestReset(id: number): void {
+    resetTarget = result?.items.find((item) => item.id === id) ?? null;
+  }
+
+  async function confirmResetDialog(): Promise<void> {
+    if (!resetTarget) return;
+    if (await resetNoteToOriginal(resetTarget.id)) {
+      resetTarget = null;
+    }
   }
 
   function clearFilters(): void {
@@ -530,6 +588,8 @@
                 copied={clipping.id === copiedId}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
+                onEdit={editNote}
+                onRequestReset={requestReset}
               />
             {/each}
           {:else if !loading}
@@ -570,3 +630,61 @@
     </div>
   {/if}
 </div>
+
+<svelte:window
+  onkeydown={(event) => {
+    if (resetTarget && event.key === "Escape") resetTarget = null;
+  }}
+/>
+
+{#if resetTarget}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <button
+      type="button"
+      aria-label={t("card.cancel")}
+      onclick={() => (resetTarget = null)}
+      class="absolute inset-0 cursor-default bg-black/50"
+    ></button>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("card.reset")}
+      tabindex={-1}
+      class="relative w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900"
+    >
+      <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+        {t("card.reset")}
+      </p>
+      <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+        {t("card.resetConfirm")}
+      </p>
+      {#if resetTarget.content}
+        <blockquote
+          class="mt-3 max-h-48 overflow-y-auto border-l-2 border-amber-400 pl-4 text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200"
+        >
+          {resetTarget.content}
+        </blockquote>
+      {:else}
+        <p class="mt-3 text-sm text-neutral-400 italic dark:text-neutral-500">
+          {t("card.noText", { kind: t(`kind.${resetTarget.kind}`) })}
+        </p>
+      {/if}
+      <div class="mt-4 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onclick={() => (resetTarget = null)}
+          class="rounded-full border border-neutral-200 px-3.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          {t("card.cancel")}
+        </button>
+        <button
+          type="button"
+          onclick={confirmResetDialog}
+          class="rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
+        >
+          {t("card.reset")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
