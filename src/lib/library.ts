@@ -97,6 +97,15 @@ export function applyFavoriteToggle(
   return items.map((item) => (item.id === id ? { ...item, favorite } : item));
 }
 
+/** Overlay patch (note edit or reset) for the visible page (V2). */
+export function applyNoteEdit(
+  items: ClippingRow[],
+  id: number,
+  patch: { content_edited: string | null; edited_at: string | null },
+): ClippingRow[] {
+  return items.map((item) => (item.id === id ? { ...item, ...patch } : item));
+}
+
 /** Copy card content to the clipboard; `false` when the write fails (T9). */
 export async function copyClippingContent(
   write: (text: string) => Promise<void>,

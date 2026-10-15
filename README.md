@@ -41,6 +41,10 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
   **pagination** (20/50/100) and a **font-size control** (S/M/L) for
   accessibility.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
+- **Note editing**: edit your notes in place — edited cards show an **Edited**
+  badge and can be **reset to the original** Kindle text at any time. Edits
+  live in the database only: `My Clippings.txt` is never modified (the Kindle
+  owns that file, so sync is one-way) and re-imports stay duplicate-free.
 - **UI in 5 languages** (es, en, fr, de, it — Spanish by default),
   a **system/light/dark theme** and the font size above, all persisted.
 - A header button reveals **`kindclip.db` in the file manager**, and long
@@ -125,6 +129,7 @@ The SQL plugin resolves `sqlite:kindclip.db` to the standard per-OS config dir
 - macOS: `~/Library/Application Support/app.kindclip/kindclip.db`
 
 To wipe the library and re-import from scratch, just delete that file.
+This also wipes your note edits, which live in the same database.
 You can also open it straight from the app: the 📁 button next to **Import**
 reveals it in your file manager.
 Quick inspection:
@@ -132,10 +137,11 @@ Quick inspection:
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
 ```
 
-## Roadmap (V2)
+## What's next
 
-Note editing, export (Markdown/JSON/CSV) and cross-machine sync. The current
-layering (pure parser → commands → SQL port → UI) allows it without rewriting.
+- **Export** (Markdown/JSON/CSV) and **cross-machine sync**.
+- The current layering (pure parser → commands → SQL port → UI) allows it
+  without rewriting.
 
 ## License
 

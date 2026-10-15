@@ -26,6 +26,9 @@ export interface Book {
 export interface ClippingRow extends ClippingDto {
   id: number;
   favorite: boolean;
+  /** Overlay for note editing (V2): edited text; null = original shown. */
+  content_edited: string | null;
+  edited_at: string | null;
 }
 
 export interface ClippingFilter {

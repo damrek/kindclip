@@ -26,6 +26,12 @@ pub fn run() {
             sql: include_str!("../migrations/002_settings.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "note_editing",
+            sql: include_str!("../migrations/003_note_editing.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

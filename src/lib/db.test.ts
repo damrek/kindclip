@@ -6,9 +6,11 @@ import {
   getSetting,
   importParsedClippings,
   loadFilterState,
+  resetNote,
   saveFilterState,
   setSetting,
   toggleFavorite,
+  updateNote,
   type DbPort,
   type StoredFilterState,
 } from "./db";
@@ -38,6 +40,9 @@ class FakePort implements DbPort {
   settings = new Map<string, string>();
   insertedClippings: string[] = [];
   fileUpdates: Array<{ id: number; added: number }> = [];
+  noteEdits = new Map<number, { content: string; at: string }>();
+  noteResets: number[] = [];
+  executedSql: string[] = [];
   lastId = 100;
   fileId = 7;
 
@@ -68,6 +73,7 @@ class FakePort implements DbPort {
     sql: string,
     params?: unknown[],
   ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
+    this.executedSql.push(sql);
     if (sql.includes("INSERT INTO clippings")) {
       this.insertedClippings.push(params?.[8] as string);
       return { lastInsertId: ++this.lastId, rowsAffected: 1 };
@@ -80,6 +86,17 @@ class FakePort implements DbPort {
     }
     if (sql.includes("INTO settings")) {
       this.settings.set(params?.[0] as string, params?.[1] as string);
+      return { rowsAffected: 1 };
+    }
+    if (sql.includes("UPDATE clippings")) {
+      if (sql.includes("content_edited = NULL")) {
+        this.noteResets.push(params?.[0] as number);
+      } else {
+        this.noteEdits.set(params?.[2] as number, {
+          content: params?.[0] as string,
+          at: params?.[1] as string,
+        });
+      }
       return { rowsAffected: 1 };
     }
     if (sql.includes("INSERT INTO files")) {
@@ -141,6 +158,22 @@ describe("buildListQuery", () => {
     );
     expect(sql).toContain("c.kind IN ($1, $2)");
     expect(params.slice(0, 2)).toEqual(["highlight", "note"]);
+  });
+
+  it("selects the overlay columns for edited notes", () => {
+    const { sql } = buildListQuery(
+      { query: "", bookId: null, kinds: [], favoritesOnly: false },
+      { page: 1, pageSize: 20 },
+    );
+    expect(sql).toContain("c.content_edited, c.edited_at");
+  });
+
+  it("searches the edited text, falling back to the original", () => {
+    const { sql } = buildListQuery(
+      { query: "x", bookId: null, kinds: [], favoritesOnly: false },
+      { page: 1, pageSize: 20 },
+    );
+    expect(sql).toContain("COALESCE(c.content_edited, c.content) LIKE");
   });
 });
 
@@ -232,6 +265,56 @@ describe("toggleFavorite", () => {
     const port = new FakePort();
     expect(await toggleFavorite(port, 42)).toBe(true);
     expect(await toggleFavorite(port, 42)).toBe(false);
+  });
+});
+
+describe("updateNote", () => {
+  it("writes the overlay edit with a timestamp", async () => {
+    const port = new FakePort();
+    expect(await updateNote(port, 42, "edited text")).toBe(true);
+    expect(port.noteEdits.get(42)).toEqual({
+      content: "edited text",
+      at: expect.any(String) as string,
+    });
+  });
+
+  it("keeps the original content untouched and targets notes only", async () => {
+    const port = new FakePort();
+    await updateNote(port, 42, "edited text");
+    const sql = port.executedSql.at(-1) ?? "";
+    expect(sql).toContain("SET content_edited =");
+    expect(sql).not.toContain("SET content =");
+    expect(sql).toContain("kind = 'note'");
+  });
+
+  it("reports failure when no row was affected", async () => {
+    const port = new (class extends FakePort {
+      public override async execute(): Promise<{ rowsAffected?: number }> {
+        return { rowsAffected: 0 };
+      }
+    })();
+    await expect(updateNote(port, 42, "x")).resolves.toBe(false);
+  });
+});
+
+describe("resetNote", () => {
+  it("clears the overlay edit, leaving the original intact", async () => {
+    const port = new FakePort();
+    expect(await resetNote(port, 42)).toBe(true);
+    expect(port.noteResets).toEqual([42]);
+    const sql = port.executedSql.at(-1) ?? "";
+    expect(sql).toContain("content_edited = NULL");
+    expect(sql).toContain("edited_at = NULL");
+    expect(sql).toContain("kind = 'note'");
+  });
+
+  it("reports failure when no row was affected", async () => {
+    const port = new (class extends FakePort {
+      public override async execute(): Promise<{ rowsAffected?: number }> {
+        return { rowsAffected: 0 };
+      }
+    })();
+    await expect(resetNote(port, 42)).resolves.toBe(false);
   });
 });
 
