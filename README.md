@@ -1,8 +1,9 @@
 # <img src="src/assets/icon.png" width="32" height="32" alt="kindclip logo"> kindclip
 
 Desktop viewer for your Kindle highlights. Import `My Clippings.txt`, search
-by text, book or author, page through results, star favorites and copy them to
-the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
+by text, book or author, page through results, star favorites, edit notes and
+export to Markdown, JSON or CSV. Native look, tiny binaries, on Windows, Linux
+and macOS.
 
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)
 ![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
@@ -13,10 +14,9 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
 ![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 
 <p>
-  <img src="docs/screen1.png" width="49%" alt="kindclip — light theme">
-  <img src="docs/screen2.png" width="49%" alt="kindclip — dark theme">
+  <img src="docs/screenshot.png" width="80%" alt="kindclip — dark theme">
 </p>
-*Library view: book sidebar, live search, cards and pagination — in light and dark theme.*
+*Library view: book sidebar, live search, cards and pagination — in dark theme.*
 
 ## Usage
 
@@ -29,8 +29,8 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
    detected by hash, and files that previously failed to parse get healed.
    The 📁 button next to **Import** reveals the database file in your file
    manager.
-4. Hit **Export** (📤) to save everything matching your current filters to
-   **Markdown, JSON or CSV** — one file grouped by book.
+4. Hit **Export** (📤) next to **Import** to save everything matching the
+   current filters to **Markdown, JSON or CSV** — one file grouped by book.
 
 ## Features
 
@@ -43,16 +43,15 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
   Configurable **pagination** (20/50/100) and a **font-size control** (S/M/L)
   for accessibility.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
+- **Note editing**: rewrite a note in place — edited cards show an **Edited**
+  badge and can be **reset to the original** Kindle text at any time, with an
+  edited-notes filter. Edits live in the database only: `My Clippings.txt`
+  is never modified (the Kindle owns that file, so sync is one-way) and
+  re-imports stay duplicate-free.
 - **Export** the current filtered view to **Markdown, JSON or CSV**: one file
-  grouped by book, with favorites marked and translated labels in the app
-  language (JSON/CSV keep stable English values and both original and edited
-  note text for scripting).
-- **Note editing**: rewrite a note in place, with an *Edited* badge, a
-  one-click restore to the original Kindle text and an edited-notes filter.
-- **Note editing**: edit your notes in place — edited cards show an **Edited**
-  badge and can be **reset to the original** Kindle text at any time. Edits
-  live in the database only: `My Clippings.txt` is never modified (the Kindle
-  owns that file, so sync is one-way) and re-imports stay duplicate-free.
+  grouped by book, favorites marked, labels translated in the app language,
+  and JSON/CSV with stable English fields (original and edited note text
+  included) for scripting.
 - **UI in 5 languages** (es, en, fr, de, it — Spanish by default),
   a **system/light/dark theme** and the font size above, all persisted.
 - A header button reveals **`kindclip.db` in the file manager**, and long
@@ -83,7 +82,7 @@ npx tauri dev      # do NOT use plain `npm run dev`: without the Tauri runtime t
 npx tauri build    # .deb/.rpm/.AppImage on Linux — see target/release/bundle
 ```
 
-Releases are automated: pushing a `v*` tag (e.g. `v0.2.0`) runs
+Releases are automated: pushing a `v*` tag (e.g. `v1.0.0`) runs
 `.github/workflows/release.yml`, which syncs the version from the tag, checks,
 tests and attaches the bundles to a GitHub Release for macOS (ARM + Intel),
 Linux and Windows.
@@ -108,6 +107,7 @@ src/                        # Svelte 5 + Tailwind v4 frontend
   lib/
     db.ts                   # SQL port (plugin-sql): queries + import orchestration
     db-location.ts          # Reveal kindclip.db in the file manager (tested)
+    exporter.ts             # Export serializers: Markdown/JSON/CSV (tested)
     font.ts                 # S/M/L font-size scale with persistence (tested)
     importer.ts             # Import flow: pick → parse → persist
     library.ts              # Pagination, debounce, formatting (tested)
@@ -120,11 +120,10 @@ src-tauri/
   src/
     lib.rs                  # Migrations + plugin and command registration
     commands.rs             # parse_clippings_file (reads, SHA-256 hashes, parses)
-                          # + db_file_path (absolute path of kindclip.db)
+                          # + db_file_path, write_export_file, export_default_path
   migrations/001_init.sql   # Schema: files, books, clippings, favorites
   capabilities/             # Least-privilege permissions (sql, dialog, clipboard write, opener)
 crates/clippings-parser/    # Pure My Clippings.txt parser (no Tauri deps)
-odd/tasks/kindclip.md       # Decision and task log of the project
 ```
 
 ## Where the database lives
@@ -141,14 +140,15 @@ This also wipes your note edits, which live in the same database.
 You can also open it straight from the app: the 📁 button next to **Import**
 reveals it in your file manager.
 Quick inspection:
+
 ```bash
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
 ```
 
 ## What's next
 
-- **Cross-machine sync**, now that **Export** (Markdown/JSON/CSV) has landed
-  in v1.0.0.
+- **Sorting**: order books, highlights, notes and bookmarks by title or date,
+  ascending or descending.
 - The current layering (pure parser → commands → SQL port → UI) allows it
   without rewriting.
 
