@@ -127,7 +127,7 @@ describe("escapeLike", () => {
 describe("buildListQuery", () => {
   it("filters by text across content, title and author", () => {
     const { sql, params } = buildListQuery(
-      { query: "stoic", bookId: null, kinds: [], favoritesOnly: false },
+      { query: "stoic", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("LIKE");
@@ -139,7 +139,7 @@ describe("buildListQuery", () => {
 
   it("applies book, kind and favorites filters with pagination", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: 3, kinds: ["note"], favoritesOnly: true },
+      { query: "", bookId: 3, kinds: ["note"], favoritesOnly: true, editedOnly: false },
       { page: 2, pageSize: 50 },
     );
     expect(sql).toContain("b.id =");
@@ -153,7 +153,7 @@ describe("buildListQuery", () => {
 
   it("matches any of several selected kinds", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: null, kinds: ["highlight", "note"], favoritesOnly: false },
+      { query: "", bookId: null, kinds: ["highlight", "note"], favoritesOnly: false, editedOnly: false },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.kind IN ($1, $2)");
@@ -162,7 +162,7 @@ describe("buildListQuery", () => {
 
   it("selects the overlay columns for edited notes", () => {
     const { sql } = buildListQuery(
-      { query: "", bookId: null, kinds: [], favoritesOnly: false },
+      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.content_edited, c.edited_at");
@@ -170,10 +170,18 @@ describe("buildListQuery", () => {
 
   it("searches the edited text, falling back to the original", () => {
     const { sql } = buildListQuery(
-      { query: "x", bookId: null, kinds: [], favoritesOnly: false },
+      { query: "x", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("COALESCE(c.content_edited, c.content) LIKE");
+  });
+
+  it("restricts the list to edited notes only", () => {
+    const { sql } = buildListQuery(
+      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: true },
+      { page: 1, pageSize: 20 },
+    );
+    expect(sql).toContain("c.content_edited IS NOT NULL");
   });
 });
 
@@ -184,11 +192,24 @@ describe("buildCountQuery", () => {
       bookId: null,
       kinds: [],
       favoritesOnly: true,
+      editedOnly: false,
     });
     expect(sql).toContain("COUNT");
     expect(sql).not.toContain("LIMIT");
     expect(sql).toContain("f.clipping_id IS NOT NULL");
     expect(params[0]).toBe("%x%");
+  });
+
+  it("mirrors the edited-only filter", () => {
+    const { sql } = buildCountQuery({
+      query: "",
+      bookId: null,
+      kinds: [],
+      favoritesOnly: false,
+      editedOnly: true,
+    });
+    expect(sql).toContain("c.content_edited IS NOT NULL");
+    expect(sql).not.toContain("LIMIT");
   });
 });
 
@@ -339,6 +360,7 @@ describe("settings", () => {
       bookId: 3,
       kinds: ["note"],
       favoritesOnly: true,
+      editedOnly: true,
       pageSize: 50,
     };
     await saveFilterState(port, state);
@@ -350,6 +372,23 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toBe(null);
   });
 
+  it("defaults the edited filter to false on payloads stored before it existed", async () => {
+    const port = new FakePort();
+    await setSetting(
+      port,
+      "filter",
+      JSON.stringify({ query: "x", favoritesOnly: true, pageSize: 20, bookId: 3, kinds: ["note"] }),
+    );
+    await expect(loadFilterState(port)).resolves.toEqual({
+      query: "x",
+      bookId: 3,
+      kinds: ["note"],
+      favoritesOnly: true,
+      editedOnly: false,
+      pageSize: 20,
+    });
+  });
+
   it("rejects corrupt filter payloads", async () => {
     const port = new FakePort();
     await setSetting(port, "filter", "not-json{{");
@@ -357,6 +396,8 @@ describe("settings", () => {
     await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 999, bookId: null, kinds: [] }));
     await expect(loadFilterState(port)).resolves.toBe(null);
     await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 20, bookId: null, kinds: ["bogus"] }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: "yes", pageSize: 20, bookId: null, kinds: [] }));
     await expect(loadFilterState(port)).resolves.toBe(null);
   });
 
@@ -372,6 +413,7 @@ describe("settings", () => {
       bookId: null,
       kinds: ["note"],
       favoritesOnly: false,
+      editedOnly: false,
       pageSize: 20,
     });
     await setSetting(
@@ -384,6 +426,7 @@ describe("settings", () => {
       bookId: null,
       kinds: [],
       favoritesOnly: false,
+      editedOnly: false,
       pageSize: 20,
     });
   });

@@ -38,6 +38,8 @@ export interface ClippingFilter {
   /** Selected kinds; empty means all. */
   kinds: ClippingKind[];
   favoritesOnly: boolean;
+  /** Restricts the list to notes whose text was edited over the original. */
+  editedOnly: boolean;
 }
 
 export interface PageRequest {

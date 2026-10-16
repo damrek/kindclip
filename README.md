@@ -37,10 +37,12 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
   kinds — including modern Spanish firmware wording («Tu resaltado»).
 - **Multi-file library** with content-hash dedupe across imports.
 - **Filters**: full-text search over content, title and author, plus book,
-  multi-select kind chips and favorites-only filters. Configurable
-  **pagination** (20/50/100) and a **font-size control** (S/M/L) for
-  accessibility.
+  multi-select kind chips, favorites-only and edited-notes-only filters.
+  Configurable **pagination** (20/50/100) and a **font-size control** (S/M/L)
+  for accessibility.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
+- **Note editing**: rewrite a note in place, with an *Edited* badge, a
+  one-click restore to the original Kindle text and an edited-notes filter.
 - **Note editing**: edit your notes in place — edited cards show an **Edited**
   badge and can be **reset to the original** Kindle text at any time. Edits
   live in the database only: `My Clippings.txt` is never modified (the Kindle

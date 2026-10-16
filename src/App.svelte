@@ -74,6 +74,7 @@
   let bookId = $state<number | null>(null);
   let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
+  let editedOnly = $state(false);
   let page = $state(1);
   let pageSize = $state(20);
 
@@ -156,7 +157,13 @@
     setLocale,
   });
 
-  const filter = $derived<ClippingFilter>({ query: debouncedQuery, bookId, kinds, favoritesOnly });
+  const filter = $derived<ClippingFilter>({
+    query: debouncedQuery,
+    bookId,
+    kinds,
+    favoritesOnly,
+    editedOnly,
+  });
 
   const scheduleQuery = debounce((value: string) => {
     debouncedQuery = value;
@@ -231,6 +238,7 @@
         bookId = dbFilter.bookId;
         kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
+        editedOnly = dbFilter.editedOnly;
         pageSize = dbFilter.pageSize;
         page = 1;
       } else {
@@ -239,6 +247,7 @@
           bookId,
           kinds,
           favoritesOnly,
+          editedOnly,
           pageSize,
         });
       }
@@ -278,7 +287,7 @@
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
   $effect(() => {
-    saveFilters({ query: debouncedQuery, bookId, kinds, favoritesOnly, pageSize });
+    saveFilters({ query: debouncedQuery, bookId, kinds, favoritesOnly, editedOnly, pageSize });
   });
 
   $effect(() => {
@@ -297,6 +306,11 @@
 
   function toggleFavoritesOnly(): void {
     favoritesOnly = !favoritesOnly;
+    page = 1;
+  }
+
+  function toggleEditedOnly(): void {
+    editedOnly = !editedOnly;
     page = 1;
   }
 
@@ -373,6 +387,10 @@
           ...result,
           items: applyNoteEdit(result.items, id, { content_edited: null, edited_at: null }),
         };
+        if (editedOnly) {
+          // The reset note no longer belongs to this view.
+          await loadList(filter, page, pageSize);
+        }
       }
       return confirmed;
     } catch (error) {
@@ -397,6 +415,7 @@
     query = "";
     debouncedQuery = "";
     favoritesOnly = false;
+    editedOnly = false;
     kinds = [];
     selectBook(null);
   }
@@ -453,7 +472,7 @@
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly,
+    debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly || editedOnly,
   );
 
   const KIND_OPTIONS: ClippingKind[] = ["highlight", "note", "bookmark"];
@@ -577,6 +596,17 @@
               : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
           >
             {t("fav.toggle")}
+          </button>
+          <button
+            type="button"
+            onclick={toggleEditedOnly}
+            aria-pressed={editedOnly}
+            title={t("edit.hint")}
+            class="rounded-full border px-3 py-2 text-sm font-medium transition {editedOnly
+              ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+              : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+          >
+            {t("edit.toggle")}
           </button>
         </div>
 
