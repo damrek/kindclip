@@ -36,17 +36,6 @@ jobs:
           # A universal macOS build compiles BOTH Apple targets.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: Cache Rust build artifacts
-        # A tag run cannot read caches from OTHER tags, but it CAN read the
-        # default-branch cache that .github/workflows/ci.yml keeps warm — so
-        # `shared-key` must match ci.yml. Restore only: a tag-scoped save could
-        # never be reused by the next release, it would only churn cache storage.
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: '. -> target'
-          shared-key: tauri-release
-          save-if: false
-
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -75,7 +64,10 @@ jobs:
 
       - run: npm run test
 
-      - run: cargo test --workspace
+      # Release profile on purpose: the same dependency artifacts feed the
+      # tauri-action build below (same profile, same target/), so the graph is
+      # compiled ONCE instead of twice (debug for tests, then release for the app).
+      - run: cargo test --release --workspace
 
       - uses: tauri-apps/tauri-action@v0
         env:
