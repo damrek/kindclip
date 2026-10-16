@@ -5,6 +5,7 @@ import {
   loadLocale,
   LOCALES,
   translate,
+  type I18nKey,
   type Locale,
 } from "./i18n";
 
@@ -73,5 +74,40 @@ describe("translate", () => {
   it("exposes locale as a Locale type", () => {
     const locale: Locale = "it";
     expect(translate(locale, "lang.label")).toBe("Lingua");
+  });
+});
+
+describe("export keys", () => {
+  const EXPORT_KEYS: I18nKey[] = [
+    "export.button",
+    "export.title",
+    "export.format",
+    "export.summary",
+    "export.scopeAll",
+    "export.scopeFiltered",
+    "export.includeOriginal",
+    "export.done",
+    "export.error",
+    "export.originalLabel",
+  ];
+
+  it("resolves every export key in every locale", () => {
+    for (const locale of LOCALES) {
+      for (const key of EXPORT_KEYS) {
+        expect(translate(locale, key), `${locale}.${key}`).not.toBe(key);
+      }
+    }
+  });
+
+  it("interpolates count, scope, file and message", () => {
+    expect(translate("es", "export.summary", { count: 12, scope: "todos los libros" })).toBe(
+      "12 clippings de todos los libros.",
+    );
+    expect(translate("en", "export.done", { count: 3, file: "kindclip-export.md" })).toBe(
+      "Exported 3 clippings to kindclip-export.md.",
+    );
+    expect(translate("it", "export.error", { message: "boom" })).toBe(
+      "Impossibile esportare: boom",
+    );
   });
 });

@@ -1,11 +1,14 @@
 <script lang="ts">
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
+  import ExportDialog from "./components/ExportDialog.svelte";
   import FontScaleToggle from "./components/FontScaleToggle.svelte";
   import LanguageSelector from "./components/LanguageSelector.svelte";
   import Pagination from "./components/Pagination.svelte";
   import ThemeToggle from "./components/ThemeToggle.svelte";
   import appIcon from "./assets/icon.png";
+  import { invoke } from "@tauri-apps/api/core";
+  import { save } from "@tauri-apps/plugin-dialog";
   import { setContext } from "svelte";
   import {
     I18N_CONTEXT_KEY,
@@ -34,6 +37,7 @@
     type FontScale,
   } from "./lib/font";
   import {
+    exportClippings,
     getDb,
     getSetting,
     listBooks,
@@ -48,6 +52,13 @@
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
+  import {
+    exportFileName,
+    serializeCsv,
+    serializeJson,
+    serializeMarkdown,
+    type ExportFormat,
+  } from "./lib/exporter";
   import {
     applyFavoriteToggle,
     applyNoteEdit,
@@ -81,6 +92,9 @@
   let importing = $state(false);
   let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
+  let exportOpen = $state(false);
+  let exporting = $state(false);
+  let exportStatus = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Note pending reset confirmation (dialog rendered at app root). */
@@ -455,6 +469,53 @@
     }
   }
 
+  /** Open the export dialog from the header (clears the previous outcome). */
+  function openExport(): void {
+    if (!result || result.total === 0) return;
+    exportStatus = null;
+    exportOpen = true;
+  }
+
+  /** S4: filtered rows → serializer → native save dialog → Rust write. */
+  async function onExport(format: ExportFormat, includeOriginal: boolean): Promise<void> {
+    if (exporting) return;
+    exporting = true;
+    try {
+      const rows = await exportClippings(filter);
+      const bookTitle = books.find((book) => book.id === bookId)?.title ?? null;
+      const fileName = exportFileName(format, bookTitle);
+      const text =
+        format === "markdown"
+          ? serializeMarkdown(rows, { includeOriginal, locale, t })
+          : format === "json"
+            ? serializeJson(rows)
+            : serializeCsv(rows);
+      const extension = EXPORT_EXTENSIONS[format];
+      let defaultPath = fileName;
+      try {
+        defaultPath = await invoke<string>("export_default_path", {
+          suggestedFileName: fileName,
+        });
+      } catch {
+        // Non-fatal: the bare file name is a valid default path.
+      }
+      const path = await save({
+        defaultPath,
+        filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
+      });
+      if (path === null) return; // Cancelled: the dialog stays open.
+      await invoke("write_export_file", { path, contents: text });
+      exportStatus = t("export.done", { count: rows.length, file: fileName });
+      exportOpen = false;
+    } catch (error) {
+      exportStatus = t("export.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      exporting = false;
+    }
+  }
+
   async function onOpenDbLocation(): Promise<void> {
     if (locatingDb) return;
     locatingDb = true;
@@ -474,8 +535,18 @@
   const hasActiveFilters = $derived(
     debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly || editedOnly,
   );
+  /** Dialog scope: selected book title, else which view is being exported. */
+  const exportScope = $derived(
+    books.find((book) => book.id === bookId)?.title ??
+      (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
+  );
 
   const KIND_OPTIONS: ClippingKind[] = ["highlight", "note", "bookmark"];
+  const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
+    markdown: "md",
+    json: "json",
+    csv: "csv",
+  };
 </script>
 
 <div class="flex h-full flex-col">
@@ -493,6 +564,9 @@
       {#if importStatus}
         <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
       {/if}
+      {#if exportStatus}
+        <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{exportStatus}</p>
+      {/if}
       <button
         type="button"
         onclick={onOpenDbLocation}
@@ -502,6 +576,16 @@
         class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
       >
         📁
+      </button>
+      <button
+        type="button"
+        onclick={openExport}
+        disabled={!result || result.total === 0}
+        title={t("export.button")}
+        aria-label={t("export.button")}
+        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        📤
       </button>
       <button
         type="button"
@@ -664,6 +748,7 @@
 <svelte:window
   onkeydown={(event) => {
     if (resetTarget && event.key === "Escape") resetTarget = null;
+    if (exportOpen && !exporting && event.key === "Escape") exportOpen = false;
   }}
 />
 
@@ -717,4 +802,14 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if exportOpen}
+  <ExportDialog
+    count={result?.total ?? 0}
+    scope={exportScope}
+    busy={exporting}
+    onClose={() => (exportOpen = false)}
+    onExport={onExport}
+  />
 {/if}
