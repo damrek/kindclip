@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildCountQuery,
   buildListQuery,
   escapeLike,
+  exportClippings,
   getSetting,
   importParsedClippings,
   loadFilterState,
@@ -14,7 +15,21 @@ import {
   type DbPort,
   type StoredFilterState,
 } from "./db";
-import type { ClippingDto } from "./types";
+import type { ClippingDto, ClippingFilter } from "./types";
+
+/** Backing port for the mocked plugin-sql connection: `exportClippings` is
+ * the only db.ts function that goes through `getDb()`, so tests assign a
+ * FakePort here before calling it. */
+const plugin = vi.hoisted(() => ({ port: null as DbPort | null }));
+
+vi.mock("@tauri-apps/plugin-sql", () => ({
+  default: {
+    load: async () => ({
+      select: (sql: string, params?: unknown[]) => plugin.port!.select(sql, params),
+      execute: (sql: string, params?: unknown[]) => plugin.port!.execute(sql, params),
+    }),
+  },
+}));
 
 function clipping(overrides: Partial<ClippingDto> = {}): ClippingDto {
   return {
@@ -43,10 +58,17 @@ class FakePort implements DbPort {
   noteEdits = new Map<number, { content: string; at: string }>();
   noteResets: number[] = [];
   executedSql: string[] = [];
+  /** Rows served to the export query, in SQLite shape (favorite 0/1). */
+  clippingRows: unknown[] = [];
+  selectCalls: Array<{ sql: string; params: unknown[] }> = [];
   lastId = 100;
   fileId = 7;
 
   async select<T>(sql: string, params?: unknown[]): Promise<T[]> {
+    if (sql.includes("FROM clippings c")) {
+      this.selectCalls.push({ sql, params: params ?? [] });
+      return this.clippingRows as T[];
+    }
     if (sql.includes("content_hash")) {
       return [...this.existingHashes].map((h) => ({ content_hash: h }) as T);
     }
@@ -183,6 +205,20 @@ describe("buildListQuery", () => {
     );
     expect(sql).toContain("c.content_edited IS NOT NULL");
   });
+
+  it("keeps its exact paginated SQL, shared select included", () => {
+    const { sql, params } = buildListQuery(filter(), { page: 2, pageSize: 20 });
+    // (the empty WHERE leaves a double space before ORDER BY, unchanged)
+    expect(sql).toBe(
+      "SELECT c.id, b.title, b.author, c.kind, c.page, c.location, " +
+        "c.added_on_raw, c.added_on, c.content, c.content_hash, " +
+        "c.content_edited, c.edited_at, " +
+        "CASE WHEN f.clipping_id IS NULL THEN 0 ELSE 1 END AS favorite " +
+        "FROM clippings c JOIN books b ON b.id = c.book_id LEFT JOIN favorites f ON f.clipping_id = c.id " +
+        " ORDER BY COALESCE(c.added_on, '') DESC, c.id DESC LIMIT $1 OFFSET $2",
+    );
+    expect(params).toEqual([20, 20]);
+  });
 });
 
 describe("buildCountQuery", () => {
@@ -210,6 +246,116 @@ describe("buildCountQuery", () => {
     });
     expect(sql).toContain("c.content_edited IS NOT NULL");
     expect(sql).not.toContain("LIMIT");
+  });
+});
+
+/** SQLite-shaped row as served by the export query (favorite 0/1). */
+function rawRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 1,
+    title: "Some Book",
+    author: "Some Author",
+    kind: "highlight",
+    page: 1,
+    location: "1-2",
+    added_on_raw: "raw",
+    added_on: "2020-01-06T10:15:00",
+    content: "Some content",
+    content_hash: "hash-1",
+    content_edited: null,
+    edited_at: null,
+    favorite: 0,
+    ...overrides,
+  };
+}
+
+function filter(overrides: Partial<ClippingFilter> = {}): ClippingFilter {
+  return {
+    query: "",
+    bookId: null,
+    kinds: [],
+    favoritesOnly: false,
+    editedOnly: false,
+    ...overrides,
+  };
+}
+
+describe("exportClippings", () => {
+  it("selects every filtered row without pagination, ordered by book then chronology", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.clippingRows = [rawRow({ id: 1, favorite: 1 }), rawRow({ id: 2, favorite: 0 })];
+    const criteria = filter({
+      query: "stoic",
+      bookId: 3,
+      kinds: ["highlight", "note"],
+      favoritesOnly: true,
+      editedOnly: true,
+    });
+
+    const rows = await exportClippings(criteria);
+
+    const call = port.selectCalls.at(-1);
+    expect(call?.sql).toContain(
+      "SELECT c.id, b.title, b.author, c.kind, c.page, c.location, " +
+        "c.added_on_raw, c.added_on, c.content, c.content_hash, " +
+        "c.content_edited, c.edited_at, " +
+        "CASE WHEN f.clipping_id IS NULL THEN 0 ELSE 1 END AS favorite",
+    );
+    expect(call?.sql).toContain(
+      "FROM clippings c JOIN books b ON b.id = c.book_id LEFT JOIN favorites f ON f.clipping_id = c.id",
+    );
+    expect(call?.sql).toContain(
+      "ORDER BY b.title COLLATE NOCASE, COALESCE(c.added_on, '') ASC, c.id ASC",
+    );
+    expect(call?.sql).not.toContain("LIMIT");
+    expect(call?.sql).not.toContain("OFFSET");
+    expect(call?.sql).toContain("COALESCE(c.content_edited, c.content) LIKE");
+    expect(call?.sql).toContain("f.clipping_id IS NOT NULL");
+    expect(call?.sql).toContain("c.content_edited IS NOT NULL");
+    // Same WHERE as the count query: every filter, in the same order, no extra params.
+    expect(call?.params).toEqual(buildCountQuery(criteria).params);
+    expect(rows.map((row) => row.favorite)).toEqual([true, false]);
+  });
+
+  it("maps SQLite rows to ClippingRow, keeping nulls and favorite booleans", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.clippingRows = [
+      rawRow({
+        id: 9,
+        author: null,
+        page: null,
+        location: null,
+        added_on: null,
+        content: null,
+        content_edited: "edited",
+        edited_at: "2026-01-01T00:00:00",
+        favorite: 1,
+      }),
+    ];
+
+    await expect(exportClippings(filter())).resolves.toEqual([
+      {
+        id: 9,
+        title: "Some Book",
+        author: null,
+        kind: "highlight",
+        page: null,
+        location: null,
+        added_on_raw: "raw",
+        added_on: null,
+        content: null,
+        content_hash: "hash-1",
+        content_edited: "edited",
+        edited_at: "2026-01-01T00:00:00",
+        favorite: true,
+      },
+    ]);
+
+    const call = port.selectCalls.at(-1);
+    expect(call?.sql).not.toContain("WHERE");
+    expect(call?.params).toEqual([]);
   });
 });
 
