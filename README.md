@@ -29,6 +29,8 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
    detected by hash, and files that previously failed to parse get healed.
    The 📁 button next to **Import** reveals the database file in your file
    manager.
+4. Hit **Export** (📤) to save everything matching your current filters to
+   **Markdown, JSON or CSV** — one file grouped by book.
 
 ## Features
 
@@ -41,6 +43,10 @@ the clipboard. Native look, tiny binaries, on Windows, Linux and macOS.
   Configurable **pagination** (20/50/100) and a **font-size control** (S/M/L)
   for accessibility.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
+- **Export** the current filtered view to **Markdown, JSON or CSV**: one file
+  grouped by book, with favorites marked and translated labels in the app
+  language (JSON/CSV keep stable English values and both original and edited
+  note text for scripting).
 - **Note editing**: rewrite a note in place, with an *Edited* badge, a
   one-click restore to the original Kindle text and an edited-notes filter.
 - **Note editing**: edit your notes in place — edited cards show an **Edited**
@@ -141,7 +147,8 @@ python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.confi
 
 ## What's next
 
-- **Export** (Markdown/JSON/CSV) and **cross-machine sync**.
+- **Cross-machine sync**, now that **Export** (Markdown/JSON/CSV) has landed
+  in v1.0.0.
 - The current layering (pure parser → commands → SQL port → UI) allows it
   without rewriting.
 
