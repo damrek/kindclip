@@ -4,7 +4,7 @@ import type { Book, ClippingFilter, ClippingRow } from "./types";
 export const PAGE_SIZES = [20, 50, 100];
 
 export function emptyFilter(): ClippingFilter {
-  return { query: "", bookId: null, kinds: [], favoritesOnly: false };
+  return { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false };
 }
 
 /** Library-wide clipping count for the "All books" badge (not the filtered total). */

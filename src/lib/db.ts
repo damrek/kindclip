@@ -74,6 +74,9 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
   if (filter.favoritesOnly) {
     conditions.push("f.clipping_id IS NOT NULL");
   }
+  if (filter.editedOnly) {
+    conditions.push("c.content_edited IS NOT NULL");
+  }
   return { sql: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", params };
 }
 
@@ -300,6 +303,8 @@ export interface StoredFilterState {
   bookId: number | null;
   kinds: ClippingKind[];
   favoritesOnly: boolean;
+  /** Absent in payloads stored before the edited-notes filter existed. */
+  editedOnly: boolean;
   pageSize: number;
 }
 
@@ -328,6 +333,7 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       !Array.isArray(kinds) ||
       !kinds.every((kind) => CLIPPING_KINDS.includes(kind)) ||
       typeof parsed.favoritesOnly !== "boolean" ||
+      (parsed.editedOnly !== undefined && typeof parsed.editedOnly !== "boolean") ||
       !PAGE_SIZES.includes(parsed.pageSize as number)
     ) {
       return null;
@@ -337,6 +343,7 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       bookId: parsed.bookId ?? null,
       kinds,
       favoritesOnly: parsed.favoritesOnly,
+      editedOnly: parsed.editedOnly ?? false,
       pageSize: parsed.pageSize as number,
     };
   } catch {
