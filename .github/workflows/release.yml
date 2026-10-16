@@ -14,10 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # Apple Silicon
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # Intel
-            args: '--target x86_64-apple-darwin'
+          - platform: 'macos-latest' # Universal: Apple Silicon + Intel
+            args: '--target universal-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
           - platform: 'windows-latest'
@@ -35,8 +33,19 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Apple targets only matter on macOS runners.
+          # A universal macOS build compiles BOTH Apple targets.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust build artifacts
+        # A tag run cannot read caches from OTHER tags, but it CAN read the
+        # default-branch cache that .github/workflows/ci.yml keeps warm — so
+        # `shared-key` must match ci.yml. Restore only: a tag-scoped save could
+        # never be reused by the next release, it would only churn cache storage.
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          shared-key: tauri-release
+          save-if: false
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'

@@ -1,0 +1,82 @@
+name: CI
+
+# Two purposes:
+#  1. Validate every change on PRs before it can be tagged (a failed tag used to
+#     burn a full release run: see v0.1.0 and v0.1.1).
+#  2. Keep the default-branch (main) Rust cache warm. The release workflow is
+#     tag-triggered, and GitHub's cache is NOT shared across tags, so a tag run
+#     can only reuse the cache written on the default branch. Without this file
+#     the release would keep compiling every dependency from scratch.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest' # Universal: Apple Silicon + Intel
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust build artifacts
+        # `shared-key` MUST match .github/workflows/release.yml so a tag run
+        # restores the exact cache this job writes. OS and arch are added to the
+        # key automatically, so one shared key is safe across platforms.
+        # Only main may write the cache the release reads; PR caches are scoped
+        # to the merge ref and can never be restored by a release.
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          shared-key: tauri-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - run: npm ci
+
+      # The Tauri generate_context! macro validates frontendDist at COMPILE time,
+      # so dist/ must exist before ANY cargo build/test.
+      - run: npm run build
+
+      - run: npm run check
+
+      - run: npm run test
+
+      - run: cargo test --workspace
+
+      # Warm the release-profile dependency artifacts too, so the tag release
+      # reuses them instead of recompiling the whole graph. Only on main, where
+      # the cache lands in the default-branch scope the release can read.
+      - name: Warm release-profile dependencies
+        if: github.ref == 'refs/heads/main'
+        run: npx tauri build ${{ matrix.args }} --no-bundle
