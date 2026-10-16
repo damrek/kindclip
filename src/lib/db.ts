@@ -45,6 +45,13 @@ const LIST_FROM =
   "JOIN books b ON b.id = c.book_id " +
   "LEFT JOIN favorites f ON f.clipping_id = c.id";
 
+/** Columns returned by the list and the export query (same shape, S2). */
+const LIST_SELECT =
+  "SELECT c.id, b.title, b.author, c.kind, c.page, c.location, " +
+  "c.added_on_raw, c.added_on, c.content, c.content_hash, " +
+  "c.content_edited, c.edited_at, " +
+  "CASE WHEN f.clipping_id IS NULL THEN 0 ELSE 1 END AS favorite ";
+
 function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } {
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -89,11 +96,7 @@ export function buildListQuery(
   const offset = `$${params.length + 2}`;
   params.push(page.pageSize, (page.page - 1) * page.pageSize);
   const sql =
-    "SELECT c.id, b.title, b.author, c.kind, c.page, c.location, " +
-    "c.added_on_raw, c.added_on, c.content, c.content_hash, " +
-    "c.content_edited, c.edited_at, " +
-    "CASE WHEN f.clipping_id IS NULL THEN 0 ELSE 1 END AS favorite " +
-    `${LIST_FROM} ${where} ` +
+    `${LIST_SELECT}${LIST_FROM} ${where} ` +
     `ORDER BY COALESCE(c.added_on, '') DESC, c.id DESC LIMIT ${limit} OFFSET ${offset}`;
   return { sql, params };
 }
@@ -106,6 +109,10 @@ export function buildCountQuery(filter: ClippingFilter): { sql: string; params: 
 /** Row shape as returned by SQLite (favorite is 0/1), mapped to boolean below. */
 type ClippingRowRaw = Omit<ClippingRow, "favorite"> & { favorite: number };
 
+function mapClippingRow(row: ClippingRowRaw): ClippingRow {
+  return { ...row, favorite: row.favorite === 1 };
+}
+
 export async function listClippings(
   filter: ClippingFilter,
   page: PageRequest,
@@ -116,11 +123,23 @@ export async function listClippings(
   const rows = await port.select<ClippingRowRaw>(list.sql, list.params);
   const totals = await port.select<{ total: number }>(count.sql, count.params);
   return {
-    items: rows.map((row) => ({ ...row, favorite: row.favorite === 1 })),
+    items: rows.map(mapClippingRow),
     total: totals[0]?.total ?? 0,
     page: page.page,
     pageSize: page.pageSize,
   };
+}
+
+/** Every row matching the filter (the whole filtered view, S2), unpaginated
+ * for export: same SELECT as the list, ordered by book and then chronology. */
+export async function exportClippings(filter: ClippingFilter): Promise<ClippingRow[]> {
+  const port = await getDb();
+  const { sql: where, params } = buildWhere(filter);
+  const sql =
+    `${LIST_SELECT}${LIST_FROM}${where === "" ? "" : ` ${where}`} ` +
+    "ORDER BY b.title COLLATE NOCASE, COALESCE(c.added_on, '') ASC, c.id ASC";
+  const rows = await port.select<ClippingRowRaw>(sql, params);
+  return rows.map(mapClippingRow);
 }
 
 export const LIST_BOOKS_SQL =

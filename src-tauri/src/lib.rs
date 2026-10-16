@@ -2,8 +2,8 @@
 //!
 //! Data layer (T3): schema migrations run automatically when the
 //! `sqlite:kindclip.db` pool is (pre)loaded. All SQL goes through the
-//! frontend port (`src/lib/db.ts`); Rust owns parsing (T2) and import
-//! entry points (T4).
+//! frontend port (`src/lib/db.ts`); Rust owns parsing (T2) and the import and
+//! export entry points (T4).
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -45,7 +45,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::parse_clippings_file,
-            commands::db_file_path
+            commands::db_file_path,
+            commands::write_export_file,
+            commands::export_default_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running kindclip");
