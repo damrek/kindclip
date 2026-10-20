@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 
-// @ts-expect-error process is a nodejs global
 const { TAURI_DEV_HOST: host, TAURI_ENV_PLATFORM } = process.env;
 const isTauri = !!TAURI_ENV_PLATFORM;
 

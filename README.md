@@ -42,6 +42,8 @@ and macOS.
   multi-select kind chips, favorites-only and edited-notes-only filters.
   Configurable **pagination** (20/50/100) and a **font-size control** (S/M/L)
   for accessibility.
+- **Book sorting**: sort the book sidebar by title or author, ascending or
+  descending, with the choice persisted.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
 - **Note editing**: rewrite a note in place — edited cards show an **Edited**
   badge and can be **reset to the original** Kindle text at any time, with an
@@ -147,8 +149,9 @@ python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.confi
 
 ## What's next
 
-- **Sorting**: order books, highlights, notes and bookmarks by title or date,
-  ascending or descending.
+- **Sorting**: books can now be ordered by title or author, ascending or
+  descending (persisted). Ordering highlights, notes and bookmarks by title or
+  date is still pending.
 - The current layering (pure parser → commands → SQL port → UI) allows it
   without rewriting.
 

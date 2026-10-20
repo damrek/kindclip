@@ -8,13 +8,56 @@
     selectedId: number | null;
     totalCount: number;
     onSelect: (bookId: number | null) => void;
+    sortBy?: "title" | "author";
+    sortDir?: "asc" | "desc";
+    onSortBy?: (key: "title" | "author") => void;
+    onSortDirToggle?: () => void;
   }
 
-  const { books, selectedId, totalCount, onSelect }: Props = $props();
+  const {
+    books,
+    selectedId,
+    totalCount,
+    onSelect,
+    sortBy = "title",
+    sortDir = "asc",
+    onSortBy,
+    onSortDirToggle,
+  }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 </script>
 
 <nav class="flex h-full flex-col" aria-label={i18n.t("sidebar.nav")}>
+  <div class="mb-2 flex items-center gap-1.5" role="group" aria-label={i18n.t("sort.toggle")}>
+    <button
+      type="button"
+      onclick={() => onSortBy?.("title")}
+      aria-pressed={sortBy === "title"}
+      class="rounded-full border px-2.5 py-1 text-xs font-medium transition {sortBy === 'title'
+        ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+    >
+      {i18n.t("sort.title")}
+    </button>
+    <button
+      type="button"
+      onclick={() => onSortBy?.("author")}
+      aria-pressed={sortBy === "author"}
+      class="rounded-full border px-2.5 py-1 text-xs font-medium transition {sortBy === 'author'
+        ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+    >
+      {i18n.t("sort.author")}
+    </button>
+    <button
+      type="button"
+      onclick={() => onSortDirToggle?.()}
+      aria-label={i18n.t("sort.toggle")}
+      class="rounded-full border px-2.5 py-1 text-xs font-medium transition border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+    >
+      {sortDir === "asc" ? "A–Z" : "Z–A"}
+    </button>
+  </div>
   <button
     type="button"
     onclick={() => onSelect(null)}

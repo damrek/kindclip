@@ -65,7 +65,10 @@
     clampPage,
     copyClippingContent,
     debounce,
+    sortBooks,
     totalClippings,
+    type BookSortKey,
+    type BookSortDir,
   } from "./lib/library";
   import type {
     Book,
@@ -86,6 +89,8 @@
   let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let editedOnly = $state(false);
+  let bookSortBy = $state<BookSortKey>("title");
+  let bookSortDir = $state<BookSortDir>("asc");
   let page = $state(1);
   let pageSize = $state(20);
 
@@ -254,6 +259,8 @@
         favoritesOnly = dbFilter.favoritesOnly;
         editedOnly = dbFilter.editedOnly;
         pageSize = dbFilter.pageSize;
+        bookSortBy = dbFilter.bookSortBy ?? "title";
+        bookSortDir = dbFilter.bookSortDir ?? "asc";
         page = 1;
       } else {
         await persistFilterState({
@@ -263,6 +270,8 @@
           favoritesOnly,
           editedOnly,
           pageSize,
+          bookSortBy,
+          bookSortDir,
         });
       }
     } catch {
@@ -301,7 +310,16 @@
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
   $effect(() => {
-    saveFilters({ query: debouncedQuery, bookId, kinds, favoritesOnly, editedOnly, pageSize });
+    saveFilters({
+      query: debouncedQuery,
+      bookId,
+      kinds,
+      favoritesOnly,
+      editedOnly,
+      pageSize,
+      bookSortBy,
+      bookSortDir,
+    });
   });
 
   $effect(() => {
@@ -311,6 +329,14 @@
   function selectBook(id: number | null): void {
     bookId = id;
     page = 1;
+  }
+
+  function setBookSortBy(key: BookSortKey): void {
+    bookSortBy = key;
+  }
+
+  function toggleBookSortDir(): void {
+    bookSortDir = bookSortDir === "asc" ? "desc" : "asc";
   }
 
   function toggleKind(next: ClippingKind): void {
@@ -532,6 +558,7 @@
 
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
+  const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
   const hasActiveFilters = $derived(
     debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly || editedOnly,
   );
@@ -630,7 +657,16 @@
   {:else}
     <div class="flex min-h-0 flex-1">
       <aside class="hidden w-64 shrink-0 border-r border-neutral-200 p-3 md:block dark:border-neutral-800">
-        <BookSidebar books={books} selectedId={bookId} totalCount={libraryTotal} onSelect={selectBook} />
+        <BookSidebar
+          books={sortedBooks}
+          selectedId={bookId}
+          totalCount={libraryTotal}
+          onSelect={selectBook}
+          sortBy={bookSortBy}
+          sortDir={bookSortDir}
+          onSortBy={setBookSortBy}
+          onSortDirToggle={toggleBookSortDir}
+        />
       </aside>
 
       <main class="flex min-w-0 flex-1 flex-col">
