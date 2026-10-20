@@ -34,7 +34,7 @@ describe("release and CI workflow invariants", () => {
   });
 
   it("keeps the release gate steps, tests after the frontend build", () => {
-    expect(releaseWorkflow).toContain("Sync version from tag");
+    expect(releaseWorkflow).toContain("Sync version from resolved release");
     expect(releaseWorkflow).toContain("libwebkit2gtk-4.1-dev");
     expect(releaseWorkflow).toContain("tauri-apps/tauri-action@v0");
     expect(releaseWorkflow.indexOf("cargo test --release --workspace")).toBeGreaterThan(
