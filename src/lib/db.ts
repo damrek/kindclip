@@ -142,14 +142,88 @@ export async function exportClippings(filter: ClippingFilter): Promise<ClippingR
   return rows.map(mapClippingRow);
 }
 
+export type BookSortKey = "title" | "author";
+export type BookSortDir = "asc" | "desc";
+
+function normalizeBookSort(
+  sortBy?:
+    | BookSortKey
+    | {
+        sortBy?: BookSortKey;
+        sort?: BookSortKey;
+        field?: BookSortKey;
+        key?: BookSortKey;
+        dir?: BookSortDir;
+        direction?: BookSortDir;
+        order?: BookSortDir;
+      },
+  direction?: BookSortDir,
+): { key: BookSortKey; dir: BookSortDir } {
+  let key: BookSortKey = "title";
+  let dir: BookSortDir = "asc";
+  if (typeof sortBy === "string") {
+    key = sortBy === "author" ? "author" : "title";
+    dir = direction === "desc" ? "desc" : "asc";
+  } else if (sortBy && typeof sortBy === "object") {
+    const o = sortBy as Record<string, unknown>;
+    const k = o.sortBy ?? o.sort ?? o.field ?? o.key;
+    if (k === "author") key = "author";
+    const d = o.dir ?? o.direction ?? o.order;
+    if (d === "desc") dir = "desc";
+    if (d === "asc") dir = "asc";
+  }
+  if (typeof sortBy === "string" && direction) {
+    dir = direction === "desc" ? "desc" : "asc";
+  }
+  return { key, dir };
+}
+
+export function buildBooksQuery(
+  sortBy?:
+    | BookSortKey
+    | {
+        sortBy?: BookSortKey;
+        sort?: BookSortKey;
+        field?: BookSortKey;
+        key?: BookSortKey;
+        dir?: BookSortDir;
+        direction?: BookSortDir;
+        order?: BookSortDir;
+      },
+  direction?: BookSortDir,
+): { sql: string; params: unknown[] } {
+  const { key, dir } = normalizeBookSort(sortBy, direction);
+  const column = key === "author" ? "COALESCE(b.author, '')" : "b.title";
+  const sql =
+    "SELECT b.id, b.title, b.author, COUNT(c.id) AS clipping_count " +
+    "FROM books b JOIN clippings c ON c.book_id = b.id " +
+    "GROUP BY b.id, b.title, b.author " +
+    `ORDER BY ${column} COLLATE NOCASE ${dir.toUpperCase()}`;
+  return { sql, params: [] };
+}
+
 export const LIST_BOOKS_SQL =
   "SELECT b.id, b.title, b.author, COUNT(c.id) AS clipping_count " +
   "FROM books b JOIN clippings c ON c.book_id = b.id " +
   "GROUP BY b.id, b.title, b.author ORDER BY b.title COLLATE NOCASE";
 
-export async function listBooks(): Promise<Book[]> {
+export async function listBooks(
+  sortBy?:
+    | BookSortKey
+    | {
+        sortBy?: BookSortKey;
+        sort?: BookSortKey;
+        field?: BookSortKey;
+        key?: BookSortKey;
+        dir?: BookSortDir;
+        direction?: BookSortDir;
+        order?: BookSortDir;
+      },
+  direction?: BookSortDir,
+): Promise<Book[]> {
   const port = await getDb();
-  return port.select<Book>(LIST_BOOKS_SQL);
+  const { sql } = buildBooksQuery(sortBy, direction);
+  return port.select<Book>(sql);
 }
 
 export async function toggleFavorite(port: DbPort, clippingId: number): Promise<boolean> {  const rows = await port.select<{ clipping_id: number }>(
@@ -325,6 +399,10 @@ export interface StoredFilterState {
   /** Absent in payloads stored before the edited-notes filter existed. */
   editedOnly: boolean;
   pageSize: number;
+  /** Absent in payloads stored before book sorting existed. */
+  bookSortBy?: "title" | "author";
+  /** Absent in payloads stored before book sorting existed. */
+  bookSortDir?: "asc" | "desc";
 }
 
 const CLIPPING_KINDS: ClippingKind[] = ["highlight", "note", "bookmark"];
@@ -353,6 +431,12 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       !kinds.every((kind) => CLIPPING_KINDS.includes(kind)) ||
       typeof parsed.favoritesOnly !== "boolean" ||
       (parsed.editedOnly !== undefined && typeof parsed.editedOnly !== "boolean") ||
+      (parsed.bookSortBy !== undefined &&
+        parsed.bookSortBy !== "title" &&
+        parsed.bookSortBy !== "author") ||
+      (parsed.bookSortDir !== undefined &&
+        parsed.bookSortDir !== "asc" &&
+        parsed.bookSortDir !== "desc") ||
       !PAGE_SIZES.includes(parsed.pageSize as number)
     ) {
       return null;
@@ -364,6 +448,8 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       favoritesOnly: parsed.favoritesOnly,
       editedOnly: parsed.editedOnly ?? false,
       pageSize: parsed.pageSize as number,
+      ...(parsed.bookSortBy ? { bookSortBy: parsed.bookSortBy } : {}),
+      ...(parsed.bookSortDir ? { bookSortDir: parsed.bookSortDir } : {}),
     };
   } catch {
     return null;
