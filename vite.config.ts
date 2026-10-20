@@ -2,7 +2,8 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 
-const { TAURI_DEV_HOST: host, TAURI_ENV_PLATFORM } = process.env;
+const { TAURI_DEV_HOST: host, TAURI_ENV_PLATFORM } =
+  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const isTauri = !!TAURI_ENV_PLATFORM;
 
 // https://vite.dev/config/
