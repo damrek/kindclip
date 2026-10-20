@@ -4,12 +4,115 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.2.3). Leave empty to auto-bump from commits since the last tag.'
+        required: false
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Triggered by an existing v* tag: use it as-is.
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Resolved version from tag: $VERSION"
+            exit 0
+          fi
+
+          # workflow_dispatch
+          INPUT_VERSION="${{ github.event.inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="${INPUT_VERSION#v}"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Resolved version from input: $VERSION"
+            exit 0
+          fi
+
+          # Auto-bump from conventional commits since the last tag.
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+            LAST_VER="0.0.0"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+            LAST_VER="${LAST_TAG#v}"
+          fi
+
+          COMMITS=$(git log "$RANGE" --format=%s 2>/dev/null || true)
+          BUMP="none"
+
+          # Breaking change -> major
+          if git log "$RANGE" --format=%B 2>/dev/null | grep -q "BREAKING CHANGE"; then
+            BUMP="major"
+          fi
+          if [ "$BUMP" = "none" ] && echo "$COMMITS" | grep -qE '^[a-z]+(\(.+\))?!:'; then
+            BUMP="major"
+          fi
+
+          # feat -> minor
+          if [ "$BUMP" = "none" ] && echo "$COMMITS" | grep -qE '^(feat|feature)(\(.+\))?:'; then
+            BUMP="minor"
+          fi
+
+          # fix/perf/refactor -> patch
+          if [ "$BUMP" = "none" ] && echo "$COMMITS" | grep -qE '^(fix|perf|refactor)(\(.+\))?:'; then
+            BUMP="patch"
+          fi
+
+          if [ "$BUMP" = "none" ]; then
+            echo "No releasable commits (feat/fix/perf/refactor/breaking) since ${LAST_TAG:-the beginning}. Nothing to release."
+            echo "version=" >> "$GITHUB_OUTPUT"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS=. read -r MA MI PA <<< "$LAST_VER"
+          MA=${MA:-0}; MI=${MI:-0}; PA=${PA:-0}
+          case "$BUMP" in
+            major) MA=$((MA + 1)); MI=0; PA=0 ;;
+            minor) MI=$((MI + 1)); PA=0 ;;
+            patch) PA=$((PA + 1)) ;;
+          esac
+          VERSION="$MA.$MI.$PA"
+
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists. Pick a version manually."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "Auto-bumped ($BUMP) to $VERSION from ${LAST_TAG:-initial}"
+
   release:
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -42,13 +145,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Sync version from tag
+      - name: Sync version from resolved release
         # bash on ALL OSes: pwsh (the windows-latest default) cannot run
         # `${GITHUB_REF_NAME#v}` and has no /tmp — this exact mismatch
         # killed the v0.1.1 release job.
         shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > /tmp/tauri.conf.json && mv /tmp/tauri.conf.json src-tauri/tauri.conf.json
           # Keep the Rust packages in sync too (drift caused v0.1.0 locals vs v0.1.2 tags).
@@ -73,8 +178,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'kindclip ${{ github.ref_name }}'
+          tagName: 'v${{ needs.prepare.outputs.version }}'
+          releaseName: 'kindclip v${{ needs.prepare.outputs.version }}'
           generateReleaseNotes: true
           releaseDraft: false
           prerelease: false
