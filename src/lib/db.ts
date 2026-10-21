@@ -40,6 +40,33 @@ export function escapeLike(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
+/** Order of the clipping list: date, book title or reading position. */
+export type ClippingSortKey = "date" | "title" | "page";
+export type ClippingSortDir = "asc" | "desc";
+
+export interface ClippingSort {
+  key: ClippingSortKey;
+  dir: ClippingSortDir;
+}
+
+/** Newest first: the historical order, kept as the default. */
+export const DEFAULT_CLIPPING_SORT: ClippingSort = { key: "date", dir: "desc" };
+
+/** ORDER BY clause per sort key; `page` keeps unnumbered rows last both ways. */
+function buildOrderClause(sort: ClippingSort): string {
+  const dir = sort.dir === "asc" ? "ASC" : "DESC";
+  if (sort.key === "title") {
+    return `ORDER BY b.title COLLATE NOCASE ${dir}, COALESCE(c.added_on, '') ${dir}, c.id ${dir}`;
+  }
+  if (sort.key === "page") {
+    return (
+      "ORDER BY CASE WHEN c.page IS NULL THEN 1 ELSE 0 END ASC, " +
+      `c.page ${dir}, COALESCE(c.added_on, '') ${dir}, c.id ${dir}`
+    );
+  }
+  return `ORDER BY COALESCE(c.added_on, '') ${dir}, c.id ${dir}`;
+}
+
 const LIST_FROM =
   "FROM clippings c " +
   "JOIN books b ON b.id = c.book_id " +
@@ -90,6 +117,7 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
 export function buildListQuery(
   filter: ClippingFilter,
   page: PageRequest,
+  sort: ClippingSort = DEFAULT_CLIPPING_SORT,
 ): { sql: string; params: unknown[] } {
   const { sql: where, params } = buildWhere(filter);
   const limit = `$${params.length + 1}`;
@@ -97,7 +125,7 @@ export function buildListQuery(
   params.push(page.pageSize, (page.page - 1) * page.pageSize);
   const sql =
     `${LIST_SELECT}${LIST_FROM} ${where} ` +
-    `ORDER BY COALESCE(c.added_on, '') DESC, c.id DESC LIMIT ${limit} OFFSET ${offset}`;
+    `${buildOrderClause(sort)} LIMIT ${limit} OFFSET ${offset}`;
   return { sql, params };
 }
 
@@ -116,9 +144,10 @@ function mapClippingRow(row: ClippingRowRaw): ClippingRow {
 export async function listClippings(
   filter: ClippingFilter,
   page: PageRequest,
+  sort: ClippingSort = DEFAULT_CLIPPING_SORT,
 ): Promise<PagedResult<ClippingRow>> {
   const port = await getDb();
-  const list = buildListQuery(filter, page);
+  const list = buildListQuery(filter, page, sort);
   const count = buildCountQuery(filter);
   const rows = await port.select<ClippingRowRaw>(list.sql, list.params);
   const totals = await port.select<{ total: number }>(count.sql, count.params);
@@ -403,9 +432,15 @@ export interface StoredFilterState {
   bookSortBy?: "title" | "author";
   /** Absent in payloads stored before book sorting existed. */
   bookSortDir?: "asc" | "desc";
+  /** Absent in payloads stored before clipping sorting existed. */
+  sortBy?: ClippingSortKey;
+  /** Absent in payloads stored before clipping sorting existed. */
+  sortDir?: ClippingSortDir;
 }
 
 const CLIPPING_KINDS: ClippingKind[] = ["highlight", "note", "bookmark"];
+const CLIPPING_SORT_KEYS: ClippingSortKey[] = ["date", "title", "page"];
+const CLIPPING_SORT_DIRS: ClippingSortDir[] = ["asc", "desc"];
 
 export async function saveFilterState(port: DbPort, state: StoredFilterState): Promise<void> {
   await setSetting(port, SETTINGS_KEYS.filter, JSON.stringify(state));
@@ -424,6 +459,9 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
     const kinds =
       parsed.kinds ??
       (parsed.kind === undefined || parsed.kind === null ? [] : [parsed.kind]);
+    // Widened for runtime validation: JSON may carry any string.
+    const sortBy = parsed.sortBy as string | undefined;
+    const sortDir = parsed.sortDir as string | undefined;
     if (
       typeof parsed.query !== "string" ||
       (parsed.bookId !== null && typeof parsed.bookId !== "number") ||
@@ -437,6 +475,8 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       (parsed.bookSortDir !== undefined &&
         parsed.bookSortDir !== "asc" &&
         parsed.bookSortDir !== "desc") ||
+      (sortBy !== undefined && !CLIPPING_SORT_KEYS.includes(sortBy as ClippingSortKey)) ||
+      (sortDir !== undefined && !CLIPPING_SORT_DIRS.includes(sortDir as ClippingSortDir)) ||
       !PAGE_SIZES.includes(parsed.pageSize as number)
     ) {
       return null;
@@ -450,6 +490,8 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       pageSize: parsed.pageSize as number,
       ...(parsed.bookSortBy ? { bookSortBy: parsed.bookSortBy } : {}),
       ...(parsed.bookSortDir ? { bookSortDir: parsed.bookSortDir } : {}),
+      ...(sortBy ? { sortBy: sortBy as ClippingSortKey } : {}),
+      ...(sortDir ? { sortDir: sortDir as ClippingSortDir } : {}),
     };
   } catch {
     return null;

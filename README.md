@@ -44,6 +44,8 @@ and macOS.
   for accessibility.
 - **Book sorting**: sort the book sidebar by title or author, ascending or
   descending, with the choice persisted.
+- **Clipping order**: sort the list by newest/oldest, book title (A–Z/Z–A) or
+  page, persisted with the rest of the view state.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
 - **Note editing**: rewrite a note in place — edited cards show an **Edited**
   badge and can be **reset to the original** Kindle text at any time, with an
@@ -149,11 +151,14 @@ python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.confi
 
 ## What's next
 
-- **Sorting**: books can now be ordered by title or author, ascending or
-  descending (persisted). Ordering highlights, notes and bookmarks by title or
-  date is still pending.
-- The current layering (pure parser → commands → SQL port → UI) allows it
-  without rewriting.
+- **Recall**: surface a random clipping from the current filters, plus an
+  "on this day" recall for highlights added on the same date in previous years.
+- **Tags / collections**: user-defined tags on top of favorites, with
+  multi-tag filtering and tags included in exports.
+- **Library management**: rename or merge books, delete a book, and list the
+  imported files, so a bad import can be undone without wiping `kindclip.db`.
+- The current layering (pure parser → commands → SQL port → UI) keeps each of
+  these local to one layer.
 
 ## License
 
