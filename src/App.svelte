@@ -37,6 +37,7 @@
     type FontScale,
   } from "./lib/font";
   import {
+    DEFAULT_CLIPPING_SORT,
     exportClippings,
     getDb,
     getSetting,
@@ -48,6 +49,9 @@
     SETTINGS_KEYS,
     toggleFavorite,
     updateNote,
+    type ClippingSort,
+    type ClippingSortDir,
+    type ClippingSortKey,
     type StoredFilterState,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
@@ -91,6 +95,8 @@
   let editedOnly = $state(false);
   let bookSortBy = $state<BookSortKey>("title");
   let bookSortDir = $state<BookSortDir>("asc");
+  let sortBy = $state<ClippingSortKey>(DEFAULT_CLIPPING_SORT.key);
+  let sortDir = $state<ClippingSortDir>(DEFAULT_CLIPPING_SORT.dir);
   let page = $state(1);
   let pageSize = $state(20);
 
@@ -184,19 +190,27 @@
     editedOnly,
   });
 
+  const clippingSort = $derived<ClippingSort>({ key: sortBy, dir: sortDir });
+
   const scheduleQuery = debounce((value: string) => {
     debouncedQuery = value;
     page = 1;
   }, 250);
 
-  async function loadList(f: ClippingFilter, p: number, s: number): Promise<void> {
+  async function loadList(
+    f: ClippingFilter,
+    p: number,
+    s: number,
+    sort: ClippingSort,
+  ): Promise<void> {
     loading = true;
     loadError = null;
     try {
       await getDb();
-      const first = await listClippings(f, { page: p, pageSize: s });
+      const first = await listClippings(f, { page: p, pageSize: s }, sort);
       const last = clampPage(p, first.total, s);
-      result = last === p ? first : await listClippings(f, { page: last, pageSize: s });
+      result =
+        last === p ? first : await listClippings(f, { page: last, pageSize: s }, sort);
       page = last;
     } catch (error) {
       loadError = error instanceof Error ? error.message : String(error);
@@ -261,6 +275,8 @@
         pageSize = dbFilter.pageSize;
         bookSortBy = dbFilter.bookSortBy ?? "title";
         bookSortDir = dbFilter.bookSortDir ?? "asc";
+        sortBy = dbFilter.sortBy ?? DEFAULT_CLIPPING_SORT.key;
+        sortDir = dbFilter.sortDir ?? DEFAULT_CLIPPING_SORT.dir;
         page = 1;
       } else {
         await persistFilterState({
@@ -272,6 +288,8 @@
           pageSize,
           bookSortBy,
           bookSortDir,
+          sortBy,
+          sortDir,
         });
       }
     } catch {
@@ -296,7 +314,7 @@
   // passed as arguments here — otherwise the list loads once on mount
   // and filters/pagination/sidebar silently stop working.
   $effect(() => {
-    void loadList(filter, page, pageSize);
+    void loadList(filter, page, pageSize, clippingSort);
   });
 
   $effect(() => {
@@ -319,6 +337,8 @@
       pageSize,
       bookSortBy,
       bookSortDir,
+      sortBy,
+      sortDir,
     });
   });
 
@@ -354,6 +374,16 @@
     page = 1;
   }
 
+  /** Value shape of the sort select: `<key>:<dir>` (e.g. `page:asc`). */
+  function setClippingSort(value: string): void {
+    const [key, dir] = value.split(":");
+    if (key !== "date" && key !== "title" && key !== "page") return;
+    if (dir !== "asc" && dir !== "desc") return;
+    sortBy = key;
+    sortDir = dir;
+    page = 1;
+  }
+
   async function copyContent(id: number): Promise<void> {
     const target = result?.items.find((item) => item.id === id);
     const text = target ? (target.content_edited ?? target.content) : null;
@@ -382,7 +412,7 @@
       result = { ...result, items: applyFavoriteToggle(result.items, id, confirmed) };
       if (favoritesOnly && !confirmed) {
         // The unstarred card no longer belongs to this view.
-        await loadList(filter, page, pageSize);
+        await loadList(filter, page, pageSize, clippingSort);
       }
     } catch (error) {
       result = { ...result, items: applyFavoriteToggle(result.items, id, current.favorite) };
@@ -429,7 +459,7 @@
         };
         if (editedOnly) {
           // The reset note no longer belongs to this view.
-          await loadList(filter, page, pageSize);
+          await loadList(filter, page, pageSize, clippingSort);
         }
       }
       return confirmed;
@@ -484,7 +514,7 @@
             });
         page = 1;
         await loadBooks();
-        await loadList(filter, 1, pageSize);
+        await loadList(filter, 1, pageSize, clippingSort);
       }
     } catch (error) {
       importStatus = t("import.error", {
@@ -728,6 +758,22 @@
           >
             {t("edit.toggle")}
           </button>
+          <label class="ml-auto">
+            <span class="sr-only">{t("clippingSort.label")}</span>
+            <select
+              value={`${sortBy}:${sortDir}`}
+              onchange={(event) => setClippingSort(event.currentTarget.value)}
+              aria-label={t("clippingSort.label")}
+              class="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-500"
+            >
+              <option value="date:desc">{t("clippingSort.dateDesc")}</option>
+              <option value="date:asc">{t("clippingSort.dateAsc")}</option>
+              <option value="title:asc">{t("clippingSort.titleAsc")}</option>
+              <option value="title:desc">{t("clippingSort.titleDesc")}</option>
+              <option value="page:asc">{t("clippingSort.pageAsc")}</option>
+              <option value="page:desc">{t("clippingSort.pageDesc")}</option>
+            </select>
+          </label>
         </div>
 
         <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">

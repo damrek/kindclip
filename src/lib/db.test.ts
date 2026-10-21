@@ -219,6 +219,36 @@ describe("buildListQuery", () => {
     );
     expect(params).toEqual([20, 20]);
   });
+
+  it("orders oldest first without touching the pagination params", () => {
+    const { sql, params } = buildListQuery(
+      filter(),
+      { page: 1, pageSize: 20 },
+      { key: "date", dir: "asc" },
+    );
+    expect(sql).toContain("ORDER BY COALESCE(c.added_on, '') ASC, c.id ASC");
+    expect(params).toEqual([20, 0]);
+  });
+
+  it("orders by book title ignoring case", () => {
+    const { sql } = buildListQuery(
+      filter(),
+      { page: 1, pageSize: 20 },
+      { key: "title", dir: "asc" },
+    );
+    expect(sql).toContain("ORDER BY b.title COLLATE NOCASE ASC");
+  });
+
+  it("orders by page and keeps unnumbered clippings last in both directions", () => {
+    const asc = buildListQuery(filter(), { page: 1, pageSize: 20 }, { key: "page", dir: "asc" });
+    expect(asc.sql).toContain(
+      "ORDER BY CASE WHEN c.page IS NULL THEN 1 ELSE 0 END ASC, c.page ASC",
+    );
+    const desc = buildListQuery(filter(), { page: 1, pageSize: 20 }, { key: "page", dir: "desc" });
+    expect(desc.sql).toContain(
+      "ORDER BY CASE WHEN c.page IS NULL THEN 1 ELSE 0 END ASC, c.page DESC",
+    );
+  });
 });
 
 describe("buildCountQuery", () => {
@@ -513,6 +543,30 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toEqual(state);
   });
 
+  it("roundtrips the clipping sort with the rest of the view state", async () => {
+    const port = new FakePort();
+    await saveFilterState(port, {
+      query: "",
+      bookId: null,
+      kinds: [],
+      favoritesOnly: false,
+      editedOnly: false,
+      pageSize: 20,
+      sortBy: "page",
+      sortDir: "asc",
+    });
+    await expect(loadFilterState(port)).resolves.toEqual({
+      query: "",
+      bookId: null,
+      kinds: [],
+      favoritesOnly: false,
+      editedOnly: false,
+      pageSize: 20,
+      sortBy: "page",
+      sortDir: "asc",
+    });
+  });
+
   it("returns null when nothing was stored", async () => {
     const port = new FakePort();
     await expect(loadFilterState(port)).resolves.toBe(null);
@@ -544,6 +598,10 @@ describe("settings", () => {
     await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, pageSize: 20, bookId: null, kinds: ["bogus"] }));
     await expect(loadFilterState(port)).resolves.toBe(null);
     await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: "yes", pageSize: 20, bookId: null, kinds: [] }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], sortBy: "author" }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], sortDir: "up" }));
     await expect(loadFilterState(port)).resolves.toBe(null);
   });
 
