@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCountQuery,
   buildListQuery,
+  deleteBook,
   escapeLike,
   exportClippings,
   getSetting,
   importParsedClippings,
+  listImportedFiles,
   loadFilterState,
+  mergeBooks,
+  removeImportedFile,
+  renameBook,
   resetNote,
   saveFilterState,
   setSetting,
@@ -633,5 +638,180 @@ describe("settings", () => {
       editedOnly: false,
       pageSize: 20,
     });
+  });
+});
+
+/** Scripted port for the library recipes: unlike FakePort it records the
+ * exact statement order and lets each test decide what a statement returns. */
+class ScriptedPort implements DbPort {
+  selects: Array<{ sql: string; params: unknown[] }> = [];
+  executed: Array<{ sql: string; params: unknown[] }> = [];
+
+  constructor(
+    private readonly onSelect: (sql: string, params: unknown[]) => unknown[] = () => [],
+    private readonly onExecute: (
+      sql: string,
+      params: unknown[],
+    ) => { lastInsertId?: number; rowsAffected?: number } = () => ({ rowsAffected: 1 }),
+  ) {}
+
+  async select<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+    this.selects.push({ sql, params });
+    return this.onSelect(sql, params) as T[];
+  }
+
+  async execute(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
+    this.executed.push({ sql, params });
+    return this.onExecute(sql, params);
+  }
+}
+
+describe("listImportedFiles", () => {
+  it("lists files newest first with a live clipping count per import", async () => {
+    const rows = [
+      { id: 2, path: "/b.txt", imported_at: "2026-02-01T00:00:00Z", clipping_count: 7 },
+      { id: 1, path: "/a.txt", imported_at: "2026-01-01T00:00:00Z", clipping_count: 3 },
+    ];
+    const port = new ScriptedPort(() => rows);
+    await expect(listImportedFiles(port)).resolves.toEqual(rows);
+
+    const sql = port.selects[0].sql;
+    expect(sql).toContain(
+      "(SELECT COUNT(*) FROM clippings c WHERE c.file_id = f.id) AS clipping_count",
+    );
+    expect(sql).toContain("FROM files f");
+    expect(sql).toContain("ORDER BY f.imported_at DESC");
+  });
+});
+
+describe("renameBook", () => {
+  it("trims the title, normalizes a blank author to null and reports renamed", async () => {
+    const port = new ScriptedPort();
+    await expect(renameBook(port, 5, "  Dune  ", "   ")).resolves.toEqual({ status: "renamed" });
+
+    expect(port.selects[0].params).toEqual(["Dune", null, 5]);
+    expect(port.executed).toHaveLength(1);
+    expect(port.executed[0].sql).toContain("UPDATE books SET title");
+    expect(port.executed[0].params).toEqual(["Dune", null, 5]);
+  });
+
+  it("rejects an empty title before touching the database", async () => {
+    const port = new ScriptedPort();
+    await expect(renameBook(port, 5, "   ", "Author")).resolves.toEqual({ status: "invalid" });
+    expect(port.selects).toHaveLength(0);
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("suggests the existing book when the target pair is already taken", async () => {
+    const port = new ScriptedPort(() => [{ id: 9 }]);
+    await expect(renameBook(port, 5, "Dune", "Herbert")).resolves.toEqual({
+      status: "merge-required",
+      existingBookId: 9,
+    });
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("reports a missing book when no row was updated", async () => {
+    const port = new ScriptedPort(
+      () => [],
+      () => ({ rowsAffected: 0 }),
+    );
+    await expect(renameBook(port, 5, "Dune", null)).resolves.toEqual({ status: "missing" });
+  });
+
+  it("turns a UNIQUE race into the merge suggestion", async () => {
+    let selects = 0;
+    const port = new ScriptedPort(
+      () => (++selects === 1 ? [] : [{ id: 12 }]),
+      () => {
+        throw new Error("UNIQUE constraint failed: books.title, books.author");
+      },
+    );
+    await expect(renameBook(port, 5, "Dune", null)).resolves.toEqual({
+      status: "merge-required",
+      existingBookId: 12,
+    });
+  });
+
+  it("rethrows unexpected database errors", async () => {
+    const port = new ScriptedPort(
+      () => [],
+      () => {
+        throw new Error("disk I/O error");
+      },
+    );
+    await expect(renameBook(port, 5, "Dune", null)).rejects.toThrow("disk I/O error");
+  });
+});
+
+describe("mergeBooks", () => {
+  it("moves the clippings, then deletes the source row", async () => {
+    const port = new ScriptedPort(
+      () => [{ id: 2 }],
+      (sql) => ({ rowsAffected: sql.startsWith("UPDATE clippings") ? 3 : 1 }),
+    );
+    await expect(mergeBooks(port, 1, 2)).resolves.toEqual({ status: "merged", moved: 3 });
+
+    expect(port.executed).toHaveLength(2);
+    expect(port.executed[0].sql).toContain("UPDATE clippings SET book_id");
+    expect(port.executed[0].params).toEqual([2, 1]);
+    expect(port.executed[1].sql).toContain("DELETE FROM books");
+    expect(port.executed[1].params).toEqual([1]);
+  });
+
+  it("is a no-op when source and target are the same book", async () => {
+    const port = new ScriptedPort();
+    await expect(mergeBooks(port, 4, 4)).resolves.toEqual({ status: "merged", moved: 0 });
+    expect(port.selects).toHaveLength(0);
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("reports a missing target without touching clippings", async () => {
+    const port = new ScriptedPort(() => []);
+    await expect(mergeBooks(port, 1, 2)).resolves.toEqual({ status: "missing" });
+    expect(port.executed).toHaveLength(0);
+  });
+});
+
+describe("deleteBook", () => {
+  it("deletes favorites, clippings and the book in dependency order", async () => {
+    const port = new ScriptedPort(
+      () => [{ n: 4 }],
+      (sql) => ({ rowsAffected: sql.includes("FROM books") ? 1 : 4 }),
+    );
+    await expect(deleteBook(port, 7)).resolves.toBe(4);
+
+    expect(port.selects[0].sql).toContain("COUNT(*)");
+    expect(port.selects[0].sql).toContain("WHERE book_id");
+    expect(port.selects[0].params).toEqual([7]);
+
+    expect(port.executed).toHaveLength(3);
+    expect(port.executed[0].sql).toContain("DELETE FROM favorites");
+    expect(port.executed[0].sql).toContain("SELECT id FROM clippings WHERE book_id");
+    expect(port.executed[1].sql).toContain("DELETE FROM clippings WHERE book_id");
+    expect(port.executed[2].sql).toContain("DELETE FROM books WHERE id");
+    expect(port.executed.every((call) => call.params[0] === 7)).toBe(true);
+  });
+});
+
+describe("removeImportedFile", () => {
+  it("removes the import's clippings, its empty books and the file row in order", async () => {
+    const port = new ScriptedPort(
+      () => [{ n: 2 }],
+      (sql) => ({ rowsAffected: sql.includes("FROM books") ? 1 : 2 }),
+    );
+    await expect(removeImportedFile(port, 3)).resolves.toEqual({ clippings: 2, books: 1 });
+
+    expect(port.selects[0].params).toEqual([3]);
+    expect(port.executed).toHaveLength(4);
+    expect(port.executed[0].sql).toContain("DELETE FROM favorites");
+    expect(port.executed[1].sql).toContain("DELETE FROM clippings WHERE file_id");
+    expect(port.executed[2].sql).toContain("DELETE FROM books");
+    expect(port.executed[2].sql).toContain("NOT EXISTS");
+    expect(port.executed[3].sql).toContain("DELETE FROM files WHERE id");
+    expect(port.executed[3].params).toEqual([3]);
   });
 });

@@ -396,6 +396,158 @@ export async function importParsedClippings(
   };
 }
 
+/** One row of the imported-files list (library management). */
+export interface ImportedFile {
+  id: number;
+  path: string;
+  imported_at: string;
+  clipping_count: number;
+}
+
+export type RenameBookResult =
+  | { status: "renamed" }
+  | { status: "missing" }
+  | { status: "invalid" }
+  | { status: "merge-required"; existingBookId: number };
+
+export type MergeBooksResult =
+  | { status: "merged"; moved: number }
+  | { status: "missing" };
+
+export interface RemoveFileResult {
+  clippings: number;
+  books: number;
+}
+
+/** Imported files, newest first, with the clippings still attached to each.
+ * Live count: `files.clipping_count` is import-time metadata only. */
+export async function listImportedFiles(port: DbPort): Promise<ImportedFile[]> {
+  return port.select<ImportedFile>(
+    "SELECT f.id, f.path, f.imported_at, " +
+      "(SELECT COUNT(*) FROM clippings c WHERE c.file_id = f.id) AS clipping_count " +
+      "FROM files f ORDER BY f.imported_at DESC, f.id DESC",
+  );
+}
+
+/** Find the book that already owns a (title, author) pair, if any. */
+async function findBookByPair(
+  port: DbPort,
+  title: string,
+  author: string | null,
+  excludeId: number,
+): Promise<number | null> {
+  const rows = await port.select<{ id: number }>(
+    "SELECT id FROM books WHERE title = $1 AND COALESCE(author, '') = COALESCE($2, '') AND id <> $3",
+    [title, author, excludeId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/** Update a book's title/author without moving its clippings. A duplicate
+ * pair is reported as `merge-required`, never as a raw UNIQUE failure. */
+export async function renameBook(
+  port: DbPort,
+  bookId: number,
+  title: string,
+  author: string | null,
+): Promise<RenameBookResult> {
+  const cleanTitle = title.trim();
+  if (cleanTitle === "") {
+    return { status: "invalid" };
+  }
+  const cleanAuthor = author?.trim() ? author.trim() : null;
+
+  const existing = await findBookByPair(port, cleanTitle, cleanAuthor, bookId);
+  if (existing !== null) {
+    return { status: "merge-required", existingBookId: existing };
+  }
+
+  try {
+    const result = await port.execute("UPDATE books SET title = $1, author = $2 WHERE id = $3", [
+      cleanTitle,
+      cleanAuthor,
+      bookId,
+    ]);
+    return (result.rowsAffected ?? 0) > 0 ? { status: "renamed" } : { status: "missing" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("UNIQUE constraint failed")) {
+      throw error;
+    }
+    const raced = await findBookByPair(port, cleanTitle, cleanAuthor, bookId);
+    if (raced === null) {
+      throw error;
+    }
+    return { status: "merge-required", existingBookId: raced };
+  }
+}
+
+/** Move every clipping to the target book, then delete the source row.
+ * Clipping ids (and their favorites) survive the move. */
+export async function mergeBooks(
+  port: DbPort,
+  sourceId: number,
+  targetId: number,
+): Promise<MergeBooksResult> {
+  if (sourceId === targetId) {
+    return { status: "merged", moved: 0 };
+  }
+  const target = await port.select<{ id: number }>("SELECT id FROM books WHERE id = $1", [
+    targetId,
+  ]);
+  if (target.length === 0) {
+    return { status: "missing" };
+  }
+  const moved = await port.execute("UPDATE clippings SET book_id = $1 WHERE book_id = $2", [
+    targetId,
+    sourceId,
+  ]);
+  await port.execute("DELETE FROM books WHERE id = $1", [sourceId]);
+  return { status: "merged", moved: moved.rowsAffected ?? 0 };
+}
+
+/** Delete a book with its clippings and favorites, children first. Returns the
+ * number of clippings removed. */
+export async function deleteBook(port: DbPort, bookId: number): Promise<number> {
+  const rows = await port.select<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM clippings WHERE book_id = $1",
+    [bookId],
+  );
+  const clippings = Number(rows[0]?.n ?? 0);
+
+  await port.execute(
+    "DELETE FROM favorites WHERE clipping_id IN (SELECT id FROM clippings WHERE book_id = $1)",
+    [bookId],
+  );
+  await port.execute("DELETE FROM clippings WHERE book_id = $1", [bookId]);
+  await port.execute("DELETE FROM books WHERE id = $1", [bookId]);
+  return clippings;
+}
+
+/** Undo one import: delete its clippings and favorites, drop books left empty,
+ * then delete the file row. Re-importing the file restores the clippings. */
+export async function removeImportedFile(
+  port: DbPort,
+  fileId: number,
+): Promise<RemoveFileResult> {
+  const rows = await port.select<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM clippings WHERE file_id = $1",
+    [fileId],
+  );
+  const clippings = Number(rows[0]?.n ?? 0);
+
+  await port.execute(
+    "DELETE FROM favorites WHERE clipping_id IN (SELECT id FROM clippings WHERE file_id = $1)",
+    [fileId],
+  );
+  await port.execute("DELETE FROM clippings WHERE file_id = $1", [fileId]);
+  const books = await port.execute(
+    "DELETE FROM books WHERE NOT EXISTS (SELECT 1 FROM clippings c WHERE c.book_id = books.id)",
+  );
+  await port.execute("DELETE FROM files WHERE id = $1", [fileId]);
+  return { clippings, books: books.rowsAffected ?? 0 };
+}
+
 /** Setting keys for user preferences (locale, theme, filters). */
 export const SETTINGS_KEYS = {
   locale: "locale",

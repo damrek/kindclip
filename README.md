@@ -31,6 +31,9 @@ and macOS.
    manager.
 4. Hit **Export** (📤) next to **Import** to save everything matching the
    current filters to **Markdown, JSON or CSV** — one file grouped by book.
+5. Hit **Manage library** (🗂) to rename or merge books, delete a book, or
+   remove an imported file — a bad import can be undone without wiping the
+   whole database.
 
 ## Features
 
@@ -56,6 +59,10 @@ and macOS.
   grouped by book, favorites marked, labels translated in the app language,
   and JSON/CSV with stable English fields (original and edited note text
   included) for scripting.
+- **Library management**: rename or merge books, delete a book with its
+  clippings, and list the imported files to undo a single import without
+  wiping `kindclip.db`. Every destructive action asks for confirmation, and
+  removed clippings come back if you re-import the file.
 - **UI in 5 languages** (es, en, fr, de, it — Spanish by default),
   a **system/light/dark theme** and the font size above, all persisted.
 - A header button reveals **`kindclip.db` in the file manager**, and long
@@ -141,6 +148,8 @@ The SQL plugin resolves `sqlite:kindclip.db` to the standard per-OS config dir
 
 To wipe the library and re-import from scratch, just delete that file.
 This also wipes your note edits, which live in the same database.
+To remove a single book or undo one import instead, use **Manage library**
+(🗂) — no need to delete the file.
 You can also open it straight from the app: the 📁 button next to **Import**
 reveals it in your file manager.
 Quick inspection:
@@ -155,8 +164,6 @@ python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.confi
   "on this day" recall for highlights added on the same date in previous years.
 - **Tags / collections**: user-defined tags on top of favorites, with
   multi-tag filtering and tags included in exports.
-- **Library management**: rename or merge books, delete a book, and list the
-  imported files, so a bad import can be undone without wiping `kindclip.db`.
 - The current layering (pure parser → commands → SQL port → UI) keeps each of
   these local to one layer.
 

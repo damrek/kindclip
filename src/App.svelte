@@ -2,6 +2,7 @@
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
   import ExportDialog from "./components/ExportDialog.svelte";
+  import LibraryDialog from "./components/LibraryDialog.svelte";
   import FontScaleToggle from "./components/FontScaleToggle.svelte";
   import LanguageSelector from "./components/LanguageSelector.svelte";
   import Pagination from "./components/Pagination.svelte";
@@ -38,12 +39,17 @@
   } from "./lib/font";
   import {
     DEFAULT_CLIPPING_SORT,
+    deleteBook,
     exportClippings,
     getDb,
     getSetting,
     listBooks,
     listClippings,
+    listImportedFiles,
     loadFilterState,
+    mergeBooks,
+    removeImportedFile,
+    renameBook,
     resetNote,
     setSetting,
     SETTINGS_KEYS,
@@ -52,6 +58,8 @@
     type ClippingSort,
     type ClippingSortDir,
     type ClippingSortKey,
+    type ImportedFile,
+    type RenameBookResult,
     type StoredFilterState,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
@@ -106,6 +114,11 @@
   let exportOpen = $state(false);
   let exporting = $state(false);
   let exportStatus = $state<string | null>(null);
+  let libraryOpen = $state(false);
+  let libraryBusy = $state(false);
+  let libraryFiles = $state<ImportedFile[]>([]);
+  let libraryStatus = $state<string | null>(null);
+  let libraryError = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Note pending reset confirmation (dialog rendered at app root). */
@@ -586,6 +599,119 @@
     }
   }
 
+  async function loadLibraryFiles(): Promise<void> {
+    try {
+      const port = await getDb();
+      libraryFiles = await listImportedFiles(port);
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async function openLibrary(): Promise<void> {
+    libraryStatus = null;
+    libraryError = null;
+    libraryOpen = true;
+    await loadLibraryFiles();
+  }
+
+  /** Refresh every view the dialog can affect: books, list and imports. */
+  async function refreshAfterLibraryChange(): Promise<void> {
+    await loadBooks();
+    await loadList(filter, page, pageSize, clippingSort);
+    await loadLibraryFiles();
+  }
+
+  async function libraryRename(
+    bookId: number,
+    title: string,
+    author: string,
+  ): Promise<RenameBookResult | null> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await renameBook(port, bookId, title, author);
+      if (result.status === "renamed") {
+        libraryStatus = t("library.statusRenamed");
+        await refreshAfterLibraryChange();
+      }
+      return result;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryMerge(sourceId: number, targetId: number): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await mergeBooks(port, sourceId, targetId);
+      if (result.status !== "merged") {
+        return false;
+      }
+      libraryStatus = t("library.statusMerged", { count: result.moved });
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryDeleteBook(book: Book): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const removed = await deleteBook(port, book.id);
+      libraryStatus = t("library.statusDeleted", { count: removed });
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryRemoveFile(file: ImportedFile): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await removeImportedFile(port, file.id);
+      libraryStatus = t("library.statusRemoved", {
+        clippings: result.clippings,
+        books: result.books,
+      });
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
@@ -633,6 +759,16 @@
         class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
       >
         📁
+      </button>
+      <button
+        type="button"
+        onclick={openLibrary}
+        disabled={!hasLibrary}
+        title={t("library.open")}
+        aria-label={t("library.open")}
+        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        🗂
       </button>
       <button
         type="button"
@@ -831,6 +967,7 @@
   onkeydown={(event) => {
     if (resetTarget && event.key === "Escape") resetTarget = null;
     if (exportOpen && !exporting && event.key === "Escape") exportOpen = false;
+    if (libraryOpen && !libraryBusy && event.key === "Escape") libraryOpen = false;
   }}
 />
 
@@ -893,5 +1030,20 @@
     busy={exporting}
     onClose={() => (exportOpen = false)}
     onExport={onExport}
+  />
+{/if}
+
+{#if libraryOpen}
+  <LibraryDialog
+    books={sortedBooks}
+    files={libraryFiles}
+    busy={libraryBusy}
+    status={libraryStatus}
+    error={libraryError}
+    onClose={() => (libraryOpen = false)}
+    onRename={libraryRename}
+    onMerge={libraryMerge}
+    onDeleteBook={libraryDeleteBook}
+    onRemoveFile={libraryRemoveFile}
   />
 {/if}
