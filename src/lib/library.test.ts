@@ -84,7 +84,7 @@ describe("debounce", () => {
 
 describe("emptyFilter", () => {
   it("returns the default filter", () => {
-    expect(emptyFilter()).toEqual({ query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false });
+    expect(emptyFilter()).toEqual({ query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] });
   });
 });
 
@@ -137,6 +137,7 @@ function row(id: number, favorite: boolean): ClippingRow {
     favorite,
     content_edited: null,
     edited_at: null,
+    tags: [],
   };
 }
 

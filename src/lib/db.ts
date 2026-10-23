@@ -8,6 +8,7 @@ import type {
   ImportReport,
   PagedResult,
   PageRequest,
+  Tag,
 } from "./types";
 import { PAGE_SIZES } from "./library";
 
@@ -111,6 +112,16 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
   if (filter.editedOnly) {
     conditions.push("c.content_edited IS NOT NULL");
   }
+  // Tag intersection (S2): the clipping must carry every selected tag.
+  // Duplicates are dropped so `= N` always means N distinct tags.
+  const tagIds = [...new Set(filter.tagIds ?? [])];
+  if (tagIds.length > 0) {
+    const placeholders = tagIds.map((tagId) => next(tagId));
+    conditions.push(
+      `(SELECT COUNT(DISTINCT ct.tag_id) FROM clipping_tags ct ` +
+        `WHERE ct.clipping_id = c.id AND ct.tag_id IN (${placeholders.join(", ")})) = ${tagIds.length}`,
+    );
+  }
   return { sql: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", params };
 }
 
@@ -134,11 +145,23 @@ export function buildCountQuery(filter: ClippingFilter): { sql: string; params: 
   return { sql: `SELECT COUNT(*) AS total ${LIST_FROM} ${where}`, params };
 }
 
-/** Row shape as returned by SQLite (favorite is 0/1), mapped to boolean below. */
-type ClippingRowRaw = Omit<ClippingRow, "favorite"> & { favorite: number };
+/** Row shape as returned by SQLite (favorite is 0/1, tags are hydrated apart). */
+type ClippingRowRaw = Omit<ClippingRow, "favorite" | "tags"> & { favorite: number };
 
 function mapClippingRow(row: ClippingRowRaw): ClippingRow {
-  return { ...row, favorite: row.favorite === 1 };
+  return { ...row, favorite: row.favorite === 1, tags: [] };
+}
+
+/** Attach the tags of one page/export to its rows with a single extra query. */
+async function withTags(
+  port: DbPort,
+  rows: ClippingRow[],
+): Promise<ClippingRow[]> {
+  const grouped = await loadClippingTags(
+    port,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => ({ ...row, tags: grouped.get(row.id) ?? [] }));
 }
 
 export async function listClippings(
@@ -151,8 +174,9 @@ export async function listClippings(
   const count = buildCountQuery(filter);
   const rows = await port.select<ClippingRowRaw>(list.sql, list.params);
   const totals = await port.select<{ total: number }>(count.sql, count.params);
+  const items = await withTags(port, rows.map(mapClippingRow));
   return {
-    items: rows.map(mapClippingRow),
+    items,
     total: totals[0]?.total ?? 0,
     page: page.page,
     pageSize: page.pageSize,
@@ -168,7 +192,7 @@ export async function exportClippings(filter: ClippingFilter): Promise<ClippingR
     `${LIST_SELECT}${LIST_FROM}${where === "" ? "" : ` ${where}`} ` +
     "ORDER BY b.title COLLATE NOCASE, COALESCE(c.added_on, '') ASC, c.id ASC";
   const rows = await port.select<ClippingRowRaw>(sql, params);
-  return rows.map(mapClippingRow);
+  return withTags(port, rows.map(mapClippingRow));
 }
 
 export type BookSortKey = "title" | "author";
@@ -287,6 +311,194 @@ export async function resetNote(port: DbPort, clippingId: number): Promise<boole
     [clippingId],
   );
   return (result.rowsAffected ?? 0) > 0;
+}
+
+/** A tag plus how many clippings carry it (0 for orphans). */
+export interface TagCount extends Tag {
+  clipping_count: number;
+}
+
+export type RenameTagResult =
+  | { status: "renamed" }
+  | { status: "missing" }
+  | { status: "invalid" }
+  | { status: "merge-required"; existingTagId: number };
+
+export type MergeTagsResult =
+  | { status: "merged"; moved: number }
+  | { status: "missing" };
+
+/** Every tag with a live clipping count, ordered like the book sidebar. */
+export async function listTags(port: DbPort): Promise<TagCount[]> {
+  return port.select<TagCount>(
+    "SELECT t.id, t.name, COUNT(ct.clipping_id) AS clipping_count " +
+      "FROM tags t LEFT JOIN clipping_tags ct ON ct.tag_id = t.id " +
+      "GROUP BY t.id, t.name ORDER BY t.name COLLATE NOCASE",
+  );
+}
+
+async function findTagId(port: DbPort, name: string): Promise<number | null> {
+  const rows = await port.select<{ id: number }>(
+    "SELECT id FROM tags WHERE name = $1 COLLATE NOCASE",
+    [name],
+  );
+  return rows[0]?.id ?? null;
+}
+
+async function findOtherTagId(
+  port: DbPort,
+  name: string,
+  excludeId: number,
+): Promise<number | null> {
+  const rows = await port.select<{ id: number }>(
+    "SELECT id FROM tags WHERE name = $1 COLLATE NOCASE AND id <> $2",
+    [name, excludeId],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/** Reuse an existing tag by name (case-insensitive) or create it. Returns
+ * null for a blank name. */
+export async function ensureTag(port: DbPort, name: string): Promise<number | null> {
+  const clean = name.trim();
+  if (clean === "") {
+    return null;
+  }
+  const existing = await findTagId(port, clean);
+  if (existing !== null) {
+    return existing;
+  }
+  try {
+    const result = await port.execute("INSERT INTO tags (name, created_at) VALUES ($1, $2)", [
+      clean,
+      new Date().toISOString(),
+    ]);
+    return result.lastInsertId ?? null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("UNIQUE constraint failed")) {
+      throw error;
+    }
+    return findTagId(port, clean);
+  }
+}
+
+/** Rename a tag; a name already taken by another tag is reported as
+ * `merge-required`, never as a raw UNIQUE failure. */
+export async function renameTag(
+  port: DbPort,
+  tagId: number,
+  name: string,
+): Promise<RenameTagResult> {
+  const clean = name.trim();
+  if (clean === "") {
+    return { status: "invalid" };
+  }
+  const existing = await findOtherTagId(port, clean, tagId);
+  if (existing !== null) {
+    return { status: "merge-required", existingTagId: existing };
+  }
+  try {
+    const result = await port.execute("UPDATE tags SET name = $1 WHERE id = $2", [
+      clean,
+      tagId,
+    ]);
+    return (result.rowsAffected ?? 0) > 0 ? { status: "renamed" } : { status: "missing" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("UNIQUE constraint failed")) {
+      throw error;
+    }
+    const raced = await findOtherTagId(port, clean, tagId);
+    if (raced === null) {
+      throw error;
+    }
+    return { status: "merge-required", existingTagId: raced };
+  }
+}
+
+/** Move every link to the target tag, then delete the source tag. Clipping
+ * ids and favorites survive the move. */
+export async function mergeTags(
+  port: DbPort,
+  sourceId: number,
+  targetId: number,
+): Promise<MergeTagsResult> {
+  if (sourceId === targetId) {
+    return { status: "merged", moved: 0 };
+  }
+  const target = await port.select<{ id: number }>("SELECT id FROM tags WHERE id = $1", [
+    targetId,
+  ]);
+  if (target.length === 0) {
+    return { status: "missing" };
+  }
+  const moved = await port.execute(
+    "INSERT OR IGNORE INTO clipping_tags (clipping_id, tag_id, created_at) " +
+      "SELECT clipping_id, $1, $2 FROM clipping_tags WHERE tag_id = $3",
+    [targetId, new Date().toISOString(), sourceId],
+  );
+  await port.execute("DELETE FROM tags WHERE id = $1", [sourceId]);
+  return { status: "merged", moved: moved.rowsAffected ?? 0 };
+}
+
+/** Delete a tag; the links go with it through the FK cascade. */
+export async function deleteTag(port: DbPort, tagId: number): Promise<boolean> {
+  const result = await port.execute("DELETE FROM tags WHERE id = $1", [tagId]);
+  return (result.rowsAffected ?? 0) > 0;
+}
+
+/** Assign a tag to a clipping; assigning twice is a no-op. */
+export async function addClippingTag(
+  port: DbPort,
+  clippingId: number,
+  tagId: number,
+): Promise<void> {
+  await port.execute(
+    "INSERT OR IGNORE INTO clipping_tags (clipping_id, tag_id, created_at) VALUES ($1, $2, $3)",
+    [clippingId, tagId, new Date().toISOString()],
+  );
+}
+
+/** Remove one tag from one clipping; removing an absent link is a no-op. */
+export async function removeClippingTag(
+  port: DbPort,
+  clippingId: number,
+  tagId: number,
+): Promise<void> {
+  await port.execute("DELETE FROM clipping_tags WHERE clipping_id = $1 AND tag_id = $2", [
+    clippingId,
+    tagId,
+  ]);
+}
+
+/** Tags of several clippings in one query, grouped and kept in link order. */
+export async function loadClippingTags(
+  port: DbPort,
+  clippingIds: number[],
+): Promise<Map<number, Tag[]>> {
+  const unique = [...new Set(clippingIds)];
+  const grouped = new Map<number, Tag[]>();
+  if (unique.length === 0) {
+    return grouped;
+  }
+  const placeholders = unique.map((_, index) => `$${index + 1}`);
+  const rows = await port.select<{ clipping_id: number; id: number; name: string }>(
+    "SELECT ct.clipping_id, t.id, t.name FROM clipping_tags ct JOIN tags t ON t.id = ct.tag_id " +
+      `WHERE ct.clipping_id IN (${placeholders.join(", ")}) ` +
+      "ORDER BY ct.created_at, t.name COLLATE NOCASE",
+    unique,
+  );
+  for (const row of rows) {
+    const tag: Tag = { id: row.id, name: row.name };
+    const list = grouped.get(row.clipping_id);
+    if (list === undefined) {
+      grouped.set(row.clipping_id, [tag]);
+    } else {
+      list.push(tag);
+    }
+  }
+  return grouped;
 }
 
 export interface ImportInput {
@@ -579,6 +791,8 @@ export interface StoredFilterState {
   favoritesOnly: boolean;
   /** Absent in payloads stored before the edited-notes filter existed. */
   editedOnly: boolean;
+  /** Absent in payloads stored before tags existed. */
+  tagIds?: number[];
   pageSize: number;
   /** Absent in payloads stored before book sorting existed. */
   bookSortBy?: "title" | "author";
@@ -621,6 +835,9 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       !kinds.every((kind) => CLIPPING_KINDS.includes(kind)) ||
       typeof parsed.favoritesOnly !== "boolean" ||
       (parsed.editedOnly !== undefined && typeof parsed.editedOnly !== "boolean") ||
+      (parsed.tagIds !== undefined &&
+        (!Array.isArray(parsed.tagIds) ||
+          !parsed.tagIds.every((id) => typeof id === "number" && Number.isInteger(id)))) ||
       (parsed.bookSortBy !== undefined &&
         parsed.bookSortBy !== "title" &&
         parsed.bookSortBy !== "author") ||
@@ -639,6 +856,7 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       kinds,
       favoritesOnly: parsed.favoritesOnly,
       editedOnly: parsed.editedOnly ?? false,
+      tagIds: parsed.tagIds ?? [],
       pageSize: parsed.pageSize as number,
       ...(parsed.bookSortBy ? { bookSortBy: parsed.bookSortBy } : {}),
       ...(parsed.bookSortDir ? { bookSortDir: parsed.bookSortDir } : {}),

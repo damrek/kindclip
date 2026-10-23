@@ -1,17 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  addClippingTag,
   buildCountQuery,
   buildListQuery,
   deleteBook,
+  deleteTag,
+  ensureTag,
   escapeLike,
   exportClippings,
   getSetting,
   importParsedClippings,
+  listClippings,
   listImportedFiles,
+  listTags,
+  loadClippingTags,
   loadFilterState,
   mergeBooks,
+  mergeTags,
+  removeClippingTag,
   removeImportedFile,
   renameBook,
+  renameTag,
   resetNote,
   saveFilterState,
   setSetting,
@@ -65,11 +74,23 @@ class FakePort implements DbPort {
   executedSql: string[] = [];
   /** Rows served to the export query, in SQLite shape (favorite 0/1). */
   clippingRows: unknown[] = [];
+  /** Total served to the count query of the paginated list. */
+  total = 0;
+  /** Rows served to the tag-hydration query. */
+  tagRows: unknown[] = [];
+  tagCalls: Array<{ sql: string; params: unknown[] }> = [];
   selectCalls: Array<{ sql: string; params: unknown[] }> = [];
   lastId = 100;
   fileId = 7;
 
   async select<T>(sql: string, params?: unknown[]): Promise<T[]> {
+    if (sql.includes("COUNT(*) AS total")) {
+      return [{ total: this.total }] as T[];
+    }
+    if (sql.includes("FROM clipping_tags ct")) {
+      this.tagCalls.push({ sql, params: params ?? [] });
+      return this.tagRows as T[];
+    }
     if (sql.includes("FROM clippings c")) {
       this.selectCalls.push({ sql, params: params ?? [] });
       return this.clippingRows as T[];
@@ -154,7 +175,7 @@ describe("escapeLike", () => {
 describe("buildListQuery", () => {
   it("filters by text across content, title and author", () => {
     const { sql, params } = buildListQuery(
-      { query: "stoic", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false },
+      { query: "stoic", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("LIKE");
@@ -166,7 +187,7 @@ describe("buildListQuery", () => {
 
   it("applies book, kind and favorites filters with pagination", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: 3, kinds: ["note"], favoritesOnly: true, editedOnly: false },
+      { query: "", bookId: 3, kinds: ["note"], favoritesOnly: true, editedOnly: false, tagIds: [] },
       { page: 2, pageSize: 50 },
     );
     expect(sql).toContain("b.id =");
@@ -180,7 +201,7 @@ describe("buildListQuery", () => {
 
   it("matches any of several selected kinds", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: null, kinds: ["highlight", "note"], favoritesOnly: false, editedOnly: false },
+      { query: "", bookId: null, kinds: ["highlight", "note"], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.kind IN ($1, $2)");
@@ -189,7 +210,7 @@ describe("buildListQuery", () => {
 
   it("selects the overlay columns for edited notes", () => {
     const { sql } = buildListQuery(
-      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false },
+      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.content_edited, c.edited_at");
@@ -197,7 +218,7 @@ describe("buildListQuery", () => {
 
   it("searches the edited text, falling back to the original", () => {
     const { sql } = buildListQuery(
-      { query: "x", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false },
+      { query: "x", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("COALESCE(c.content_edited, c.content) LIKE");
@@ -205,10 +226,32 @@ describe("buildListQuery", () => {
 
   it("restricts the list to edited notes only", () => {
     const { sql } = buildListQuery(
-      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: true },
+      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: true, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.content_edited IS NOT NULL");
+  });
+
+  it("keeps clippings that carry every selected tag", () => {
+    const { sql, params } = buildListQuery(filter({ tagIds: [4, 9] }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(sql).toContain(
+      "SELECT COUNT(DISTINCT ct.tag_id) FROM clipping_tags ct " +
+        "WHERE ct.clipping_id = c.id AND ct.tag_id IN ($1, $2)) = 2",
+    );
+    expect(params.slice(0, 2)).toEqual([4, 9]);
+    expect(sql).not.toContain("GROUP BY");
+  });
+
+  it("deduplicates repeated tag ids so the intersection stays correct", () => {
+    const { sql, params } = buildListQuery(filter({ tagIds: [4, 4] }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(sql).toContain("ct.tag_id IN ($1)) = 1");
+    expect(params[0]).toBe(4);
   });
 
   it("keeps its exact paginated SQL, shared select included", () => {
@@ -264,6 +307,7 @@ describe("buildCountQuery", () => {
       kinds: [],
       favoritesOnly: true,
       editedOnly: false,
+      tagIds: [],
     });
     expect(sql).toContain("COUNT");
     expect(sql).not.toContain("LIMIT");
@@ -278,9 +322,19 @@ describe("buildCountQuery", () => {
       kinds: [],
       favoritesOnly: false,
       editedOnly: true,
+      tagIds: [],
     });
     expect(sql).toContain("c.content_edited IS NOT NULL");
     expect(sql).not.toContain("LIMIT");
+  });
+
+  it("mirrors the tag intersection without pagination", () => {
+    const { sql, params } = buildCountQuery(filter({ tagIds: [7, 8] }));
+    expect(sql).toContain("SELECT COUNT(*) AS total");
+    expect(sql).toContain("SELECT COUNT(DISTINCT ct.tag_id) FROM clipping_tags ct");
+    expect(sql).toContain(") = 2");
+    expect(sql).not.toContain("LIMIT");
+    expect(params).toEqual([7, 8]);
   });
 });
 
@@ -311,6 +365,7 @@ function filter(overrides: Partial<ClippingFilter> = {}): ClippingFilter {
     kinds: [],
     favoritesOnly: false,
     editedOnly: false,
+    tagIds: [],
     ...overrides,
   };
 }
@@ -385,12 +440,69 @@ describe("exportClippings", () => {
         content_edited: "edited",
         edited_at: "2026-01-01T00:00:00",
         favorite: true,
+        tags: [],
       },
     ]);
 
     const call = port.selectCalls.at(-1);
     expect(call?.sql).not.toContain("WHERE");
     expect(call?.params).toEqual([]);
+  });
+
+  it("attaches each clipping's tags from one grouped query", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.clippingRows = [rawRow({ id: 1 }), rawRow({ id: 2 })];
+    port.tagRows = [
+      { clipping_id: 1, id: 4, name: "writing" },
+      { clipping_id: 1, id: 5, name: "habits" },
+      { clipping_id: 2, id: 5, name: "habits" },
+    ];
+
+    const rows = await exportClippings(filter());
+
+    expect(rows.map((row) => row.tags)).toEqual([
+      [
+        { id: 4, name: "writing" },
+        { id: 5, name: "habits" },
+      ],
+      [{ id: 5, name: "habits" }],
+    ]);
+    expect(port.tagCalls).toHaveLength(1);
+    expect(port.tagCalls[0].params).toEqual([1, 2]);
+    expect(port.tagCalls[0].sql).toContain("ORDER BY ct.created_at");
+  });
+});
+
+describe("listClippings", () => {
+  it("hydrates the page's tags without touching the list query", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.total = 2;
+    port.clippingRows = [rawRow({ id: 1 }), rawRow({ id: 2, favorite: 1 })];
+    port.tagRows = [{ clipping_id: 2, id: 7, name: "habits" }];
+
+    const page = await listClippings(filter(), { page: 1, pageSize: 20 });
+
+    expect(page.total).toBe(2);
+    expect(page.items.map((row) => row.tags)).toEqual([
+      [],
+      [{ id: 7, name: "habits" }],
+    ]);
+    expect(port.tagCalls[0].params).toEqual([1, 2]);
+    expect(port.selectCalls[0].sql).toContain("LIMIT");
+    expect(port.selectCalls[0].sql).not.toContain("clipping_tags");
+  });
+
+  it("skips the tag query when the page is empty", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.clippingRows = [];
+
+    const page = await listClippings(filter(), { page: 1, pageSize: 20 });
+
+    expect(page.items).toEqual([]);
+    expect(port.tagCalls).toHaveLength(0);
   });
 });
 
@@ -542,6 +654,7 @@ describe("settings", () => {
       kinds: ["note"],
       favoritesOnly: true,
       editedOnly: true,
+      tagIds: [3, 4],
       pageSize: 50,
     };
     await saveFilterState(port, state);
@@ -566,6 +679,7 @@ describe("settings", () => {
       kinds: [],
       favoritesOnly: false,
       editedOnly: false,
+      tagIds: [],
       pageSize: 20,
       sortBy: "page",
       sortDir: "asc",
@@ -577,7 +691,7 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toBe(null);
   });
 
-  it("defaults the edited filter to false on payloads stored before it existed", async () => {
+  it("defaults newer filters on payloads stored before they existed", async () => {
     const port = new FakePort();
     await setSetting(
       port,
@@ -590,6 +704,7 @@ describe("settings", () => {
       kinds: ["note"],
       favoritesOnly: true,
       editedOnly: false,
+      tagIds: [],
       pageSize: 20,
     });
   });
@@ -608,6 +723,10 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toBe(null);
     await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], sortDir: "up" }));
     await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], tagIds: "nope" }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], tagIds: [1, "2"] }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
   });
 
   it("migrates the legacy single-kind payload", async () => {
@@ -623,6 +742,7 @@ describe("settings", () => {
       kinds: ["note"],
       favoritesOnly: false,
       editedOnly: false,
+      tagIds: [],
       pageSize: 20,
     });
     await setSetting(
@@ -636,6 +756,7 @@ describe("settings", () => {
       kinds: [],
       favoritesOnly: false,
       editedOnly: false,
+      tagIds: [],
       pageSize: 20,
     });
   });
@@ -813,5 +934,223 @@ describe("removeImportedFile", () => {
     expect(port.executed[2].sql).toContain("NOT EXISTS");
     expect(port.executed[3].sql).toContain("DELETE FROM files WHERE id");
     expect(port.executed[3].params).toEqual([3]);
+  });
+});
+
+describe("listTags", () => {
+  it("lists tags by name ignoring case with a live clipping count", async () => {
+    const rows = [
+      { id: 2, name: "habits", clipping_count: 3 },
+      { id: 1, name: "Writing", clipping_count: 0 },
+    ];
+    const port = new ScriptedPort(() => rows);
+
+    await expect(listTags(port)).resolves.toEqual(rows);
+
+    const sql = port.selects[0].sql;
+    expect(sql).toContain("LEFT JOIN clipping_tags ct ON ct.tag_id = t.id");
+    expect(sql).toContain("COUNT(ct.clipping_id) AS clipping_count");
+    expect(sql).toContain("ORDER BY t.name COLLATE NOCASE");
+  });
+});
+
+describe("ensureTag", () => {
+  it("reuses an existing tag case-insensitively", async () => {
+    const port = new ScriptedPort(() => [{ id: 5 }]);
+
+    await expect(ensureTag(port, "  Writing ")).resolves.toBe(5);
+
+    expect(port.selects[0].params).toEqual(["Writing"]);
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("inserts a new tag with a creation timestamp", async () => {
+    const port = new ScriptedPort(
+      () => [],
+      () => ({ lastInsertId: 8, rowsAffected: 1 }),
+    );
+
+    await expect(ensureTag(port, "habits")).resolves.toBe(8);
+
+    expect(port.executed[0].sql).toContain("INSERT INTO tags");
+    expect(port.executed[0].params[0]).toBe("habits");
+    expect(port.executed[0].params[1]).toEqual(expect.any(String));
+  });
+
+  it("rejects a blank name without touching the database", async () => {
+    const port = new ScriptedPort();
+
+    await expect(ensureTag(port, "   ")).resolves.toBe(null);
+
+    expect(port.selects).toHaveLength(0);
+    expect(port.executed).toHaveLength(0);
+  });
+});
+
+describe("renameTag", () => {
+  it("trims the new name and reports renamed", async () => {
+    const port = new ScriptedPort(() => []);
+
+    await expect(renameTag(port, 5, "  Writing ")).resolves.toEqual({ status: "renamed" });
+
+    expect(port.selects[0].params).toEqual(["Writing", 5]);
+    expect(port.executed[0].sql).toContain("UPDATE tags SET name");
+    expect(port.executed[0].params).toEqual(["Writing", 5]);
+  });
+
+  it("rejects a blank name before touching the database", async () => {
+    const port = new ScriptedPort();
+
+    await expect(renameTag(port, 5, "   ")).resolves.toEqual({ status: "invalid" });
+
+    expect(port.selects).toHaveLength(0);
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("suggests the existing tag when the name is taken", async () => {
+    const port = new ScriptedPort(() => [{ id: 9 }]);
+
+    await expect(renameTag(port, 5, "habits")).resolves.toEqual({
+      status: "merge-required",
+      existingTagId: 9,
+    });
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("reports a missing tag when no row was updated", async () => {
+    const port = new ScriptedPort(
+      () => [],
+      () => ({ rowsAffected: 0 }),
+    );
+
+    await expect(renameTag(port, 5, "habits")).resolves.toEqual({ status: "missing" });
+  });
+
+  it("turns a UNIQUE race into the merge suggestion", async () => {
+    let selects = 0;
+    const port = new ScriptedPort(
+      () => (++selects === 1 ? [] : [{ id: 12 }]),
+      () => {
+        throw new Error("UNIQUE constraint failed: tags.name");
+      },
+    );
+
+    await expect(renameTag(port, 5, "habits")).resolves.toEqual({
+      status: "merge-required",
+      existingTagId: 12,
+    });
+  });
+});
+
+describe("mergeTags", () => {
+  it("moves the links to the target, then deletes the source tag", async () => {
+    const port = new ScriptedPort(
+      () => [{ id: 2 }],
+      (sql) => ({ rowsAffected: sql.startsWith("INSERT OR IGNORE") ? 3 : 1 }),
+    );
+
+    await expect(mergeTags(port, 1, 2)).resolves.toEqual({ status: "merged", moved: 3 });
+
+    expect(port.executed).toHaveLength(2);
+    expect(port.executed[0].sql).toContain("INSERT OR IGNORE INTO clipping_tags");
+    expect(port.executed[0].sql).toContain(
+      "SELECT clipping_id, $1, $2 FROM clipping_tags WHERE tag_id = $3",
+    );
+    expect(port.executed[0].params[0]).toBe(2);
+    expect(port.executed[0].params[2]).toBe(1);
+    expect(port.executed[1].sql).toContain("DELETE FROM tags WHERE id");
+    expect(port.executed[1].params).toEqual([1]);
+  });
+
+  it("is a no-op when source and target are the same tag", async () => {
+    const port = new ScriptedPort();
+
+    await expect(mergeTags(port, 4, 4)).resolves.toEqual({ status: "merged", moved: 0 });
+
+    expect(port.selects).toHaveLength(0);
+    expect(port.executed).toHaveLength(0);
+  });
+
+  it("reports a missing target without moving anything", async () => {
+    const port = new ScriptedPort(() => []);
+
+    await expect(mergeTags(port, 1, 2)).resolves.toEqual({ status: "missing" });
+
+    expect(port.executed).toHaveLength(0);
+  });
+});
+
+describe("deleteTag", () => {
+  it("deletes the tag and reports whether it existed", async () => {
+    const port = new ScriptedPort(
+      () => [],
+      () => ({ rowsAffected: 1 }),
+    );
+
+    await expect(deleteTag(port, 4)).resolves.toBe(true);
+
+    expect(port.executed[0].sql).toContain("DELETE FROM tags WHERE id");
+    expect(port.executed[0].params).toEqual([4]);
+  });
+
+  it("reports false when the tag was already gone", async () => {
+    const port = new ScriptedPort(
+      () => [],
+      () => ({ rowsAffected: 0 }),
+    );
+
+    await expect(deleteTag(port, 4)).resolves.toBe(false);
+  });
+});
+
+describe("clipping tags", () => {
+  it("assigns a tag idempotently", async () => {
+    const port = new ScriptedPort();
+
+    await addClippingTag(port, 9, 4);
+
+    expect(port.executed[0].sql).toContain("INSERT OR IGNORE INTO clipping_tags");
+    expect(port.executed[0].params[0]).toBe(9);
+    expect(port.executed[0].params[1]).toBe(4);
+  });
+
+  it("removes only the requested link", async () => {
+    const port = new ScriptedPort();
+
+    await removeClippingTag(port, 9, 4);
+
+    expect(port.executed[0].sql).toContain(
+      "DELETE FROM clipping_tags WHERE clipping_id = $1 AND tag_id = $2",
+    );
+    expect(port.executed[0].params).toEqual([9, 4]);
+  });
+});
+
+describe("loadClippingTags", () => {
+  it("groups tags per clipping in link order", async () => {
+    const rows = [
+      { clipping_id: 1, id: 4, name: "writing" },
+      { clipping_id: 1, id: 5, name: "habits" },
+      { clipping_id: 2, id: 5, name: "habits" },
+    ];
+    const port = new ScriptedPort(() => rows);
+
+    const map = await loadClippingTags(port, [1, 2, 1]);
+
+    expect(map.get(1)).toEqual([
+      { id: 4, name: "writing" },
+      { id: 5, name: "habits" },
+    ]);
+    expect(map.get(2)).toEqual([{ id: 5, name: "habits" }]);
+    expect(port.selects[0].params).toEqual([1, 2]);
+    expect(port.selects[0].sql).toContain("ORDER BY ct.created_at");
+  });
+
+  it("skips the query when there are no clippings", async () => {
+    const port = new ScriptedPort();
+
+    await expect(loadClippingTags(port, [])).resolves.toEqual(new Map());
+
+    expect(port.selects).toHaveLength(0);
   });
 });

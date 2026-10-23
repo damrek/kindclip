@@ -18,6 +18,7 @@ function row(overrides: Partial<ClippingRow> = {}): ClippingRow {
     content_edited: null,
     edited_at: null,
     favorite: false,
+    tags: [],
     ...overrides,
   };
 }

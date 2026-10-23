@@ -201,6 +201,7 @@
     kinds,
     favoritesOnly,
     editedOnly,
+    tagIds: [],
   });
 
   const clippingSort = $derived<ClippingSort>({ key: sortBy, dir: sortDir });
