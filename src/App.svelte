@@ -38,18 +38,25 @@
     type FontScale,
   } from "./lib/font";
   import {
+    addClippingTag,
     DEFAULT_CLIPPING_SORT,
     deleteBook,
+    deleteTag,
+    ensureTag,
     exportClippings,
     getDb,
     getSetting,
     listBooks,
     listClippings,
     listImportedFiles,
+    listTags,
     loadFilterState,
     mergeBooks,
+    mergeTags,
+    removeClippingTag,
     removeImportedFile,
     renameBook,
+    renameTag,
     resetNote,
     setSetting,
     SETTINGS_KEYS,
@@ -60,7 +67,9 @@
     type ClippingSortKey,
     type ImportedFile,
     type RenameBookResult,
+    type RenameTagResult,
     type StoredFilterState,
+    type TagCount,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
@@ -79,6 +88,9 @@
     debounce,
     sortBooks,
     totalClippings,
+    withTag,
+    withoutTag,
+    withoutTagId,
     type BookSortKey,
     type BookSortDir,
   } from "./lib/library";
@@ -88,9 +100,11 @@
     ClippingKind,
     ClippingRow,
     PagedResult,
+    Tag,
   } from "./lib/types";
 
   let books = $state<Book[]>([]);
+  let allTags = $state<TagCount[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
   let loading = $state(false);
   let loadError = $state<string | null>(null);
@@ -101,6 +115,8 @@
   let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let editedOnly = $state(false);
+  let tagIds = $state<number[]>([]);
+  let tagsOpen = $state(false);
   let bookSortBy = $state<BookSortKey>("title");
   let bookSortDir = $state<BookSortDir>("asc");
   let sortBy = $state<ClippingSortKey>(DEFAULT_CLIPPING_SORT.key);
@@ -201,6 +217,7 @@
     kinds,
     favoritesOnly,
     editedOnly,
+    tagIds,
   });
 
   const clippingSort = $derived<ClippingSort>({ key: sortBy, dir: sortDir });
@@ -250,12 +267,14 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbFontScale, dbFilter] = await Promise.all([
+      const [dbLocale, dbTheme, dbFontScale, dbFilter, dbTags] = await Promise.all([
         getSetting(port, SETTINGS_KEYS.locale),
         getSetting(port, SETTINGS_KEYS.theme),
         getSetting(port, SETTINGS_KEYS.fontScale),
         loadFilterState(port),
+        listTags(port),
       ]);
+      allTags = dbTags;
       if (dbLocale && isLocale(dbLocale)) {
         locale = dbLocale;
       } else {
@@ -285,6 +304,10 @@
         kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
         editedOnly = dbFilter.editedOnly;
+        // Drop ids whose tag is gone (same guard as the book id).
+        tagIds = (dbFilter.tagIds ?? []).filter((id) =>
+          dbTags.some((tag) => tag.id === id),
+        );
         pageSize = dbFilter.pageSize;
         bookSortBy = dbFilter.bookSortBy ?? "title";
         bookSortDir = dbFilter.bookSortDir ?? "asc";
@@ -298,6 +321,7 @@
           kinds,
           favoritesOnly,
           editedOnly,
+          tagIds,
           pageSize,
           bookSortBy,
           bookSortDir,
@@ -347,6 +371,7 @@
       kinds,
       favoritesOnly,
       editedOnly,
+      tagIds,
       pageSize,
       bookSortBy,
       bookSortDir,
@@ -384,6 +409,14 @@
 
   function toggleEditedOnly(): void {
     editedOnly = !editedOnly;
+    page = 1;
+  }
+
+  /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
+  function toggleTag(id: number): void {
+    tagIds = tagIds.includes(id)
+      ? tagIds.filter((tagId) => tagId !== id)
+      : [...tagIds, id];
     page = 1;
   }
 
@@ -436,6 +469,71 @@
   function changePageSize(size: number): void {
     pageSize = size;
     page = 1;
+  }
+
+  /** Patch the tag chips of one visible row, leaving the rest untouched. */
+  function patchClippingTags(id: number, update: (tags: Tag[]) => Tag[]): void {
+    if (!result) return;
+    result = {
+      ...result,
+      items: result.items.map((item) =>
+        item.id === id ? { ...item, tags: update(item.tags) } : item,
+      ),
+    };
+  }
+
+  /** Assign a tag to a clipping, creating it by name when needed (S3). */
+  async function addTagToClipping(id: number, name: string): Promise<boolean> {
+    const current = result?.items.find((item) => item.id === id);
+    const clean = name.trim();
+    if (!current || clean === "") return false;
+    if (current.tags.some((tag) => tag.name.toLowerCase() === clean.toLowerCase())) {
+      return false;
+    }
+    const before = current.tags;
+    const tempId = -Date.now();
+    patchClippingTags(id, (tags) => withTag(tags, { id: tempId, name: clean }));
+    try {
+      const port = await getDb();
+      const tagId = await ensureTag(port, clean);
+      if (tagId === null) {
+        patchClippingTags(id, () => before);
+        return false;
+      }
+      await addClippingTag(port, id, tagId);
+      allTags = await listTags(port);
+      const canonical = allTags.find((tag) => tag.id === tagId)?.name ?? clean;
+      patchClippingTags(id, (tags) =>
+        withTag(withoutTag(tags, tempId), { id: tagId, name: canonical }),
+      );
+      return true;
+    } catch (error) {
+      patchClippingTags(id, () => before);
+      loadError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
+  }
+
+  /** Remove one tag from a clipping, reverting the chip on failure (S3). */
+  async function removeTagFromClipping(id: number, tagId: number): Promise<boolean> {
+    const current = result?.items.find((item) => item.id === id);
+    if (!current || !current.tags.some((tag) => tag.id === tagId)) return false;
+    const before = current.tags;
+    patchClippingTags(id, (tags) => withoutTag(tags, tagId));
+    try {
+      const port = await getDb();
+      await removeClippingTag(port, id, tagId);
+      allTags = await listTags(port);
+      if (tagIds.includes(tagId)) {
+        // The card no longer carries every selected tag.
+        await loadList(filter, page, pageSize, clippingSort);
+      }
+      return true;
+    } catch (error) {
+      patchClippingTags(id, () => before);
+      loadError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
   }
 
   /** Overlay note edit (V2): reconciled write, then patch the visible row. */
@@ -500,6 +598,8 @@
     favoritesOnly = false;
     editedOnly = false;
     kinds = [];
+    tagIds = [];
+    tagsOpen = false;
     selectBook(null);
   }
 
@@ -617,11 +717,13 @@
     await loadLibraryFiles();
   }
 
-  /** Refresh every view the dialog can affect: books, list and imports. */
+  /** Refresh every view the dialog can affect: books, list, imports and tags. */
   async function refreshAfterLibraryChange(): Promise<void> {
     await loadBooks();
     await loadList(filter, page, pageSize, clippingSort);
     await loadLibraryFiles();
+    const port = await getDb();
+    allTags = await listTags(port);
   }
 
   async function libraryRename(
@@ -712,11 +814,85 @@
     }
   }
 
+  async function libraryRenameTag(
+    tagId: number,
+    name: string,
+  ): Promise<RenameTagResult | null> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await renameTag(port, tagId, name);
+      if (result.status === "renamed") {
+        libraryStatus = t("library.statusTagRenamed");
+        await refreshAfterLibraryChange();
+      }
+      return result;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryMergeTags(sourceId: number, targetId: number): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await mergeTags(port, sourceId, targetId);
+      if (result.status !== "merged") {
+        return false;
+      }
+      libraryStatus = t("library.statusTagsMerged", { count: result.moved });
+      // The source tag is gone: it must leave the active filter too.
+      tagIds = withoutTagId(tagIds, sourceId);
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryDeleteTag(tag: TagCount): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      await deleteTag(port, tag.id);
+      libraryStatus = t("library.statusTagDeleted");
+      // A deleted tag must leave the active filter too.
+      tagIds = withoutTagId(tagIds, tag.id);
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly || editedOnly,
+    debouncedQuery.trim() !== "" ||
+      bookId !== null ||
+      kinds.length > 0 ||
+      favoritesOnly ||
+      editedOnly ||
+      tagIds.length > 0,
   );
   /** Dialog scope: selected book title, else which view is being exported. */
   const exportScope = $derived(
@@ -730,6 +906,18 @@
     json: "json",
     csv: "csv",
   };
+
+  /** Selected tags in selection order, for the removable chips under the bar. */
+  const selectedTags = $derived(
+    tagIds.flatMap((id) => {
+      const tag = allTags.find((item) => item.id === id);
+      return tag ? [tag] : [];
+    }),
+  );
+  /** Filter checklist: orphans stay hidden unless already selected (S5). */
+  const filterTags = $derived(
+    allTags.filter((tag) => tag.clipping_count > 0 || tagIds.includes(tag.id)),
+  );
 </script>
 
 <div class="flex h-full flex-col">
@@ -894,6 +1082,69 @@
           >
             {t("edit.toggle")}
           </button>
+          <div class="relative">
+            <button
+              type="button"
+              onclick={() => (tagsOpen = !tagsOpen)}
+              aria-pressed={tagIds.length > 0}
+              aria-expanded={tagsOpen}
+              aria-haspopup="true"
+              title={t("tags.filterHint")}
+              class="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition {tagIds.length >
+              0
+                ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300'
+                : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+            >
+              {t("tags.filter")}
+              {#if tagIds.length > 0}
+                <span
+                  class="rounded-full bg-amber-500 px-1.5 text-xs leading-4 text-white"
+                >
+                  {tagIds.length}
+                </span>
+              {/if}
+            </button>
+            {#if tagsOpen}
+              <button
+                type="button"
+                class="fixed inset-0 z-10 cursor-default"
+                tabindex="-1"
+                aria-label={t("tags.close")}
+                onclick={() => (tagsOpen = false)}
+              ></button>
+              <div
+                class="absolute left-0 z-20 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+                role="group"
+                aria-label={t("tags.filterTitle")}
+              >
+                <p class="px-2 py-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                  {t("tags.filterTitle")}
+                </p>
+                {#if filterTags.length === 0}
+                  <p class="px-2 py-2 text-sm text-neutral-500 dark:text-neutral-400">
+                    {t("tags.empty")}
+                  </p>
+                {:else}
+                  {#each filterTags as tag (tag.id)}
+                    <label
+                      class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={tagIds.includes(tag.id)}
+                        onchange={() => toggleTag(tag.id)}
+                        class="accent-amber-500"
+                      />
+                      <span class="min-w-0 flex-1 truncate">#{tag.name}</span>
+                      <span class="text-xs text-neutral-400 dark:text-neutral-500"
+                        >{tag.clipping_count}</span
+                      >
+                    </label>
+                  {/each}
+                {/if}
+              </div>
+            {/if}
+          </div>
           <label class="ml-auto">
             <span class="sr-only">{t("clippingSort.label")}</span>
             <select
@@ -912,16 +1163,42 @@
           </label>
         </div>
 
+        {#if selectedTags.length > 0}
+          <div
+            class="flex flex-wrap items-center gap-1.5 border-b border-neutral-200 px-6 py-2 dark:border-neutral-800"
+          >
+            {#each selectedTags as tag (tag.id)}
+              <span
+                class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+              >
+                <span>#{tag.name}</span>
+                <button
+                  type="button"
+                  onclick={() => toggleTag(tag.id)}
+                  aria-label={t("tags.remove", { name: tag.name })}
+                  title={t("tags.remove", { name: tag.name })}
+                  class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-amber-500 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                >
+                  ×
+                </button>
+              </span>
+            {/each}
+          </div>
+        {/if}
+
         <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">
           {#if result && result.items.length > 0}
             {#each result.items as clipping (clipping.id)}
               <ClippingCard
                 {clipping}
+                {allTags}
                 copied={clipping.id === copiedId}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
                 onEdit={editNote}
                 onRequestReset={requestReset}
+                onAddTag={addTagToClipping}
+                onRemoveTag={removeTagFromClipping}
               />
             {/each}
           {:else if !loading}
@@ -1037,6 +1314,7 @@
   <LibraryDialog
     books={sortedBooks}
     files={libraryFiles}
+    tags={allTags}
     busy={libraryBusy}
     status={libraryStatus}
     error={libraryError}
@@ -1045,5 +1323,8 @@
     onMerge={libraryMerge}
     onDeleteBook={libraryDeleteBook}
     onRemoveFile={libraryRemoveFile}
+    onRenameTag={libraryRenameTag}
+    onMergeTags={libraryMergeTags}
+    onDeleteTag={libraryDeleteTag}
   />
 {/if}

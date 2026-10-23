@@ -10,10 +10,14 @@ import {
   formatReference,
   PAGE_SIZES,
   pageWindow,
+  tagOverflow,
   totalClippings,
   totalPages,
+  withTag,
+  withoutTag,
+  withoutTagId,
 } from "./library";
-import type { ClippingRow } from "./types";
+import type { ClippingRow, Tag } from "./types";
 import type { Book } from "./types";
 
 describe("totalPages", () => {
@@ -84,7 +88,7 @@ describe("debounce", () => {
 
 describe("emptyFilter", () => {
   it("returns the default filter", () => {
-    expect(emptyFilter()).toEqual({ query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false });
+    expect(emptyFilter()).toEqual({ query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] });
   });
 });
 
@@ -137,6 +141,7 @@ function row(id: number, favorite: boolean): ClippingRow {
     favorite,
     content_edited: null,
     edited_at: null,
+    tags: [],
   };
 }
 
@@ -197,5 +202,69 @@ describe("totalClippings", () => {
 
   it("is zero for an empty library", () => {
     expect(totalClippings([])).toBe(0);
+  });
+});
+
+function tag(id: number, name: string): Tag {
+  return { id, name };
+}
+
+describe("withTag", () => {
+  it("appends a tag keeping creation order", () => {
+    expect(withTag([tag(1, "writing")], tag(2, "habits"))).toEqual([
+      tag(1, "writing"),
+      tag(2, "habits"),
+    ]);
+  });
+
+  it("ignores a name that already exists ignoring case", () => {
+    const tags = [tag(1, "Writing")];
+    expect(withTag(tags, tag(2, "writing"))).toEqual(tags);
+  });
+
+  it("ignores a duplicate id with a different name", () => {
+    const tags = [tag(1, "writing")];
+    expect(withTag(tags, tag(1, "otra"))).toEqual(tags);
+  });
+});
+
+describe("withoutTag", () => {
+  it("removes only the requested tag", () => {
+    expect(withoutTag([tag(1, "writing"), tag(2, "habits")], 1)).toEqual([tag(2, "habits")]);
+  });
+
+  it("keeps the list unchanged for an unknown id", () => {
+    const tags = [tag(1, "writing")];
+    expect(withoutTag(tags, 99)).toEqual(tags);
+  });
+});
+
+describe("tagOverflow", () => {
+  it("shows every chip when they fit", () => {
+    const tags = [tag(1, "a"), tag(2, "b"), tag(3, "c")];
+    expect(tagOverflow(tags)).toEqual({ visible: tags, hidden: 0 });
+  });
+
+  it("keeps three visible and counts the rest", () => {
+    const tags = [tag(1, "a"), tag(2, "b"), tag(3, "c"), tag(4, "d"), tag(5, "e")];
+    expect(tagOverflow(tags)).toEqual({
+      visible: [tag(1, "a"), tag(2, "b"), tag(3, "c")],
+      hidden: 2,
+    });
+  });
+
+  it("honours a custom limit", () => {
+    const tags = [tag(1, "a"), tag(2, "b")];
+    expect(tagOverflow(tags, 1)).toEqual({ visible: [tag(1, "a")], hidden: 1 });
+  });
+});
+
+describe("withoutTagId", () => {
+  it("drops only the requested id", () => {
+    expect(withoutTagId([1, 2, 3], 2)).toEqual([1, 3]);
+  });
+
+  it("keeps the list unchanged for an unknown id", () => {
+    expect(withoutTagId([1], 99)).toEqual([1]);
   });
 });

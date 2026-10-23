@@ -54,11 +54,14 @@ function quoteBlock(text: string): string {
     .join("\n");
 }
 
-/** `— <kind>[ · ★][ · <page/location>] · <date>` (frozen Markdown format). */
+/** `— <kind>[ · ★][ · #tag #tag][ · <page/location>] · <date>` (frozen Markdown format). */
 function metadataLine(row: ClippingRow, locale: string, t: MarkdownOptions["t"]): string {
   const parts = [t(`kind.${row.kind}`)];
   if (row.favorite) {
     parts.push("★");
+  }
+  if (row.tags.length > 0) {
+    parts.push(row.tags.map((tag) => `#${tag.name}`).join(" "));
   }
   const reference = formatReference(row.page, row.location);
   if (reference !== "") {
@@ -104,7 +107,7 @@ export function serializeMarkdown(rows: ClippingRow[], opts: MarkdownOptions): s
 export function serializeJson(rows: ClippingRow[], opts: { now?: Date } = {}): string {
   const payload = {
     app: "kindclip",
-    schema: 1,
+    schema: 2,
     exported_at: (opts.now ?? new Date()).toISOString(),
     count: rows.length,
     clippings: rows.map((row) => ({
@@ -119,13 +122,14 @@ export function serializeJson(rows: ClippingRow[], opts: { now?: Date } = {}): s
       content_edited: row.content_edited,
       edited_at: row.edited_at,
       favorite: row.favorite,
+      tags: row.tags.map((tag) => tag.name),
     })),
   };
   return `${JSON.stringify(payload, null, 2)}\n`;
 }
 
 const CSV_HEADER =
-  "book,author,kind,page,location,added_on,added_on_raw,content,content_edited,favorite";
+  "book,author,kind,page,location,added_on,added_on_raw,content,content_edited,favorite,tags";
 
 /** RFC 4180 cell: quoted when it holds a comma, a quote, CR or LF. */
 function csvCell(value: string | number | null): string {
@@ -152,6 +156,7 @@ export function serializeCsv(rows: ClippingRow[]): string {
         row.content,
         row.content_edited,
         row.favorite ? "true" : "false",
+        row.tags.map((tag) => tag.name).join(";"),
       ]
         .map(csvCell)
         .join(","),

@@ -1,12 +1,13 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import type { ImportedFile, RenameBookResult } from "../lib/db";
+  import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
   import type { Book } from "../lib/types";
 
   interface Props {
     books: Book[];
     files: ImportedFile[];
+    tags: TagCount[];
     busy: boolean;
     status: string | null;
     error: string | null;
@@ -15,11 +16,15 @@
     onMerge: (sourceId: number, targetId: number) => Promise<boolean>;
     onDeleteBook: (book: Book) => Promise<boolean>;
     onRemoveFile: (file: ImportedFile) => Promise<boolean>;
+    onRenameTag: (tagId: number, name: string) => Promise<RenameTagResult | null>;
+    onMergeTags: (sourceId: number, targetId: number) => Promise<boolean>;
+    onDeleteTag: (tag: TagCount) => Promise<boolean>;
   }
 
   const {
     books,
     files,
+    tags,
     busy,
     status,
     error,
@@ -28,10 +33,13 @@
     onMerge,
     onDeleteBook,
     onRemoveFile,
+    onRenameTag,
+    onMergeTags,
+    onDeleteTag,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
-  let tab = $state<"books" | "files">("books");
+  let tab = $state<"books" | "files" | "tags">("books");
   let localBusy = $state(false);
   let renameId = $state<number | null>(null);
   let titleDraft = $state("");
@@ -42,8 +50,16 @@
   let deleteTarget = $state<Book | null>(null);
   let removeTarget = $state<ImportedFile | null>(null);
 
+  let tagRenameId = $state<number | null>(null);
+  let tagNameDraft = $state("");
+  let tagMergeSourceId = $state<number | null>(null);
+  let tagMergeTargetId = $state<number | null>(null);
+  let tagMergeOffer = $state<{ sourceId: number; targetId: number } | null>(null);
+  let tagDeleteTarget = $state<TagCount | null>(null);
+
   const working = $derived(busy || localBusy);
   const mergeTargets = $derived(books.filter((book) => book.id !== mergeSourceId));
+  const tagMergeTargets = $derived(tags.filter((tag) => tag.id !== tagMergeSourceId));
   const dateFormatter = $derived(
     new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
   );
@@ -148,6 +164,86 @@
       localBusy = false;
     }
   }
+
+  function startTagRename(tag: TagCount): void {
+    tagRenameId = tag.id;
+    tagNameDraft = tag.name;
+    tagMergeSourceId = null;
+    tagMergeTargetId = null;
+    tagMergeOffer = null;
+    tagDeleteTarget = null;
+  }
+
+  function cancelTagActions(): void {
+    tagRenameId = null;
+    tagMergeSourceId = null;
+    tagMergeTargetId = null;
+    tagMergeOffer = null;
+    tagDeleteTarget = null;
+  }
+
+  async function saveTagRename(): Promise<void> {
+    if (tagRenameId === null) return;
+    localBusy = true;
+    try {
+      const result = await onRenameTag(tagRenameId, tagNameDraft);
+      if (result === null) return;
+      if (result.status === "merge-required") {
+        tagMergeOffer = { sourceId: tagRenameId, targetId: result.existingTagId };
+        tagRenameId = null;
+        return;
+      }
+      if (result.status === "renamed") {
+        cancelTagActions();
+      }
+    } finally {
+      localBusy = false;
+    }
+  }
+
+  async function confirmTagMergeOffer(): Promise<void> {
+    if (!tagMergeOffer) return;
+    localBusy = true;
+    try {
+      if (await onMergeTags(tagMergeOffer.sourceId, tagMergeOffer.targetId)) {
+        tagMergeOffer = null;
+      }
+    } finally {
+      localBusy = false;
+    }
+  }
+
+  function startTagMerge(tag: TagCount): void {
+    tagMergeSourceId = tag.id;
+    tagMergeTargetId = null;
+    tagRenameId = null;
+    tagDeleteTarget = null;
+  }
+
+  async function confirmTagMerge(): Promise<void> {
+    if (tagMergeSourceId === null || tagMergeTargetId === null) return;
+    localBusy = true;
+    try {
+      if (await onMergeTags(tagMergeSourceId, tagMergeTargetId)) {
+        tagMergeSourceId = null;
+        tagMergeTargetId = null;
+      }
+    } finally {
+      localBusy = false;
+    }
+  }
+
+  async function confirmTagDelete(): Promise<void> {
+    if (!tagDeleteTarget) return;
+    localBusy = true;
+    try {
+      if (await onDeleteTag(tagDeleteTarget)) {
+        tagDeleteTarget = null;
+      }
+    } finally {
+      localBusy = false;
+    }
+  }
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -200,6 +296,16 @@
           : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
       >
         {i18n.t("library.files")}
+      </button>
+      <button
+        type="button"
+        onclick={() => (tab = "tags")}
+        aria-pressed={tab === "tags"}
+        class="rounded-full border px-3 py-1.5 text-xs font-medium transition {tab === 'tags'
+          ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
+          : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+      >
+        {i18n.t("library.tags")}
       </button>
     </div>
 
@@ -342,7 +448,7 @@
             </li>
           {/each}
         </ul>
-      {:else}
+      {:else if tab === "files"}
         {#if files.length === 0}
           <p class="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">
             {i18n.t("library.emptyFiles")}
@@ -371,6 +477,134 @@
                 >
                   {i18n.t("library.remove")}
                 </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      {:else}
+        {#if tags.length === 0}
+          <p class="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">
+            {i18n.t("library.emptyTags")}
+          </p>
+        {:else}
+          <ul class="space-y-1">
+            {#each tags as tag (tag.id)}
+              <li class="rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
+                {#if tagRenameId === tag.id}
+                  <form
+                    class="flex flex-wrap items-end gap-2"
+                    onsubmit={(event) => {
+                      event.preventDefault();
+                      void saveTagRename();
+                    }}
+                  >
+                    <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-neutral-500 dark:text-neutral-400">
+                      {i18n.t("library.tagName")}
+                      <input
+                        bind:value={tagNameDraft}
+                        required
+                        disabled={working}
+                        class="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-900 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={working}
+                      class="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                    >
+                      {i18n.t("library.save")}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={cancelTagActions}
+                      disabled={working}
+                      class="rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                    >
+                      {i18n.t("library.cancel")}
+                    </button>
+                  </form>
+                {:else}
+                  <div class="flex items-center justify-between gap-3">
+                    <p
+                      class="min-w-0 truncate text-sm text-neutral-900 dark:text-neutral-100"
+                      title={tag.name}
+                    >
+                      #{tag.name}
+                    </p>
+                    <div class="flex shrink-0 items-center gap-1">
+                      <span
+                        class="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+                      >
+                        {i18n.t("library.clippingCount", { count: tag.clipping_count })}
+                      </span>
+                      <button
+                        type="button"
+                        onclick={() => startTagRename(tag)}
+                        disabled={working}
+                        class="rounded-full border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      >
+                        {i18n.t("library.rename")}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => startTagMerge(tag)}
+                        disabled={working || tags.length < 2}
+                        class="rounded-full border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      >
+                        {i18n.t("library.merge")}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => {
+                          tagDeleteTarget = tag;
+                          tagRenameId = null;
+                          tagMergeSourceId = null;
+                          tagMergeTargetId = null;
+                        }}
+                        disabled={working}
+                        class="rounded-full border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+                      >
+                        {i18n.t("library.delete")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {#if tagMergeSourceId === tag.id}
+                    <div
+                      class="mt-2 flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-2 dark:border-neutral-800"
+                    >
+                      <label class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                        {i18n.t("library.mergeTarget")}
+                        <select
+                          bind:value={tagMergeTargetId}
+                          disabled={working}
+                          class="rounded-lg border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-900 outline-none dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+                        >
+                          <option value={null} disabled>—</option>
+                          {#each tagMergeTargets as target (target.id)}
+                            <option value={target.id}>#{target.name}</option>
+                          {/each}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onclick={confirmTagMerge}
+                        disabled={working || tagMergeTargetId === null}
+                        class="rounded-full bg-neutral-900 px-3 py-1 text-xs font-medium text-white transition hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                      >
+                        {i18n.t("library.merge")}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={cancelTagActions}
+                        disabled={working}
+                        class="rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                      >
+                        {i18n.t("library.cancel")}
+                      </button>
+                    </div>
+                  {/if}
+                {/if}
               </li>
             {/each}
           </ul>
@@ -455,6 +689,59 @@
             class="rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-40"
           >
             {i18n.t("library.remove")}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if tagMergeOffer}
+      <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+        <p class="text-sm text-amber-800 dark:text-amber-200">{i18n.t("library.mergeRequiredTag")}</p>
+        <div class="mt-2 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onclick={() => (tagMergeOffer = null)}
+            disabled={working}
+            class="rounded-full border border-amber-300 px-3 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-100 disabled:opacity-40 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900"
+          >
+            {i18n.t("library.cancel")}
+          </button>
+          <button
+            type="button"
+            onclick={confirmTagMergeOffer}
+            disabled={working}
+            class="rounded-full bg-amber-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-amber-700 disabled:opacity-40"
+          >
+            {i18n.t("library.tagMergeInto")}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if tagDeleteTarget}
+      <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950">
+        <p class="text-sm text-red-800 dark:text-red-200">
+          {i18n.t("library.confirmDeleteTag", {
+            name: tagDeleteTarget.name,
+            count: tagDeleteTarget.clipping_count,
+          })}
+        </p>
+        <div class="mt-2 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onclick={() => (tagDeleteTarget = null)}
+            disabled={working}
+            class="rounded-full border border-red-300 px-3 py-1 text-xs font-medium text-red-800 transition hover:bg-red-100 disabled:opacity-40 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-900"
+          >
+            {i18n.t("library.cancel")}
+          </button>
+          <button
+            type="button"
+            onclick={confirmTagDelete}
+            disabled={working}
+            class="rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-red-700 disabled:opacity-40"
+          >
+            {i18n.t("library.delete")}
           </button>
         </div>
       </div>
