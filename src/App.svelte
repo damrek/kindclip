@@ -38,16 +38,20 @@
     type FontScale,
   } from "./lib/font";
   import {
+    addClippingTag,
     DEFAULT_CLIPPING_SORT,
     deleteBook,
+    ensureTag,
     exportClippings,
     getDb,
     getSetting,
     listBooks,
     listClippings,
     listImportedFiles,
+    listTags,
     loadFilterState,
     mergeBooks,
+    removeClippingTag,
     removeImportedFile,
     renameBook,
     resetNote,
@@ -79,6 +83,8 @@
     debounce,
     sortBooks,
     totalClippings,
+    withTag,
+    withoutTag,
     type BookSortKey,
     type BookSortDir,
   } from "./lib/library";
@@ -88,9 +94,11 @@
     ClippingKind,
     ClippingRow,
     PagedResult,
+    Tag,
   } from "./lib/types";
 
   let books = $state<Book[]>([]);
+  let allTags = $state<Tag[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
   let loading = $state(false);
   let loadError = $state<string | null>(null);
@@ -251,12 +259,14 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbFontScale, dbFilter] = await Promise.all([
+      const [dbLocale, dbTheme, dbFontScale, dbFilter, dbTags] = await Promise.all([
         getSetting(port, SETTINGS_KEYS.locale),
         getSetting(port, SETTINGS_KEYS.theme),
         getSetting(port, SETTINGS_KEYS.fontScale),
         loadFilterState(port),
+        listTags(port),
       ]);
+      allTags = dbTags;
       if (dbLocale && isLocale(dbLocale)) {
         locale = dbLocale;
       } else {
@@ -437,6 +447,67 @@
   function changePageSize(size: number): void {
     pageSize = size;
     page = 1;
+  }
+
+  /** Patch the tag chips of one visible row, leaving the rest untouched. */
+  function patchClippingTags(id: number, update: (tags: Tag[]) => Tag[]): void {
+    if (!result) return;
+    result = {
+      ...result,
+      items: result.items.map((item) =>
+        item.id === id ? { ...item, tags: update(item.tags) } : item,
+      ),
+    };
+  }
+
+  /** Assign a tag to a clipping, creating it by name when needed (S3). */
+  async function addTagToClipping(id: number, name: string): Promise<boolean> {
+    const current = result?.items.find((item) => item.id === id);
+    const clean = name.trim();
+    if (!current || clean === "") return false;
+    if (current.tags.some((tag) => tag.name.toLowerCase() === clean.toLowerCase())) {
+      return false;
+    }
+    const before = current.tags;
+    const tempId = -Date.now();
+    patchClippingTags(id, (tags) => withTag(tags, { id: tempId, name: clean }));
+    try {
+      const port = await getDb();
+      const tagId = await ensureTag(port, clean);
+      if (tagId === null) {
+        patchClippingTags(id, () => before);
+        return false;
+      }
+      await addClippingTag(port, id, tagId);
+      allTags = await listTags(port);
+      const canonical = allTags.find((tag) => tag.id === tagId)?.name ?? clean;
+      patchClippingTags(id, (tags) =>
+        withTag(withoutTag(tags, tempId), { id: tagId, name: canonical }),
+      );
+      return true;
+    } catch (error) {
+      patchClippingTags(id, () => before);
+      loadError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
+  }
+
+  /** Remove one tag from a clipping, reverting the chip on failure (S3). */
+  async function removeTagFromClipping(id: number, tagId: number): Promise<boolean> {
+    const current = result?.items.find((item) => item.id === id);
+    if (!current || !current.tags.some((tag) => tag.id === tagId)) return false;
+    const before = current.tags;
+    patchClippingTags(id, (tags) => withoutTag(tags, tagId));
+    try {
+      const port = await getDb();
+      await removeClippingTag(port, id, tagId);
+      allTags = await listTags(port);
+      return true;
+    } catch (error) {
+      patchClippingTags(id, () => before);
+      loadError = error instanceof Error ? error.message : String(error);
+      return false;
+    }
   }
 
   /** Overlay note edit (V2): reconciled write, then patch the visible row. */
@@ -918,11 +989,14 @@
             {#each result.items as clipping (clipping.id)}
               <ClippingCard
                 {clipping}
+                {allTags}
                 copied={clipping.id === copiedId}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
                 onEdit={editNote}
                 onRequestReset={requestReset}
+                onAddTag={addTagToClipping}
+                onRemoveTag={removeTagFromClipping}
               />
             {/each}
           {:else if !loading}

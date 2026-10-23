@@ -1,4 +1,4 @@
-import type { Book, ClippingFilter, ClippingRow } from "./types";
+import type { Book, ClippingFilter, ClippingRow, Tag } from "./types";
 
 /** Page sizes offered by the pagination control (S4). */
 export const PAGE_SIZES = [20, 50, 100];
@@ -174,6 +174,34 @@ export function applyNoteEdit(
   patch: { content_edited: string | null; edited_at: string | null },
 ): ClippingRow[] {
   return items.map((item) => (item.id === id ? { ...item, ...patch } : item));
+}
+
+/** Tag chips shown before the +N toggle (S3). */
+export const TAG_CHIP_LIMIT = 3;
+
+/** Append a tag to one clipping's chips, ignoring a duplicate id or name. */
+export function withTag(tags: Tag[], tag: Tag): Tag[] {
+  if (tags.some((current) => current.id === tag.id)) {
+    return tags;
+  }
+  const name = tag.name.toLowerCase();
+  if (tags.some((current) => current.name.toLowerCase() === name)) {
+    return tags;
+  }
+  return [...tags, tag];
+}
+
+/** Drop one tag chip by id; unknown ids leave the list untouched. */
+export function withoutTag(tags: Tag[], tagId: number): Tag[] {
+  return tags.filter((tag) => tag.id !== tagId);
+}
+
+/** Chips to render and how many stay behind the +N toggle. */
+export function tagOverflow(
+  tags: Tag[],
+  limit = TAG_CHIP_LIMIT,
+): { visible: Tag[]; hidden: number } {
+  return { visible: tags.slice(0, limit), hidden: Math.max(0, tags.length - limit) };
 }
 
 /** Copy card content to the clipboard; `false` when the write fails (T9). */
