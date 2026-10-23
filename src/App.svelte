@@ -41,6 +41,7 @@
     addClippingTag,
     DEFAULT_CLIPPING_SORT,
     deleteBook,
+    deleteTag,
     ensureTag,
     exportClippings,
     getDb,
@@ -51,9 +52,11 @@
     listTags,
     loadFilterState,
     mergeBooks,
+    mergeTags,
     removeClippingTag,
     removeImportedFile,
     renameBook,
+    renameTag,
     resetNote,
     setSetting,
     SETTINGS_KEYS,
@@ -64,6 +67,7 @@
     type ClippingSortKey,
     type ImportedFile,
     type RenameBookResult,
+    type RenameTagResult,
     type StoredFilterState,
     type TagCount,
   } from "./lib/db";
@@ -712,11 +716,13 @@
     await loadLibraryFiles();
   }
 
-  /** Refresh every view the dialog can affect: books, list and imports. */
+  /** Refresh every view the dialog can affect: books, list, imports and tags. */
   async function refreshAfterLibraryChange(): Promise<void> {
     await loadBooks();
     await loadList(filter, page, pageSize, clippingSort);
     await loadLibraryFiles();
+    const port = await getDb();
+    allTags = await listTags(port);
   }
 
   async function libraryRename(
@@ -795,6 +801,75 @@
         clippings: result.clippings,
         books: result.books,
       });
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryRenameTag(
+    tagId: number,
+    name: string,
+  ): Promise<RenameTagResult | null> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await renameTag(port, tagId, name);
+      if (result.status === "renamed") {
+        libraryStatus = t("library.statusTagRenamed");
+        await refreshAfterLibraryChange();
+      }
+      return result;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryMergeTags(sourceId: number, targetId: number): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      const result = await mergeTags(port, sourceId, targetId);
+      if (result.status !== "merged") {
+        return false;
+      }
+      libraryStatus = t("library.statusTagsMerged", { count: result.moved });
+      await refreshAfterLibraryChange();
+      return true;
+    } catch (error) {
+      libraryError = t("library.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    } finally {
+      libraryBusy = false;
+    }
+  }
+
+  async function libraryDeleteTag(tag: TagCount): Promise<boolean> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      await deleteTag(port, tag.id);
+      libraryStatus = t("library.statusTagDeleted");
+      // A deleted tag must leave the active filter too.
+      if (tagIds.includes(tag.id)) {
+        tagIds = tagIds.filter((id) => id !== tag.id);
+      }
       await refreshAfterLibraryChange();
       return true;
     } catch (error) {
@@ -1238,6 +1313,7 @@
   <LibraryDialog
     books={sortedBooks}
     files={libraryFiles}
+    tags={allTags}
     busy={libraryBusy}
     status={libraryStatus}
     error={libraryError}
@@ -1246,5 +1322,8 @@
     onMerge={libraryMerge}
     onDeleteBook={libraryDeleteBook}
     onRemoveFile={libraryRemoveFile}
+    onRenameTag={libraryRenameTag}
+    onMergeTags={libraryMergeTags}
+    onDeleteTag={libraryDeleteTag}
   />
 {/if}
