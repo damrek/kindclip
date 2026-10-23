@@ -1,9 +1,9 @@
 # <img src="src/assets/icon.png" width="32" height="32" alt="kindclip logo"> kindclip
 
 Desktop viewer for your Kindle highlights. Import `My Clippings.txt`, search
-by text, book or author, page through results, star favorites, edit notes and
-export to Markdown, JSON or CSV. Native look, tiny binaries, on Windows, Linux
-and macOS.
+by text, book or author, page through results, star favorites, tag clippings,
+edit notes and export to Markdown, JSON or CSV. Native look, tiny binaries,
+on Windows, Linux and macOS.
 
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)
 ![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
@@ -42,23 +42,30 @@ and macOS.
   kinds — including modern Spanish firmware wording («Tu resaltado»).
 - **Multi-file library** with content-hash dedupe across imports.
 - **Filters**: full-text search over content, title and author, plus book,
-  multi-select kind chips, favorites-only and edited-notes-only filters.
-  Configurable **pagination** (20/50/100) and a **font-size control** (S/M/L)
-  for accessibility.
+  multi-select kind chips, favorites-only, edited-notes-only and multi-tag
+  filters. Tags combine with **AND** (a clipping must carry every selected
+  tag), and every filter can be mixed. Configurable **pagination**
+  (20/50/100) and a **font-size control** (S/M/L) for accessibility.
 - **Book sorting**: sort the book sidebar by title or author, ascending or
   descending, with the choice persisted.
 - **Clipping order**: sort the list by newest/oldest, book title (A–Z/Z–A) or
   page, persisted with the rest of the view state.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
+- **Tags**: free-form tags on each clipping, on top of favorites, with inline
+  add/remove and suggestions from your existing tags. Manage them in the
+  library dialog's **Tags** tab (rename, merge, delete); tags left without
+  clippings stay listed there for cleanup and are hidden from the filter.
+  Tags live in the database only, so re-importing a removed file does not
+  bring them back.
 - **Note editing**: rewrite a note in place — edited cards show an **Edited**
   badge and can be **reset to the original** Kindle text at any time, with an
   edited-notes filter. Edits live in the database only: `My Clippings.txt`
   is never modified (the Kindle owns that file, so sync is one-way) and
   re-imports stay duplicate-free.
 - **Export** the current filtered view to **Markdown, JSON or CSV**: one file
-  grouped by book, favorites marked, labels translated in the app language,
-  and JSON/CSV with stable English fields (original and edited note text
-  included) for scripting.
+  grouped by book, favorites and tags marked, labels translated in the app
+  language, and JSON/CSV with stable English fields (original and edited note
+  text included, tags exported too) for scripting.
 - **Library management**: rename or merge books, delete a book with its
   clippings, and list the imported files to undo a single import without
   wiping `kindclip.db`. Every destructive action asks for confirmation, and
@@ -132,7 +139,8 @@ src-tauri/
     lib.rs                  # Migrations + plugin and command registration
     commands.rs             # parse_clippings_file (reads, SHA-256 hashes, parses)
                           # + db_file_path, write_export_file, export_default_path
-  migrations/001_init.sql   # Schema: files, books, clippings, favorites
+  migrations/               # 001 init (files, books, clippings, favorites)
+                            # + 004 tags (tags, clipping_tags)
   capabilities/             # Least-privilege permissions (sql, dialog, clipboard write, opener)
 crates/clippings-parser/    # Pure My Clippings.txt parser (no Tauri deps)
 ```
@@ -162,8 +170,6 @@ python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.confi
 
 - **Recall**: surface a random clipping from the current filters, plus an
   "on this day" recall for highlights added on the same date in previous years.
-- **Tags / collections**: user-defined tags on top of favorites, with
-  multi-tag filtering and tags included in exports.
 - The current layering (pure parser → commands → SQL port → UI) keeps each of
   these local to one layer.
 

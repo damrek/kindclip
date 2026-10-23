@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { exportFileName, serializeCsv, serializeJson, serializeMarkdown } from "./exporter";
 import { formatAddedOn } from "./library";
-import type { ClippingRow } from "./types";
+import type { ClippingRow, Tag } from "./types";
+
+function tag(name: string): Tag {
+  return { id: name.length, name };
+}
 
 function row(overrides: Partial<ClippingRow> = {}): ClippingRow {
   return {
@@ -72,6 +76,15 @@ describe("serializeMarkdown", () => {
     expect(markdown).toContain("— Highlight · ★ · raw date");
   });
 
+  it("lists tags after the kind and favorite, before the reference", () => {
+    const markdown = serializeMarkdown(
+      [row({ favorite: true, page: 12, tags: [tag("writing"), tag("habits")] })],
+      markdownOpts,
+    );
+    const date = formatAddedOn("2020-01-06T10:15:00", row().added_on_raw, "en-US");
+    expect(markdown).toContain(`— Highlight · ★ · #writing #habits · p. 12 · ${date}`);
+  });
+
   it("groups clippings under their book, keeping the query order", () => {
     const markdown = serializeMarkdown(
       [
@@ -128,7 +141,7 @@ describe("serializeJson", () => {
       JSON.stringify(
         {
           app: "kindclip",
-          schema: 1,
+          schema: 2,
           exported_at: "2026-10-16T12:30:00.000Z",
           count: 1,
           clippings: [
@@ -144,6 +157,7 @@ describe("serializeJson", () => {
               content_edited: null,
               edited_at: null,
               favorite: true,
+              tags: [],
             },
           ],
         },
@@ -187,6 +201,7 @@ describe("serializeJson", () => {
       content_edited: "Final text",
       edited_at: "2026-01-01T00:00:00",
       favorite: false,
+      tags: [],
     });
   });
 
@@ -194,12 +209,20 @@ describe("serializeJson", () => {
     const payload = JSON.parse(serializeJson([])) as { exported_at: string };
     expect(Number.isNaN(Date.parse(payload.exported_at))).toBe(false);
   });
+
+  it("exports tag names per clipping under schema 2", () => {
+    const payload = JSON.parse(
+      serializeJson([row({ tags: [tag("writing"), tag("habits")] })]),
+    ) as { schema: number; clippings: Array<{ tags: string[] }> };
+    expect(payload.schema).toBe(2);
+    expect(payload.clippings[0].tags).toEqual(["writing", "habits"]);
+  });
 });
 
 describe("serializeCsv", () => {
   it("writes a UTF-8 BOM, the frozen header and CRLF line endings", () => {
     expect(serializeCsv([])).toBe(
-      "\ufeffbook,author,kind,page,location,added_on,added_on_raw,content,content_edited,favorite\r\n",
+      "\ufeffbook,author,kind,page,location,added_on,added_on_raw,content,content_edited,favorite,tags\r\n",
     );
   });
 
@@ -209,9 +232,9 @@ describe("serializeCsv", () => {
       row({ id: 2, favorite: true }),
     ]);
     expect(csv).toBe(
-      "\ufeffbook,author,kind,page,location,added_on,added_on_raw,content,content_edited,favorite\r\n" +
-        'Meditations,,highlight,,,,"Monday, January 6, 2020 10:15 AM",Waste no more time arguing.,,false\r\n' +
-        'Meditations,Marcus Aurelius,highlight,,,2020-01-06T10:15:00,"Monday, January 6, 2020 10:15 AM",Waste no more time arguing.,,true\r\n',
+      "\ufeffbook,author,kind,page,location,added_on,added_on_raw,content,content_edited,favorite,tags\r\n" +
+        'Meditations,,highlight,,,,"Monday, January 6, 2020 10:15 AM",Waste no more time arguing.,,false,\r\n' +
+        'Meditations,Marcus Aurelius,highlight,,,2020-01-06T10:15:00,"Monday, January 6, 2020 10:15 AM",Waste no more time arguing.,,true,\r\n',
     );
   });
 
@@ -219,6 +242,16 @@ describe("serializeCsv", () => {
     const csv = serializeCsv([row({ content: 'He said "hello", then\nleft' })]);
     const record = csv.split("\r\n")[1];
     expect(record).toContain('"He said ""hello"", then\nleft"');
+  });
+
+  it("joins tags with semicolons in one trailing cell", () => {
+    const csv = serializeCsv([row({ tags: [tag("writing"), tag("habits")] })]);
+    expect(csv.split("\r\n")[1].endsWith(",writing;habits")).toBe(true);
+  });
+
+  it("quotes a tags cell that holds a comma", () => {
+    const csv = serializeCsv([row({ tags: [tag("a,b"), tag("c")] })]);
+    expect(csv.split("\r\n")[1]).toContain('"a,b;c"');
   });
 });
 
