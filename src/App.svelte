@@ -65,6 +65,7 @@
     type ImportedFile,
     type RenameBookResult,
     type StoredFilterState,
+    type TagCount,
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
@@ -98,7 +99,7 @@
   } from "./lib/types";
 
   let books = $state<Book[]>([]);
-  let allTags = $state<Tag[]>([]);
+  let allTags = $state<TagCount[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
   let loading = $state(false);
   let loadError = $state<string | null>(null);
@@ -109,6 +110,8 @@
   let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let editedOnly = $state(false);
+  let tagIds = $state<number[]>([]);
+  let tagsOpen = $state(false);
   let bookSortBy = $state<BookSortKey>("title");
   let bookSortDir = $state<BookSortDir>("asc");
   let sortBy = $state<ClippingSortKey>(DEFAULT_CLIPPING_SORT.key);
@@ -209,7 +212,7 @@
     kinds,
     favoritesOnly,
     editedOnly,
-    tagIds: [],
+    tagIds,
   });
 
   const clippingSort = $derived<ClippingSort>({ key: sortBy, dir: sortDir });
@@ -296,6 +299,10 @@
         kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
         editedOnly = dbFilter.editedOnly;
+        // Drop ids whose tag is gone (same guard as the book id).
+        tagIds = (dbFilter.tagIds ?? []).filter((id) =>
+          dbTags.some((tag) => tag.id === id),
+        );
         pageSize = dbFilter.pageSize;
         bookSortBy = dbFilter.bookSortBy ?? "title";
         bookSortDir = dbFilter.bookSortDir ?? "asc";
@@ -309,6 +316,7 @@
           kinds,
           favoritesOnly,
           editedOnly,
+          tagIds,
           pageSize,
           bookSortBy,
           bookSortDir,
@@ -358,6 +366,7 @@
       kinds,
       favoritesOnly,
       editedOnly,
+      tagIds,
       pageSize,
       bookSortBy,
       bookSortDir,
@@ -395,6 +404,14 @@
 
   function toggleEditedOnly(): void {
     editedOnly = !editedOnly;
+    page = 1;
+  }
+
+  /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
+  function toggleTag(id: number): void {
+    tagIds = tagIds.includes(id)
+      ? tagIds.filter((tagId) => tagId !== id)
+      : [...tagIds, id];
     page = 1;
   }
 
@@ -502,6 +519,10 @@
       const port = await getDb();
       await removeClippingTag(port, id, tagId);
       allTags = await listTags(port);
+      if (tagIds.includes(tagId)) {
+        // The card no longer carries every selected tag.
+        await loadList(filter, page, pageSize, clippingSort);
+      }
       return true;
     } catch (error) {
       patchClippingTags(id, () => before);
@@ -572,6 +593,8 @@
     favoritesOnly = false;
     editedOnly = false;
     kinds = [];
+    tagIds = [];
+    tagsOpen = false;
     selectBook(null);
   }
 
@@ -788,7 +811,12 @@
   const libraryTotal = $derived(totalClippings(books));
   const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" || bookId !== null || kinds.length > 0 || favoritesOnly || editedOnly,
+    debouncedQuery.trim() !== "" ||
+      bookId !== null ||
+      kinds.length > 0 ||
+      favoritesOnly ||
+      editedOnly ||
+      tagIds.length > 0,
   );
   /** Dialog scope: selected book title, else which view is being exported. */
   const exportScope = $derived(
@@ -802,6 +830,18 @@
     json: "json",
     csv: "csv",
   };
+
+  /** Selected tags in selection order, for the removable chips under the bar. */
+  const selectedTags = $derived(
+    tagIds.flatMap((id) => {
+      const tag = allTags.find((item) => item.id === id);
+      return tag ? [tag] : [];
+    }),
+  );
+  /** Filter checklist: orphans stay hidden unless already selected (S5). */
+  const filterTags = $derived(
+    allTags.filter((tag) => tag.clipping_count > 0 || tagIds.includes(tag.id)),
+  );
 </script>
 
 <div class="flex h-full flex-col">
@@ -966,6 +1006,69 @@
           >
             {t("edit.toggle")}
           </button>
+          <div class="relative">
+            <button
+              type="button"
+              onclick={() => (tagsOpen = !tagsOpen)}
+              aria-pressed={tagIds.length > 0}
+              aria-expanded={tagsOpen}
+              aria-haspopup="true"
+              title={t("tags.filterHint")}
+              class="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition {tagIds.length >
+              0
+                ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300'
+                : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+            >
+              {t("tags.filter")}
+              {#if tagIds.length > 0}
+                <span
+                  class="rounded-full bg-amber-500 px-1.5 text-xs leading-4 text-white"
+                >
+                  {tagIds.length}
+                </span>
+              {/if}
+            </button>
+            {#if tagsOpen}
+              <button
+                type="button"
+                class="fixed inset-0 z-10 cursor-default"
+                tabindex="-1"
+                aria-label={t("tags.close")}
+                onclick={() => (tagsOpen = false)}
+              ></button>
+              <div
+                class="absolute left-0 z-20 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+                role="group"
+                aria-label={t("tags.filterTitle")}
+              >
+                <p class="px-2 py-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                  {t("tags.filterTitle")}
+                </p>
+                {#if filterTags.length === 0}
+                  <p class="px-2 py-2 text-sm text-neutral-500 dark:text-neutral-400">
+                    {t("tags.empty")}
+                  </p>
+                {:else}
+                  {#each filterTags as tag (tag.id)}
+                    <label
+                      class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={tagIds.includes(tag.id)}
+                        onchange={() => toggleTag(tag.id)}
+                        class="accent-amber-500"
+                      />
+                      <span class="min-w-0 flex-1 truncate">#{tag.name}</span>
+                      <span class="text-xs text-neutral-400 dark:text-neutral-500"
+                        >{tag.clipping_count}</span
+                      >
+                    </label>
+                  {/each}
+                {/if}
+              </div>
+            {/if}
+          </div>
           <label class="ml-auto">
             <span class="sr-only">{t("clippingSort.label")}</span>
             <select
@@ -983,6 +1086,29 @@
             </select>
           </label>
         </div>
+
+        {#if selectedTags.length > 0}
+          <div
+            class="flex flex-wrap items-center gap-1.5 border-b border-neutral-200 px-6 py-2 dark:border-neutral-800"
+          >
+            {#each selectedTags as tag (tag.id)}
+              <span
+                class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+              >
+                <span>#{tag.name}</span>
+                <button
+                  type="button"
+                  onclick={() => toggleTag(tag.id)}
+                  aria-label={t("tags.remove", { name: tag.name })}
+                  title={t("tags.remove", { name: tag.name })}
+                  class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-amber-500 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                >
+                  ×
+                </button>
+              </span>
+            {/each}
+          </div>
+        {/if}
 
         <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">
           {#if result && result.items.length > 0}
