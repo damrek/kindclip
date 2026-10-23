@@ -196,6 +196,11 @@ export function withoutTag(tags: Tag[], tagId: number): Tag[] {
   return tags.filter((tag) => tag.id !== tagId);
 }
 
+/** Drop one tag id from the selected filter (a deleted or merged tag). */
+export function withoutTagId(tagIds: number[], tagId: number): number[] {
+  return tagIds.filter((id) => id !== tagId);
+}
+
 /** Chips to render and how many stay behind the +N toggle. */
 export function tagOverflow(
   tags: Tag[],

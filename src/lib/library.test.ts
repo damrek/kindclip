@@ -15,6 +15,7 @@ import {
   totalPages,
   withTag,
   withoutTag,
+  withoutTagId,
 } from "./library";
 import type { ClippingRow, Tag } from "./types";
 import type { Book } from "./types";
@@ -255,5 +256,15 @@ describe("tagOverflow", () => {
   it("honours a custom limit", () => {
     const tags = [tag(1, "a"), tag(2, "b")];
     expect(tagOverflow(tags, 1)).toEqual({ visible: [tag(1, "a")], hidden: 1 });
+  });
+});
+
+describe("withoutTagId", () => {
+  it("drops only the requested id", () => {
+    expect(withoutTagId([1, 2, 3], 2)).toEqual([1, 3]);
+  });
+
+  it("keeps the list unchanged for an unknown id", () => {
+    expect(withoutTagId([1], 99)).toEqual([1]);
   });
 });

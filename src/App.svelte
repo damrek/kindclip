@@ -90,6 +90,7 @@
     totalClippings,
     withTag,
     withoutTag,
+    withoutTagId,
     type BookSortKey,
     type BookSortDir,
   } from "./lib/library";
@@ -847,6 +848,8 @@
         return false;
       }
       libraryStatus = t("library.statusTagsMerged", { count: result.moved });
+      // The source tag is gone: it must leave the active filter too.
+      tagIds = withoutTagId(tagIds, sourceId);
       await refreshAfterLibraryChange();
       return true;
     } catch (error) {
@@ -867,9 +870,7 @@
       await deleteTag(port, tag.id);
       libraryStatus = t("library.statusTagDeleted");
       // A deleted tag must leave the active filter too.
-      if (tagIds.includes(tag.id)) {
-        tagIds = tagIds.filter((id) => id !== tag.id);
-      }
+      tagIds = withoutTagId(tagIds, tag.id);
       await refreshAfterLibraryChange();
       return true;
     } catch (error) {

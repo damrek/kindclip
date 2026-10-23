@@ -472,7 +472,7 @@ export async function removeClippingTag(
   ]);
 }
 
-/** Tags of several clippings in one query, grouped and kept in link order. */
+/** Tags of several clippings in one query per batch, grouped and kept in link order. */
 export async function loadClippingTags(
   port: DbPort,
   clippingIds: number[],
@@ -482,20 +482,25 @@ export async function loadClippingTags(
   if (unique.length === 0) {
     return grouped;
   }
-  const placeholders = unique.map((_, index) => `$${index + 1}`);
-  const rows = await port.select<{ clipping_id: number; id: number; name: string }>(
-    "SELECT ct.clipping_id, t.id, t.name FROM clipping_tags ct JOIN tags t ON t.id = ct.tag_id " +
-      `WHERE ct.clipping_id IN (${placeholders.join(", ")}) ` +
-      "ORDER BY ct.created_at, t.name COLLATE NOCASE",
-    unique,
-  );
-  for (const row of rows) {
-    const tag: Tag = { id: row.id, name: row.name };
-    const list = grouped.get(row.clipping_id);
-    if (list === undefined) {
-      grouped.set(row.clipping_id, [tag]);
-    } else {
-      list.push(tag);
+  // Stay under SQLite's bound-variable limit on large exports.
+  const BATCH = 500;
+  for (let start = 0; start < unique.length; start += BATCH) {
+    const batch = unique.slice(start, start + BATCH);
+    const placeholders = batch.map((_, index) => `$${index + 1}`);
+    const rows = await port.select<{ clipping_id: number; id: number; name: string }>(
+      "SELECT ct.clipping_id, t.id, t.name FROM clipping_tags ct JOIN tags t ON t.id = ct.tag_id " +
+        `WHERE ct.clipping_id IN (${placeholders.join(", ")}) ` +
+        "ORDER BY ct.created_at, t.name COLLATE NOCASE",
+      batch,
+    );
+    for (const row of rows) {
+      const tag: Tag = { id: row.id, name: row.name };
+      const list = grouped.get(row.clipping_id);
+      if (list === undefined) {
+        grouped.set(row.clipping_id, [tag]);
+      } else {
+        list.push(tag);
+      }
     }
   }
   return grouped;
