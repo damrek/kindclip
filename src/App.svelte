@@ -2,15 +2,15 @@
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
   import ExportDialog from "./components/ExportDialog.svelte";
+  import FilterMenu from "./components/FilterMenu.svelte";
+  import Icon from "./components/Icon.svelte";
   import LibraryDialog from "./components/LibraryDialog.svelte";
-  import FontScaleToggle from "./components/FontScaleToggle.svelte";
-  import LanguageSelector from "./components/LanguageSelector.svelte";
   import Pagination from "./components/Pagination.svelte";
-  import ThemeToggle from "./components/ThemeToggle.svelte";
+  import PreferencesMenu from "./components/PreferencesMenu.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
   import { save } from "@tauri-apps/plugin-dialog";
-  import { setContext } from "svelte";
+  import { setContext, tick } from "svelte";
   import {
     I18N_CONTEXT_KEY,
     isLocale,
@@ -24,7 +24,6 @@
   import {
     applyThemeClass,
     loadThemeChoice,
-    nextTheme,
     resolveTheme,
     saveThemeChoice,
     systemPrefersDark,
@@ -33,10 +32,10 @@
   import {
     applyFontScale,
     loadFontScale,
-    nextFontScale,
     saveFontScale,
     type FontScale,
   } from "./lib/font";
+  import { readSidebarOpen, saveSidebarOpen } from "./lib/sidebar";
   import {
     addClippingTag,
     DEFAULT_CLIPPING_SORT,
@@ -116,7 +115,9 @@
   let favoritesOnly = $state(false);
   let editedOnly = $state(false);
   let tagIds = $state<number[]>([]);
-  let tagsOpen = $state(false);
+  let sidebarOpen = $state(readSidebarOpen());
+  let searchExpanded = $state(false);
+  let searchInput = $state<HTMLInputElement | null>(null);
   let bookSortBy = $state<BookSortKey>("title");
   let bookSortDir = $state<BookSortDir>("asc");
   let sortBy = $state<ClippingSortKey>(DEFAULT_CLIPPING_SORT.key);
@@ -187,21 +188,34 @@
     }
   }
 
-  function cycleTheme(): void {
-    const next = nextTheme(themeChoice);
+  function setTheme(next: ThemeChoice): void {
     themeChoice = next;
     saveThemeChoice(next); // fast cache for the pre-paint script
     applyThemeClass(document.documentElement, resolveTheme(next, systemPrefersDark()));
     void persistSetting(SETTINGS_KEYS.theme, next);
   }
 
-  function cycleFontScale(): void {
-    const next = nextFontScale(fontScale);
+  function setFontScale(next: FontScale): void {
     fontScale = next;
     saveFontScale(next); // fast cache for the pre-paint script
     applyFontScale(document.documentElement, next);
     void persistSetting(SETTINGS_KEYS.fontScale, next);
   }
+
+  /** Live system preference: the theme follows macOS while the choice is "system". */
+  $effect(() => {
+    const choice = themeChoice;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = (): void =>
+      applyThemeClass(document.documentElement, resolveTheme(choice, query.matches));
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  });
+
+  $effect(() => {
+    applyFontScale(document.documentElement, fontScale);
+  });
 
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
@@ -395,6 +409,37 @@
 
   function toggleBookSortDir(): void {
     bookSortDir = bookSortDir === "asc" ? "desc" : "asc";
+  }
+
+  function toggleSidebar(): void {
+    sidebarOpen = !sidebarOpen;
+    saveSidebarOpen(sidebarOpen);
+  }
+
+  async function openSearch(): Promise<void> {
+    searchExpanded = true;
+    await tick();
+    searchInput?.focus();
+  }
+
+  /** Escape clears the query first, then folds the field away. */
+  function onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key !== "Escape") return;
+    if (query !== "") {
+      query = "";
+      return;
+    }
+    searchExpanded = false;
+    (event.currentTarget as HTMLInputElement).blur();
+  }
+
+  function onSearchBlur(): void {
+    if (query === "") searchExpanded = false;
+  }
+
+  function clearSearch(): void {
+    query = "";
+    searchExpanded = false;
   }
 
   function toggleKind(next: ClippingKind): void {
@@ -599,7 +644,7 @@
     editedOnly = false;
     kinds = [];
     tagIds = [];
-    tagsOpen = false;
+    searchExpanded = false;
     selectBook(null);
   }
 
@@ -900,7 +945,6 @@
       (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
   );
 
-  const KIND_OPTIONS: ClippingKind[] = ["highlight", "note", "bookmark"];
   const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
     markdown: "md",
     json: "json",
@@ -918,45 +962,83 @@
   const filterTags = $derived(
     allTags.filter((tag) => tag.clipping_count > 0 || tagIds.includes(tag.id)),
   );
+
+  interface ActiveFilterChip {
+    key: string;
+    label: string;
+    remove: () => void;
+  }
+
+  /** Every active filter is visible and removable in the chip row, not just tags. */
+  const activeChips = $derived.by((): ActiveFilterChip[] => {
+    const chips: ActiveFilterChip[] = [];
+    for (const kind of kinds) {
+      chips.push({
+        key: `kind:${kind}`,
+        label: t(`kind.${kind}`),
+        remove: () => toggleKind(kind),
+      });
+    }
+    if (favoritesOnly) {
+      chips.push({ key: "favorites", label: t("fav.toggle"), remove: toggleFavoritesOnly });
+    }
+    if (editedOnly) {
+      chips.push({ key: "edited", label: t("edit.toggle"), remove: toggleEditedOnly });
+    }
+    for (const tag of selectedTags) {
+      chips.push({
+        key: `tag:${tag.id}`,
+        label: `#${tag.name}`,
+        remove: () => toggleTag(tag.id),
+      });
+    }
+    return chips;
+  });
 </script>
 
 <div class="flex h-full flex-col">
   <header
-    class="flex items-center justify-between gap-4 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800"
+    class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"
   >
-    <h1 class="flex items-center gap-2 text-base font-semibold tracking-tight">
-      <img src={appIcon} alt="" width="24" height="24" class="h-6 w-6 rounded-[6px]" />
-      kindclip
-    </h1>
-    <div class="flex items-center gap-1">
-      <LanguageSelector />
-      <ThemeToggle choice={themeChoice} onCycle={cycleTheme} />
-      <FontScaleToggle scale={fontScale} onCycle={cycleFontScale} />
+    <div class="flex min-w-0 items-center gap-2">
+      {#if hasLibrary}
+        <button
+          type="button"
+          onclick={toggleSidebar}
+          aria-label={t("sidebar.toggle")}
+          aria-expanded={sidebarOpen}
+          aria-controls="book-sidebar"
+          title={t("sidebar.toggle")}
+          class="rounded-lg p-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+        >
+          <Icon name="sidebar" />
+        </button>
+      {/if}
+      <h1 class="flex min-w-0 items-center gap-2 text-base font-semibold tracking-tight">
+        <img src={appIcon} alt="" width="24" height="24" class="h-6 w-6 rounded-[6px]" />
+        kindclip
+      </h1>
+    </div>
+    <div class="flex min-w-0 items-center gap-1">
       {#if importStatus}
-        <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{importStatus}</p>
+        <p class="truncate text-sm text-neutral-500 dark:text-neutral-400" role="status">
+          {importStatus}
+        </p>
       {/if}
       {#if exportStatus}
-        <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">{exportStatus}</p>
+        <p class="truncate text-sm text-neutral-500 dark:text-neutral-400" role="status">
+          {exportStatus}
+        </p>
       {/if}
-      <button
-        type="button"
-        onclick={onOpenDbLocation}
-        disabled={locatingDb}
-        title={t("db.open")}
-        aria-label={t("db.open")}
-        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-      >
-        📁
-      </button>
       <button
         type="button"
         onclick={openLibrary}
         disabled={!hasLibrary}
         title={t("library.open")}
         aria-label={t("library.open")}
-        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+        class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
       >
-        🗂
+        <Icon name="library" />
       </button>
       <button
         type="button"
@@ -964,9 +1046,9 @@
         disabled={!result || result.total === 0}
         title={t("export.button")}
         aria-label={t("export.button")}
-        class="rounded-full px-2.5 py-1.5 text-base leading-none text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+        class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
       >
-        📤
+        <Icon name="export" />
       </button>
       <button
         type="button"
@@ -976,6 +1058,16 @@
       >
         {importing ? t("header.importing") : t("header.import")}
       </button>
+      <PreferencesMenu
+        locale={locale}
+        theme={themeChoice}
+        font={fontScale}
+        dbBusy={locatingDb}
+        onLocale={setLocale}
+        onTheme={setTheme}
+        onFont={setFontScale}
+        onOpenDb={onOpenDbLocation}
+      />
     </div>
   </header>
 
@@ -1009,8 +1101,22 @@
       </div>
     </main>
   {:else}
-    <div class="flex min-h-0 flex-1">
-      <aside class="hidden w-64 shrink-0 border-r border-neutral-200 p-3 md:block dark:border-neutral-800">
+    <div class="relative flex min-h-0 flex-1">
+      {#if sidebarOpen}
+        <button
+          type="button"
+          onclick={toggleSidebar}
+          aria-label={t("sidebar.toggle")}
+          tabindex="-1"
+          class="fixed inset-0 z-20 cursor-default bg-black/20 md:hidden"
+        ></button>
+      {/if}
+      <aside
+        id="book-sidebar"
+        class="absolute inset-y-0 left-0 z-30 w-64 shrink-0 overflow-y-auto border-r border-neutral-200 bg-white p-3 shadow-xl md:static md:z-auto md:bg-transparent md:shadow-none dark:border-neutral-800 dark:bg-neutral-950 md:dark:bg-transparent {sidebarOpen
+          ? ''
+          : 'hidden'}"
+      >
         <BookSidebar
           books={sortedBooks}
           selectedId={bookId}
@@ -1024,127 +1130,65 @@
       </aside>
 
       <main class="flex min-w-0 flex-1 flex-col">
-        <div class="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800">
-          <div class="relative min-w-52 flex-1">
-            <span class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-neutral-400" aria-hidden="true">⌕</span>
-            <input
-              type="search"
-              bind:value={query}
-              placeholder={t("search.placeholder")}
-              aria-label={t("search.placeholder")}
-              class="w-full rounded-full border border-neutral-200 bg-neutral-50 py-2 pr-8 pl-9 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
-            />
-            {#if query !== ""}
-              <button
-                type="button"
-                onclick={() => (query = "")}
-                aria-label={t("search.clear")}
-                class="absolute top-1/2 right-2 -translate-y-1/2 rounded-full px-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
-              >
-                ×
-              </button>
-            {/if}
-          </div>
-          <div class="flex items-center gap-1.5" role="group" aria-label={t("kind.group")}>
-            {#each KIND_OPTIONS as option (option)}
-              {@const active = kinds.includes(option)}
-              <button
-                type="button"
-                onclick={() => toggleKind(option)}
-                aria-pressed={active}
-                class="rounded-full border px-3 py-2 text-sm font-medium transition {active
-                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
-                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
-              >
-                {t(`kind.${option}`)}
-              </button>
-            {/each}
-          </div>
-          <button
-            type="button"
-            onclick={toggleFavoritesOnly}
-            aria-pressed={favoritesOnly}
-            title={t("fav.hint")}
-            class="rounded-full border px-3 py-2 text-sm font-medium transition {favoritesOnly
-              ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300'
-              : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
-          >
-            {t("fav.toggle")}
-          </button>
-          <button
-            type="button"
-            onclick={toggleEditedOnly}
-            aria-pressed={editedOnly}
-            title={t("edit.hint")}
-            class="rounded-full border px-3 py-2 text-sm font-medium transition {editedOnly
-              ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
-              : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
-          >
-            {t("edit.toggle")}
-          </button>
-          <div class="relative">
-            <button
-              type="button"
-              onclick={() => (tagsOpen = !tagsOpen)}
-              aria-pressed={tagIds.length > 0}
-              aria-expanded={tagsOpen}
-              aria-haspopup="true"
-              title={t("tags.filterHint")}
-              class="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition {tagIds.length >
-              0
-                ? 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-300'
-                : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
-            >
-              {t("tags.filter")}
-              {#if tagIds.length > 0}
+        <div
+          class="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800"
+        >
+          <div class="flex min-w-0 flex-1 items-center">
+            {#if searchExpanded || query !== ""}
+              <div class="relative w-full max-w-sm">
                 <span
-                  class="rounded-full bg-amber-500 px-1.5 text-xs leading-4 text-white"
+                  class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-neutral-400"
+                  aria-hidden="true"
                 >
-                  {tagIds.length}
+                  <Icon name="search" class="h-4 w-4" />
                 </span>
-              {/if}
-            </button>
-            {#if tagsOpen}
-              <button
-                type="button"
-                class="fixed inset-0 z-10 cursor-default"
-                tabindex="-1"
-                aria-label={t("tags.close")}
-                onclick={() => (tagsOpen = false)}
-              ></button>
-              <div
-                class="absolute left-0 z-20 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
-                role="group"
-                aria-label={t("tags.filterTitle")}
-              >
-                <p class="px-2 py-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                  {t("tags.filterTitle")}
-                </p>
-                {#if filterTags.length === 0}
-                  <p class="px-2 py-2 text-sm text-neutral-500 dark:text-neutral-400">
-                    {t("tags.empty")}
-                  </p>
-                {:else}
-                  {#each filterTags as tag (tag.id)}
-                    <label
-                      class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={tagIds.includes(tag.id)}
-                        onchange={() => toggleTag(tag.id)}
-                        class="accent-amber-500"
-                      />
-                      <span class="min-w-0 flex-1 truncate">#{tag.name}</span>
-                      <span class="text-xs text-neutral-400 dark:text-neutral-500"
-                        >{tag.clipping_count}</span
-                      >
-                    </label>
-                  {/each}
+                <input
+                  bind:this={searchInput}
+                  type="search"
+                  bind:value={query}
+                  onkeydown={onSearchKeydown}
+                  onblur={onSearchBlur}
+                  placeholder={t("search.placeholder")}
+                  aria-label={t("search.placeholder")}
+                  class="w-full rounded-full border border-neutral-200 bg-neutral-50 py-2 pr-8 pl-9 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
+                />
+                {#if query !== ""}
+                  <button
+                    type="button"
+                    onclick={clearSearch}
+                    aria-label={t("search.clear")}
+                    class="absolute top-1/2 right-2 -translate-y-1/2 rounded-full px-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                  >
+                    ×
+                  </button>
                 {/if}
               </div>
+            {:else}
+              <button
+                type="button"
+                onclick={openSearch}
+                title={t("search.open")}
+                aria-label={t("search.open")}
+                class="rounded-full px-2.5 py-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+              >
+                <Icon name="search" />
+              </button>
             {/if}
           </div>
+
+          <FilterMenu
+            {kinds}
+            {favoritesOnly}
+            {editedOnly}
+            {tagIds}
+            tags={filterTags}
+            onToggleKind={toggleKind}
+            onToggleFavorites={toggleFavoritesOnly}
+            onToggleEdited={toggleEditedOnly}
+            onToggleTag={toggleTag}
+            onClear={clearFilters}
+          />
+
           <label class="ml-auto">
             <span class="sr-only">{t("clippingSort.label")}</span>
             <select
@@ -1163,26 +1207,33 @@
           </label>
         </div>
 
-        {#if selectedTags.length > 0}
+        {#if activeChips.length > 0}
           <div
             class="flex flex-wrap items-center gap-1.5 border-b border-neutral-200 px-6 py-2 dark:border-neutral-800"
           >
-            {#each selectedTags as tag (tag.id)}
+            {#each activeChips as chip (chip.key)}
               <span
-                class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+                class="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-300"
               >
-                <span>#{tag.name}</span>
+                <span>{chip.label}</span>
                 <button
                   type="button"
-                  onclick={() => toggleTag(tag.id)}
-                  aria-label={t("tags.remove", { name: tag.name })}
-                  title={t("tags.remove", { name: tag.name })}
-                  class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-amber-500 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                  onclick={chip.remove}
+                  aria-label={t("filters.remove", { name: chip.label })}
+                  title={t("filters.remove", { name: chip.label })}
+                  class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-neutral-400 transition hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200"
                 >
                   ×
                 </button>
               </span>
             {/each}
+            <button
+              type="button"
+              onclick={clearFilters}
+              class="ml-1 text-xs font-medium text-neutral-500 underline-offset-2 transition hover:text-neutral-800 hover:underline dark:text-neutral-400 dark:hover:text-neutral-200"
+            >
+              {t("results.clear")}
+            </button>
           </div>
         {/if}
 
