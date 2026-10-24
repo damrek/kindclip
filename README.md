@@ -16,7 +16,8 @@ on Windows, Linux and macOS.
 <p>
   <img src="docs/screenshot.png" width="80%" alt="kindclip — dark theme">
 </p>
-*Library view: book sidebar, live search, cards and pagination — in dark theme.*
+*Library view: collapsible book sidebar, collapsible search, one Filters menu
+with its active chips, and the ⋯ preferences menu — in dark theme.*
 
 ## Usage
 
@@ -27,13 +28,13 @@ on Windows, Linux and macOS.
 2. Plug in your Kindle over USB and grab `documents/My Clippings.txt`.
 3. Hit **Import**, pick the file, browse. Re-import any time: duplicates are
    detected by hash, and files that previously failed to parse get healed.
-   The 📁 button next to **Import** reveals the database file in your file
-   manager.
-4. Hit **Export** (📤) next to **Import** to save everything matching the
+   The **⋯** menu has **Open database location** to reveal the database file
+   in your file manager.
+4. Hit the **Export** icon in the header to save everything matching the
    current filters to **Markdown, JSON or CSV** — one file grouped by book.
-5. Hit **Manage library** (🗂) to rename or merge books, delete a book, or
-   remove an imported file — a bad import can be undone without wiping the
-   whole database.
+5. Hit the **Manage library** icon in the header to rename or merge books,
+   delete a book, or remove an imported file — a bad import can be undone
+   without wiping the whole database.
 
 ## Features
 
@@ -42,10 +43,18 @@ on Windows, Linux and macOS.
   kinds — including modern Spanish firmware wording («Tu resaltado»).
 - **Multi-file library** with content-hash dedupe across imports.
 - **Filters**: full-text search over content, title and author, plus book,
-  multi-select kind chips, favorites-only, edited-notes-only and multi-tag
-  filters. Tags combine with **AND** (a clipping must carry every selected
-  tag), and every filter can be mixed. Configurable **pagination**
-  (20/50/100) and a **font-size control** (S/M/L) for accessibility.
+  multi-select type, status and tag filters. Everything but the book lives in
+  a single **Filters** menu that badges the active count and shows a removable
+  chip per active filter; **Clear filters** resets them all. Tags combine with
+  **AND** (a clipping must carry every selected tag), and every filter can be
+  mixed. Configurable **pagination** (20/50/100).
+- **Grouped app chrome**: one header holds the sidebar toggle, the library and
+  export actions, **Import** and a **⋯** menu for **Preferences** — language,
+  system/light/dark theme, text size (S/M/L) for accessibility, and the
+  database location. All of it persists.
+- **Collapsible shell**: hide the book sidebar with the header toggle (the
+  choice is remembered), and the search field stays collapsed to an icon until
+  you click it or there is text in it.
 - **Book sorting**: sort the book sidebar by title or author, ascending or
   descending, with the choice persisted.
 - **Clipping order**: sort the list by newest/oldest, book title (A–Z/Z–A) or
@@ -70,10 +79,10 @@ on Windows, Linux and macOS.
   clippings, and list the imported files to undo a single import without
   wiping `kindclip.db`. Every destructive action asks for confirmation, and
   removed clippings come back if you re-import the file.
-- **UI in 5 languages** (es, en, fr, de, it — Spanish by default),
-  a **system/light/dark theme** and the font size above, all persisted.
-- A header button reveals **`kindclip.db` in the file manager**, and long
-  book titles in the sidebar show the full title on hover.
+- **UI in 5 languages** (es, en, fr, de, it — Spanish by default), with the
+  language switch in the **⋯** menu next to the theme and text size.
+- **⋯ → Open database location** reveals `kindclip.db` in the file manager, and
+  long book titles in the sidebar show the full title on hover.
 - Bundled **Inter** typeface, custom icons and a minimal macOS-style UI over
   the native window frame.
 
@@ -129,10 +138,12 @@ src/                        # Svelte 5 + Tailwind v4 frontend
     font.ts                 # S/M/L font-size scale with persistence (tested)
     importer.ts             # Import flow: pick → parse → persist
     library.ts              # Pagination, debounce, formatting (tested)
+    sidebar.ts              # Remembered sidebar open/closed state (tested)
     i18n.ts                 # es/en/fr/de/it dictionaries (parity tested)
     theme.ts                # system/light/dark theme
     types.ts                # Shared frontend/backend contracts
-  components/               # BookSidebar, ClippingCard, Pagination, FontScaleToggle, ...
+  components/               # BookSidebar, ClippingCard, Pagination, FilterMenu, ...
+                            # PreferencesMenu, ExportDialog, LibraryDialog, Icon
   assets/icon.png           # App icon, also shown in the header
 src-tauri/
   src/
@@ -157,8 +168,8 @@ The SQL plugin resolves `sqlite:kindclip.db` to the standard per-OS config dir
 To wipe the library and re-import from scratch, just delete that file.
 This also wipes your note edits, which live in the same database.
 To remove a single book or undo one import instead, use **Manage library**
-(🗂) — no need to delete the file.
-You can also open it straight from the app: the 📁 button next to **Import**
+in the header — no need to delete the file.
+You can also open it straight from the app: **⋯ → Open database location**
 reveals it in your file manager.
 Quick inspection:
 
