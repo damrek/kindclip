@@ -17,116 +17,87 @@ on Windows, Linux and macOS.
   <img src="docs/screenshot.png" width="80%" alt="kindclip — dark theme">
 </p>
 *Library view: collapsible book sidebar, collapsible search, one Filters menu
-with its active chips, and the ⋯ preferences menu — in dark theme.*
+with active chips, and the ⋯ preferences menu — in dark theme.*
 
 ## Usage
 
-1. Download an installer from
-   [Releases](https://github.com/damrek/kindclip/releases/latest):
-   `.AppImage` / `.deb` / `.rpm` on Linux, `.exe` setup or `.msi` on Windows,
-   and `.dmg` on macOS (Apple Silicon and Intel).
-2. Plug in your Kindle over USB and grab `documents/My Clippings.txt`.
-3. Hit **Import**, pick the file, browse. Re-import any time: duplicates are
-   detected by hash, and files that previously failed to parse get healed.
-   The **⋯** menu has **Open database location** to reveal the database file
-   in your file manager.
-4. Hit the **Export** icon in the header to save everything matching the
-   current filters to **Markdown, JSON or CSV** — one file grouped by book.
-5. Hit the **Manage library** icon in the header to rename or merge books,
-   delete a book, or remove an imported file — a bad import can be undone
-   without wiping the whole database.
+1. Download an installer from [Releases](https://github.com/damrek/kindclip/releases/latest):
+   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe`/`.msi` (Windows), `.dmg` (macOS).
+2. Plug in your Kindle, copy `documents/My Clippings.txt`.
+3. **Import** → pick the file → browse. Re-import anytime: duplicates are
+   detected by hash, failed parses auto-heal.
+4. **Export** (header icon) → current filters to Markdown, JSON or CSV,
+   grouped by book.
+5. **Manage library** (header icon) → rename/merge books, delete a book, or
+   undo a single bad import without wiping the database.
 
 ## Features
 
-- **Robust parser**: UTF-8 and UTF-16 (with/without BOM, even mid-file),
-  localized dates (en, es, de, fr, it, pt) and Highlight / Note / Bookmark
-  kinds — including modern Spanish firmware wording («Tu resaltado»).
-- **Multi-file library** with content-hash dedupe across imports.
-- **Filters**: full-text search over content, title and author, plus book,
-  multi-select type, status and tag filters. Everything but the book lives in
-  a single **Filters** menu that badges the active count and shows a removable
-  chip per active filter; **Clear filters** resets them all. Tags combine with
-  **AND** (a clipping must carry every selected tag), and every filter can be
-  mixed. Configurable **pagination** (20/50/100).
-- **Grouped app chrome**: one header holds the sidebar toggle, the library and
-  export actions, **Import** and a **⋯** menu for **Preferences** — language,
-  system/light/dark theme, text size (S/M/L) for accessibility, and the
-  database location. All of it persists.
-- **Collapsible shell**: hide the book sidebar with the header toggle (the
-  choice is remembered), and the search field stays collapsed to an icon until
-  you click it or there is text in it.
-- **Book sorting**: sort the book sidebar by title or author, ascending or
-  descending, with the choice persisted.
-- **Clipping order**: sort the list by newest/oldest, book title (A–Z/Z–A) or
-  page, persisted with the rest of the view state.
-- **Favorites** in SQLite and a **copy button** on every highlight and note.
-- **Tags**: free-form tags on each clipping, on top of favorites, with inline
-  add/remove and suggestions from your existing tags. **Click a tag on any
-  clipping card to instantly filter the list by that tag** (toggles it in the
-  active filters). Manage tags in the library dialog's **Tags** tab (rename,
-  merge, delete); tags left without clippings stay listed there for cleanup
-  and are hidden from the filter. Tags live in the database only, so
-  re-importing a removed file does not bring them back.
-- **Note editing**: rewrite a note in place — edited cards show an **Edited**
-  badge and can be **reset to the original** Kindle text at any time, with an
-  edited-notes filter. Edits live in the database only: `My Clippings.txt`
-  is never modified (the Kindle owns that file, so sync is one-way) and
-  re-imports stay duplicate-free.
-- **Export** the current filtered view to **Markdown, JSON or CSV**: one file
-  grouped by book, favorites and tags marked, labels translated in the app
-  language, and JSON/CSV with stable English fields (original and edited note
-  text included, tags exported too) for scripting.
-- **Library management**: rename or merge books, delete a book with its
-  clippings, and list the imported files to undo a single import without
-  wiping `kindclip.db`. Every destructive action asks for confirmation, and
-  removed clippings come back if you re-import the file.
-- **UI in 5 languages** (es, en, fr, de, it — Spanish by default), with the
-  language switch in the **⋯** menu next to the theme and text size.
-- **⋯ → Open database location** reveals `kindclip.db` in the file manager, and
-  long book titles in the sidebar show the full title on hover.
-- Bundled **Inter** typeface, custom icons and a minimal macOS-style UI over
-  the native window frame.
+### Core
+- **Robust parser**: UTF-8/16 (BOM or mid-file), localized dates (en/es/de/fr/it/pt),
+  Highlight/Note/Bookmark kinds — including modern Spanish firmware («Tu resaltado»).
+- **Multi-file library** with content-hash deduplication across imports.
+- **Note editing**: inline rewrite with **Edited** badge, reset to original anytime,
+  edited-notes filter. `My Clippings.txt` is never modified (one-way sync).
 
-## Requirements
+### Library & Organization
+- **Favorites** in SQLite, copy button on every highlight/note.
+- **Tags**: free-form per clipping, inline add/remove with suggestions.
+  Click a tag to filter instantly (AND logic). Manage (rename/merge/delete) in
+  Library dialog → Tags tab; orphan tags stay listed for cleanup, hidden from filter.
+- **Library management**: rename/merge books, delete book + clippings, list
+  imported files to undo one import. Destructive actions confirm; re-import restores.
 
-- Node.js 20+ and a stable Rust toolchain.
-- On Linux, the Tauri system dependencies (e.g. Ubuntu):
-  ```bash
-  sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential \
-    curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev \
-    librsvg2-dev patchelf
-  ```
+### Search & Filter
+- **Unified Filters menu** (badged count, removable chips, Clear all): full-text
+  search (content/title/author), book, multi-select type/status/tag filters.
+  All combinable. Configurable pagination (20/50/100).
+- **Sorting**: books by title/author (↑/↓); clippings by newest/oldest,
+  book title (A–Z/Z–A), or page. All persisted.
+
+### Export & Data
+- **Export** filtered view to Markdown, JSON, CSV — one file grouped by book,
+  favorites/tags marked, labels in app language; JSON/CSV use stable English
+  fields (original + edited notes, tags) for scripting.
+- **Open database location** (⋯ menu) reveals `kindclip.db` in file manager.
+
+### UI & Accessibility
+- **Collapsible shell**: sidebar toggle (remembered), search collapses to icon
+  until clicked or has text.
+- **Grouped header**: sidebar toggle, Import, Export, Manage library, ⋯ menu
+  (Preferences: language, system/light/dark theme, text size S/M/L, DB location).
+- **5 languages** (es/en/fr/de/it, Spanish default).
+- Bundled **Inter** font, custom icons, minimal macOS-style UI over native frame.
 
 ## Development
 
+**Requirements**: Node.js 20+, stable Rust toolchain.  
+**Linux deps** (Ubuntu):
 ```bash
-npm install
-npx tauri dev      # do NOT use plain `npm run dev`: without the Tauri runtime there is no IPC bridge!
+sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential \
+  curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev \
+  librsvg2-dev patchelf
 ```
 
-## Build
-
 ```bash
+npm install
+npx tauri dev      # do NOT use plain `npm run dev`: no Tauri IPC bridge
 npx tauri build    # .deb/.rpm/.AppImage on Linux — see target/release/bundle
 ```
 
-Releases are automated: pushing a `v*` tag (e.g. `v1.0.0`) runs
-`.github/workflows/release.yml`, which syncs the version from the tag, checks,
-tests and attaches the bundles to a GitHub Release for macOS (ARM + Intel),
-Linux and Windows.
-Note: macOS/Windows artifacts are unsigned — Gatekeeper/SmartScreen will warn
-until signing is configured.
-
-## Tests & checks
-
+**Tests & checks**:
 ```bash
-npm test                          # vitest (frontend)
-npm run check                     # svelte-check
-npm run build                     # vite build
-cargo test --workspace            # parser + commands
+npm test           # vitest (frontend)
+npm run check      # svelte-check
+npm run build      # vite build
+cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
 ```
+
+Releases automated on `v*` tag push (`.github/workflows/release.yml`): syncs
+version, checks, tests, attaches bundles for macOS (ARM+Intel), Linux, Windows.
+*macOS/Windows artifacts unsigned — Gatekeeper/SmartScreen will warn.*
 
 ## Structure
 
@@ -134,56 +105,45 @@ cargo fmt --all -- --check
 src/                        # Svelte 5 + Tailwind v4 frontend
   lib/
     db.ts                   # SQL port (plugin-sql): queries + import orchestration
-    db-location.ts          # Reveal kindclip.db in the file manager (tested)
-    exporter.ts             # Export serializers: Markdown/JSON/CSV (tested)
-    font.ts                 # S/M/L font-size scale with persistence (tested)
+    exporter.ts             # Export serializers: Markdown/JSON/CSV
     importer.ts             # Import flow: pick → parse → persist
-    library.ts              # Pagination, debounce, formatting (tested)
-    sidebar.ts              # Remembered sidebar open/closed state (tested)
-    i18n.ts                 # es/en/fr/de/it dictionaries (parity tested)
+    i18n.ts                 # es/en/fr/de/it dictionaries
     theme.ts                # system/light/dark theme
     types.ts                # Shared frontend/backend contracts
-  components/               # BookSidebar, ClippingCard, Pagination, FilterMenu, ...
-                            # PreferencesMenu, ExportDialog, LibraryDialog, Icon
-  assets/icon.png           # App icon, also shown in the header
+    ... (font.ts, library.ts, sidebar.ts, db-location.ts)
+  components/               # BookSidebar, ClippingCard, FilterMenu, ...
+  assets/icon.png
 src-tauri/
   src/
-    lib.rs                  # Migrations + plugin and command registration
-    commands.rs             # parse_clippings_file (reads, SHA-256 hashes, parses)
-                          # + db_file_path, write_export_file, export_default_path
-  migrations/               # 001 init (files, books, clippings, favorites)
-                            # + 004 tags (tags, clipping_tags)
-  capabilities/             # Least-privilege permissions (sql, dialog, clipboard write, opener)
+    lib.rs                  # Migrations + plugin/command registration
+    commands.rs             # parse_clippings_file, db_file_path, write_export_file
+  migrations/               # 001 init + 004 tags
+  capabilities/             # Least-privilege (sql, dialog, clipboard, opener)
 crates/clippings-parser/    # Pure My Clippings.txt parser (no Tauri deps)
 ```
 
-## Where the database lives
+## Database Location
 
-The SQL plugin resolves `sqlite:kindclip.db` to the standard per-OS config dir
-(derived from `identifier: app.kindclip`):
+Resolved to standard per-OS config dir (`identifier: app.kindclip`):
 
-- Linux: `~/.config/app.kindclip/kindclip.db`
-- Windows: `%APPDATA%\app.kindclip\kindclip.db`
-- macOS: `~/Library/Application Support/app.kindclip/kindclip.db`
+| OS | Path |
+|---|---|
+| Linux | `~/.config/app.kindclip/kindclip.db` |
+| Windows | `%APPDATA%\app.kindclip\kindclip.db` |
+| macOS | `~/Library/Application Support/app.kindclip/kindclip.db` |
 
-To wipe the library and re-import from scratch, just delete that file.
-This also wipes your note edits, which live in the same database.
-To remove a single book or undo one import instead, use **Manage library**
-in the header — no need to delete the file.
-You can also open it straight from the app: **⋯ → Open database location**
-reveals it in your file manager.
-Quick inspection:
-
+Delete the file to wipe library + note edits and re-import from scratch.  
+Or use **Manage library** / **⋯ → Open database location** for granular actions.  
+Quick count:
 ```bash
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
 ```
 
-## What's next
+## What's Next
 
-- **Recall**: surface a random clipping from the current filters, plus an
-  "on this day" recall for highlights added on the same date in previous years.
-- The current layering (pure parser → commands → SQL port → UI) keeps each of
-  these local to one layer.
+- **Recall**: random clipping from current filters + "on this day" highlights
+  from previous years.
+- Layered architecture (parser → commands → SQL → UI) keeps additions local.
 
 ## License
 
