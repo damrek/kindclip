@@ -61,11 +61,12 @@ with its active chips, and the ⋯ preferences menu — in dark theme.*
   page, persisted with the rest of the view state.
 - **Favorites** in SQLite and a **copy button** on every highlight and note.
 - **Tags**: free-form tags on each clipping, on top of favorites, with inline
-  add/remove and suggestions from your existing tags. Manage them in the
-  library dialog's **Tags** tab (rename, merge, delete); tags left without
-  clippings stay listed there for cleanup and are hidden from the filter.
-  Tags live in the database only, so re-importing a removed file does not
-  bring them back.
+  add/remove and suggestions from your existing tags. **Click a tag on any
+  clipping card to instantly filter the list by that tag** (toggles it in the
+  active filters). Manage tags in the library dialog's **Tags** tab (rename,
+  merge, delete); tags left without clippings stay listed there for cleanup
+  and are hidden from the filter. Tags live in the database only, so
+  re-importing a removed file does not bring them back.
 - **Note editing**: rewrite a note in place — edited cards show an **Edited**
   badge and can be **reset to the original** Kindle text at any time, with an
   edited-notes filter. Edits live in the database only: `My Clippings.txt`

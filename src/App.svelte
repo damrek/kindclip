@@ -1250,6 +1250,7 @@
                 onRequestReset={requestReset}
                 onAddTag={addTagToClipping}
                 onRemoveTag={removeTagFromClipping}
+                onFilterByTag={toggleTag}
               />
             {/each}
           {:else if !loading}

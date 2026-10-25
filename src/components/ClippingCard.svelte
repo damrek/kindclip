@@ -14,6 +14,7 @@
     onRequestReset: (id: number) => void;
     onAddTag: (id: number, name: string) => Promise<boolean>;
     onRemoveTag: (id: number, tagId: number) => Promise<boolean>;
+    onFilterByTag: (tagId: number) => void;
   }
 
   const {
@@ -26,6 +27,7 @@
     onRequestReset,
     onAddTag,
     onRemoveTag,
+    onFilterByTag,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const reference = $derived(formatReference(clipping.page, clipping.location));
@@ -178,10 +180,24 @@
       <span
         class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
       >
-        <span>#{tag.name}</span>
         <button
           type="button"
-          onclick={() => onRemoveTag(clipping.id, tag.id)}
+          onclick={(event) => {
+            event.stopPropagation();
+            onFilterByTag(tag.id);
+          }}
+          aria-label={i18n.t("card.filterByTag", { name: tag.name })}
+          title={i18n.t("card.filterByTag", { name: tag.name })}
+          class="focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900"
+        >
+          <span>#{tag.name}</span>
+        </button>
+        <button
+          type="button"
+          onclick={(event) => {
+            event.stopPropagation();
+            onRemoveTag(clipping.id, tag.id);
+          }}
           aria-label={i18n.t("card.removeTag", { name: tag.name })}
           title={i18n.t("card.removeTag", { name: tag.name })}
           class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-amber-500 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
