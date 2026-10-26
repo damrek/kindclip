@@ -7,6 +7,7 @@ import {
   debounce,
   emptyFilter,
   formatAddedOn,
+  filterBooks,
   formatReference,
   PAGE_SIZES,
   pageWindow,
@@ -202,6 +203,37 @@ describe("totalClippings", () => {
 
   it("is zero for an empty library", () => {
     expect(totalClippings([])).toBe(0);
+  });
+});
+
+describe("filterBooks", () => {
+  const books: Book[] = [
+    { id: 1, title: "Cien años de soledad", author: "Gabriel García Márquez", clipping_count: 5 },
+    { id: 2, title: "Rayuela", author: "Julio Cortázar", clipping_count: 2 },
+    { id: 3, title: "El túnel", author: null, clipping_count: 1 },
+  ];
+
+  it("returns every book for an empty query", () => {
+    expect(filterBooks(books, "")).toEqual(books);
+    expect(filterBooks(books, "   ")).toEqual(books);
+  });
+
+  it("matches the title ignoring case and diacritics", () => {
+    expect(filterBooks(books, "ANOS")).toEqual([books[0]]);
+    expect(filterBooks(books, "rayuela")).toEqual([books[1]]);
+  });
+
+  it("matches the author ignoring case and diacritics", () => {
+    expect(filterBooks(books, "garcia")).toEqual([books[0]]);
+    expect(filterBooks(books, "CORTÁZAR")).toEqual([books[1]]);
+  });
+
+  it("returns an empty list when nothing matches", () => {
+    expect(filterBooks(books, "tolkien")).toEqual([]);
+  });
+
+  it("keeps the incoming order", () => {
+    expect(filterBooks([books[1], books[0]], "a")).toEqual([books[1], books[0]]);
   });
 });
 

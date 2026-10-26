@@ -19,6 +19,27 @@ export function totalClippings(books: Book[]): number {
   return books.reduce((sum, book) => sum + book.clipping_count, 0);
 }
 
+/** Case- and diacritic-insensitive text used for book matching. */
+function foldForMatch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/** Books whose title or author contains the query, in incoming order. */
+export function filterBooks(books: Book[], query: string): Book[] {
+  const needle = foldForMatch(query.trim());
+  if (needle === "") {
+    return books;
+  }
+  return books.filter(
+    (book) =>
+      foldForMatch(book.title).includes(needle) ||
+      foldForMatch(book.author ?? "").includes(needle),
+  );
+}
+
 export type BookSortKey = "title" | "author";
 export type BookSortDir = "asc" | "desc";
 
