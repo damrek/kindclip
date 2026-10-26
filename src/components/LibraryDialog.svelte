@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { filterBooks } from "../lib/library";
   import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
   import type { Book } from "../lib/types";
 
@@ -41,6 +42,7 @@
 
   let tab = $state<"books" | "files" | "tags">("books");
   let localBusy = $state(false);
+  let bookFilter = $state("");
   let renameId = $state<number | null>(null);
   let titleDraft = $state("");
   let authorDraft = $state("");
@@ -58,6 +60,7 @@
   let tagDeleteTarget = $state<TagCount | null>(null);
 
   const working = $derived(busy || localBusy);
+  const filteredBooks = $derived(filterBooks(books, bookFilter));
   const mergeTargets = $derived(books.filter((book) => book.id !== mergeSourceId));
   const tagMergeTargets = $derived(tags.filter((tag) => tag.id !== tagMergeSourceId));
   const dateFormatter = $derived(
@@ -316,10 +319,25 @@
       <p class="mt-3 text-xs text-red-700 dark:text-red-400" role="alert">{error}</p>
     {/if}
 
+    {#if tab === "books"}
+      <input
+        type="search"
+        bind:value={bookFilter}
+        placeholder={i18n.t("library.filterBooks")}
+        aria-label={i18n.t("library.filterBooks")}
+        class="mt-3 w-full appearance-none rounded-full border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-2 focus:ring-neutral-300 focus:ring-inset dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100 dark:focus:border-neutral-500 dark:focus:ring-neutral-600"
+      />
+    {/if}
+
     <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
       {#if tab === "books"}
+        {#if books.length > 0 && filteredBooks.length === 0}
+          <p class="py-6 text-center text-sm text-neutral-400 dark:text-neutral-500">
+            {i18n.t("library.emptyFilteredBooks")}
+          </p>
+        {/if}
         <ul class="space-y-1">
-          {#each books as book (book.id)}
+          {#each filteredBooks as book (book.id)}
             <li class="rounded-lg border border-neutral-200 p-2.5 dark:border-neutral-800">
               {#if renameId === book.id}
                 <form

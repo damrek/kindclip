@@ -45,8 +45,9 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 - **Tags**: free-form per clipping, inline add/remove with suggestions.
   Click a tag to filter instantly (AND logic). Manage (rename/merge/delete) in
   Library dialog → Tags tab; orphan tags stay listed for cleanup, hidden from filter.
-- **Library management**: rename/merge books, delete book + clippings, list
-  imported files to undo one import. Destructive actions confirm; re-import restores.
+- **Library management**: filter books by title or author, rename/merge books,
+  delete book + clippings, list imported files to undo one import. Destructive
+  actions confirm; re-import restores.
 
 ### Search & Filter
 - **Unified Filters menu** (badged count, removable chips, Clear all): full-text
