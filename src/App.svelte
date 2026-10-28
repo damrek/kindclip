@@ -1251,6 +1251,8 @@
                 onAddTag={addTagToClipping}
                 onRemoveTag={removeTagFromClipping}
                 onFilterByTag={toggleTag}
+                onFilterByKind={toggleKind}
+                onFilterEdited={toggleEditedOnly}
               />
             {/each}
           {:else if !loading}

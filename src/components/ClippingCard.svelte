@@ -2,7 +2,7 @@
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { formatAddedOn, formatReference, tagOverflow } from "../lib/library";
-  import type { ClippingRow, Tag } from "../lib/types";
+  import type { ClippingKind, ClippingRow, Tag } from "../lib/types";
 
   interface Props {
     clipping: ClippingRow;
@@ -15,6 +15,8 @@
     onAddTag: (id: number, name: string) => Promise<boolean>;
     onRemoveTag: (id: number, tagId: number) => Promise<boolean>;
     onFilterByTag: (tagId: number) => void;
+    onFilterByKind: (kind: ClippingKind) => void;
+    onFilterEdited: () => void;
   }
 
   const {
@@ -28,6 +30,8 @@
     onAddTag,
     onRemoveTag,
     onFilterByTag,
+    onFilterByKind,
+    onFilterEdited,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const reference = $derived(formatReference(clipping.page, clipping.location));
@@ -171,11 +175,18 @@
   </div>
 
   <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-    <span
-      class="rounded-full bg-neutral-100 px-2.5 py-0.5 font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+    <button
+      type="button"
+      onclick={(event) => {
+        event.stopPropagation();
+        onFilterByKind(clipping.kind);
+      }}
+      aria-label={i18n.t("card.filterByKind", { kind: kindLabel })}
+      title={i18n.t("card.filterByKind", { kind: kindLabel })}
+      class="rounded-full bg-neutral-100 px-2.5 py-0.5 font-medium text-neutral-600 transition hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900"
     >
       {kindLabel}
-    </span>
+    </button>
     {#each visibleTags as tag (tag.id)}
       <span
         class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
@@ -223,12 +234,20 @@
       </button>
     {/if}
     {#if edited && !editing}
-      <span
-        class="rounded-full bg-amber-100 px-2.5 py-0.5 font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-        title={editedOnLabel}
+      <button
+        type="button"
+        onclick={(event) => {
+          event.stopPropagation();
+          onFilterEdited();
+        }}
+        aria-label={i18n.t("card.filterEdited")}
+        title={editedOnLabel === ""
+          ? i18n.t("card.filterEdited")
+          : `${i18n.t("card.filterEdited")} · ${editedOnLabel}`}
+        class="rounded-full bg-amber-100 px-2.5 py-0.5 font-medium text-amber-700 transition hover:bg-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900 dark:focus-visible:ring-offset-neutral-900"
       >
         {i18n.t("card.edited")}
-      </span>
+      </button>
     {/if}
     {#if reference !== ""}
       <span>{reference}</span>
