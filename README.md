@@ -52,7 +52,8 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 ### Search & Filter
 - **Unified Filters menu** (badged count, removable chips, Clear all): full-text
   search (content/title/author), book, multi-select type/status/tag filters.
-  All combinable. Configurable pagination (20/50/100).
+  Click a card's type badge or Edited badge to toggle that filter instantly,
+  like tags. All combinable. Configurable pagination (20/50/100).
 - **Sorting**: books by title/author (↑/↓); clippings by newest/oldest,
   book title (A–Z/Z–A), or page. All persisted.
 
