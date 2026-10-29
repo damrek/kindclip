@@ -15,11 +15,12 @@ export interface ParsedFileDto {
   path: string;
   fileHash: string;
   clippings: ClippingDto[];
+  skipped: number;
 }
 
 export type ImportOutcome =
   | { status: "cancelled" }
-  | { status: "empty"; path: string }
+  | { status: "empty"; path: string; skipped: number }
   | { status: "done"; report: ImportReport };
 
 /** S1+S5: pick a file, parse it in Rust, persist fresh clippings with dedupe. */
@@ -33,12 +34,12 @@ export async function runImportFlow(
   }
   const parsed = await deps.parseFile(path);
   if (parsed.clippings.length === 0) {
-    return { status: "empty", path };
+    return { status: "empty", path, skipped: parsed.skipped };
   }
   const port = await deps.getPort();
   const report = await importParsedClippings(
     port,
-    { path: parsed.path, fileHash: parsed.fileHash, clippings: parsed.clippings },
+    { path: parsed.path, fileHash: parsed.fileHash, clippings: parsed.clippings, skipped: parsed.skipped },
     onProgress,
   );
   return { status: "done", report };
@@ -60,8 +61,9 @@ export function tauriImportDeps(): ImportDeps {
         path: string;
         file_hash: string;
         clippings: ClippingDto[];
+        skipped: number;
       }>("parse_clippings_file", { path });
-      return { path: parsed.path, fileHash: parsed.file_hash, clippings: parsed.clippings };
+      return { path: parsed.path, fileHash: parsed.file_hash, clippings: parsed.clippings, skipped: parsed.skipped };
     },
     getPort: () => getDb(),
   };
