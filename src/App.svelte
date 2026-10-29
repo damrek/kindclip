@@ -659,17 +659,29 @@
       if (outcome.status === "cancelled") {
         importStatus = null;
       } else if (outcome.status === "empty") {
-        importStatus = t("import.empty", { path: outcome.path });
+        importStatus =
+          outcome.skipped > 0
+            ? t("import.emptySkipped", { path: outcome.path, skipped: outcome.skipped })
+            : t("import.empty", { path: outcome.path });
       } else {
         const report = outcome.report;
-        importStatus = report.alreadyImported
-          ? t("import.duplicate")
-          : t("import.done", {
-              inserted: report.inserted,
-              total: report.total,
-              duplicates: report.duplicates,
-              books: report.bookCount,
-            });
+        importStatus =
+          report.alreadyImported && report.skipped === 0
+            ? t("import.duplicate")
+            : report.skipped > 0
+              ? t("import.doneSkipped", {
+                  inserted: report.inserted,
+                  total: report.total,
+                  duplicates: report.duplicates,
+                  skipped: report.skipped,
+                  books: report.bookCount,
+                })
+              : t("import.done", {
+                  inserted: report.inserted,
+                  total: report.total,
+                  duplicates: report.duplicates,
+                  books: report.bookCount,
+                });
         page = 1;
         await loadBooks();
         await loadList(filter, 1, pageSize, clippingSort);
