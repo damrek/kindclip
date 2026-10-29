@@ -47,11 +47,13 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
   Library dialog → Tags tab; orphan tags stay listed for cleanup, hidden from filter.
 - **Library management**: filter books by title or author, rename/merge books,
   delete book + clippings, list imported files to undo one import. Destructive
-  actions confirm; re-import restores.
+  actions confirm; re-importing the same file restores its clippings, but
+  favorites, tags and edited notes are not recoverable.
 
 ### Search & Filter
 - **Unified Filters menu** (badged count, removable chips, Clear all): full-text
-  search (content/title/author), book, multi-select type/status/tag filters.
+  search (content/title/author, accent- and case-insensitive), book,
+  multi-select type/status/tag filters.
   Click a card's type badge or Edited badge to toggle that filter instantly,
   like tags. All combinable. Configurable pagination (20/50/100).
 - **Sorting**: books by title/author (↑/↓); clippings by newest/oldest,
@@ -119,7 +121,7 @@ src-tauri/
   src/
     lib.rs                  # Migrations + plugin/command registration
     commands.rs             # parse_clippings_file, db_file_path, write_export_file
-  migrations/               # 001 init + 004 tags
+  migrations/               # 001 init … 005 search folding
   capabilities/             # Least-privilege (sql, dialog, clipboard, opener)
 crates/clippings-parser/    # Pure My Clippings.txt parser (no Tauri deps)
 ```
@@ -141,11 +143,26 @@ Quick count:
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
 ```
 
-## What's Next
+## Roadmap
 
-- **Recall**: random clipping from current filters + "on this day" highlights
-  from previous years.
-- Layered architecture (parser → commands → SQL → UI) keeps additions local.
+Planned, no dates attached:
+
+- **Recall**: a random clipping from the current filters, plus "on this day"
+  clippings from previous years.
+- **Reading view**: open one clipping full-screen and move through the list with
+  the keyboard.
+- **Backup & restore**: export and import a snapshot of `kindclip.db` so tags,
+  favorites and edited notes survive a reinstall.
+- **Search upgrades**: multi-word queries and highlighted matches.
+- **Keyboard-first**: shortcuts for search, dialogs and navigation.
+- **Drag & drop import**: drop `My Clippings.txt` anywhere on the window.
+- **Copy as quote**: Markdown citation with book, author and page.
+- **Note ↔ highlight pairing**: show a note next to the highlight it belongs to.
+- **Bulk actions**: tag, favorite or export a selection.
+- **Reading stats**: clippings per year, book and kind.
+- **Desktop polish**: auto-update, remembered window size and diagnostic logs.
+
+The layered architecture (parser → commands → SQL → UI) keeps additions local.
 
 ## License
 
