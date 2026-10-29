@@ -1,6 +1,4 @@
-use clippings_parser::{
-    decode_bytes, parse_clippings, parse_clippings_with_stats, Clipping, ClippingKind,
-};
+use clippings_parser::{decode_bytes, parse_clippings, Clipping, ClippingKind};
 
 fn en_text() -> String {
     include_str!("fixtures/en.txt").to_string()
@@ -163,60 +161,6 @@ fn skips_malformed_entries() {
     assert!(
         parse_clippings("Title (Author)\nno meta line here\n\nContent\n==========\n").is_empty()
     );
-
-    // S1: the discarded entries are counted, blank blocks and the synthetic
-    // trailing separator never are.
-    assert_eq!(parse_clippings_with_stats("").skipped, 0);
-    assert_eq!(
-        parse_clippings_with_stats("just some text\n==========\n").skipped,
-        1
-    );
-    assert_eq!(
-        parse_clippings_with_stats(
-            "Title (Author)\nno meta line here\n\nContent\n==========\n"
-        )
-        .skipped,
-        1
-    );
-    assert_eq!(
-        parse_clippings_with_stats("Book (Author)\n- Unknown kind entry\n==========\n").skipped,
-        1
-    );
-}
-
-#[test]
-fn counts_skipped_blocks_and_ignores_blank_separators() {
-    let text = "\
-        Book One (Author One)\n\
-        - Your Highlight on page 1 | Location 1-2 | Added on Monday, January 6, 2020 10:15:00 AM\n\
-        \nFirst.\n==========\n\
-        Book with no meta line\n==========\n\
-        \n\n==========\n\
-        Book Two (Author Two)\n\
-        - Your Note on page 2 | Location 3 | Added on Tuesday, January 7, 2020 10:16:00 AM\n\
-        \nSecond.\n==========\n\
-        just some text\n==========\n\
-        \n==========\n\
-        Book Three (Author Three)\n\
-        - Your Bookmark on page 3 | Location 5 | Added on Wednesday, January 8, 2020 10:17:00 AM\n\
-        \n==========\n\
-        \n\n==========\n";
-    let result = parse_clippings_with_stats(text);
-    assert_eq!(result.clippings.len(), 3);
-    assert_eq!(result.skipped, 2);
-    assert_eq!(
-        result.clippings,
-        parse_clippings(text),
-        "parse_clippings must return exactly the same clippings"
-    );
-}
-
-#[test]
-fn a_clean_file_reports_no_skips() {
-    let result = parse_clippings_with_stats(&en_text());
-    assert_eq!(result.clippings.len(), 6);
-    assert_eq!(result.skipped, 0);
-    assert_eq!(result.clippings, parse_clippings(&en_text()));
 }
 
 /// Real-world sample: modern Spanish firmware writes "Tu resaltado" for

@@ -135,48 +135,25 @@ fn utf16_to_string(bytes: &[u8], big_endian: bool) -> String {
     text.strip_prefix('\u{FEFF}').unwrap_or(&text).to_string()
 }
 
-/// Parse outcome: the accepted clippings plus how many blocks were discarded.
-#[derive(Debug)]
-pub struct ParseResult {
-    pub clippings: Vec<Clipping>,
-    pub skipped: usize,
-}
-
 /// Parse decoded `My Clippings.txt` text into individual clippings.
 /// Malformed entries (no title, no meta line, unknown kind) are skipped.
 pub fn parse_clippings(text: &str) -> Vec<Clipping> {
-    parse_clippings_with_stats(text).clippings
-}
-
-/// Same parse as [`parse_clippings`], also counting the blocks it rejects.
-///
-/// Only a block with at least one non-blank line can be "skipped": the line
-/// loop flushes on every `==========`, including the synthetic trailing
-/// sentinel, so counting every rejected block would report a phantom skip
-/// on every clean file.
-pub fn parse_clippings_with_stats(text: &str) -> ParseResult {
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     let mut clippings = Vec::new();
-    let mut skipped = 0usize;
     let mut block: Vec<&str> = Vec::new();
 
     for line in normalized.lines().chain(std::iter::once("==========")) {
         let trimmed = line.trim();
         if !trimmed.is_empty() && trimmed.chars().all(|c| c == '=') {
-            match parse_block(&block) {
-                Some(clipping) => clippings.push(clipping),
-                None => {
-                    if block.iter().any(|line| !clean_line(line).is_empty()) {
-                        skipped += 1;
-                    }
-                }
+            if let Some(clipping) = parse_block(&block) {
+                clippings.push(clipping);
             }
             block.clear();
         } else {
             block.push(line);
         }
     }
-    ParseResult { clippings, skipped }
+    clippings
 }
 
 fn parse_block(block: &[&str]) -> Option<Clipping> {

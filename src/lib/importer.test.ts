@@ -41,26 +41,12 @@ describe("runImportFlow", () => {
   it("returns empty when the file has no clippings", async () => {
     const deps: ImportDeps = {
       pickFile: async () => "/tmp/empty.txt",
-      parseFile: async (path) => ({ path, fileHash: "h", clippings: [], skipped: 0 }),
+      parseFile: async (path) => ({ path, fileHash: "h", clippings: [] }),
       getPort: async () => fakePort(),
     };
     await expect(runImportFlow(deps, () => {})).resolves.toEqual({
       status: "empty",
       path: "/tmp/empty.txt",
-      skipped: 0,
-    });
-  });
-
-  it("reports the skipped count on an empty import", async () => {
-    const deps: ImportDeps = {
-      pickFile: async () => "/tmp/unreadable.txt",
-      parseFile: async (path) => ({ path, fileHash: "h", clippings: [], skipped: 12 }),
-      getPort: async () => fakePort(),
-    };
-    await expect(runImportFlow(deps, () => {})).resolves.toEqual({
-      status: "empty",
-      path: "/tmp/unreadable.txt",
-      skipped: 12,
     });
   });
 
@@ -68,12 +54,7 @@ describe("runImportFlow", () => {
     const progress: Array<[number, number]> = [];
     const deps: ImportDeps = {
       pickFile: async () => "/tmp/My Clippings.txt",
-      parseFile: async (path) => ({
-        path,
-        fileHash: "h",
-        clippings: [dto("a"), dto("b")],
-        skipped: 3,
-      }),
+      parseFile: async (path) => ({ path, fileHash: "h", clippings: [dto("a"), dto("b")] }),
       getPort: async () => fakePort(),
     };
     const outcome = await runImportFlow(deps, (done, total) => progress.push([done, total]));
@@ -81,7 +62,6 @@ describe("runImportFlow", () => {
     if (outcome.status === "done") {
       expect(outcome.report.inserted).toBe(2);
       expect(outcome.report.total).toBe(2);
-      expect(outcome.report.skipped).toBe(3);
     }
     expect(progress).toEqual([
       [1, 2],

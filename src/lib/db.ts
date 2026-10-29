@@ -573,7 +573,6 @@ export interface ImportInput {
   path: string;
   fileHash: string;
   clippings: ClippingDto[];
-  skipped: number;
 }
 
 export async function importParsedClippings(
@@ -602,11 +601,12 @@ export async function importParsedClippings(
     seen.add(clip.content_hash);
     return true;
   });
-  const freshSet = new Set(fresh);
 
   const now = new Date().toISOString();
   let fileId: number;
   if (knownFile) {
+    // Re-import (e.g. after a parser fix): pick up entries that were
+    // previously unparseable instead of silently skipping the file.
     fileId = knownFile.id;
     if (fresh.length > 0) {
       await port.execute(
@@ -622,98 +622,49 @@ export async function importParsedClippings(
     fileId = fileResult.lastInsertId ?? -1;
   }
 
-  // First pass: resolve all book ids for fresh clippings.
   const bookIds = new Map<string, number>();
-  for (const clip of fresh) {
-    const key = JSON.stringify([clip.title, clip.author ?? ""]);
-    if (bookIds.has(key)) continue;
-    const rows = await port.select<{ id: number }>(
-      "SELECT id FROM books WHERE title = $1 AND COALESCE(author, '') = COALESCE($2, '')",
-      [clip.title, clip.author],
-    );
-    let bookId: number;
-    if (rows.length > 0) {
-      bookId = rows[0].id;
-    } else {
-      const created = await port.execute(
-        "INSERT INTO books (title, author, title_folded, author_folded) VALUES ($1, $2, $3, $4)",
-        [clip.title, clip.author, foldText(clip.title), foldText(clip.author ?? "")],
-      );
-      bookId = created.lastInsertId ?? -1;
-    }
-    bookIds.set(key, bookId);
-  }
-
-  // Second pass: batched multi-row INSERT for clippings, firing progress per clipping in file order.
-  const BATCH = 500;
   let inserted = 0;
-  let batch: ClippingDto[] = [];
   for (let index = 0; index < total; index += 1) {
     const clip = input.clippings[index];
-    if (!freshSet.has(clip)) {
-      onProgress(index + 1, total);
-      continue;
-    }
-    batch.push(clip);
-    if (batch.length === BATCH) {
-      const values: unknown[] = [];
-      const placeholders: string[] = [];
-      for (const batchClip of batch) {
-        const key = JSON.stringify([batchClip.title, batchClip.author ?? ""]);
-        const bookId = bookIds.get(key)!;
-        placeholders.push("($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)");
-        values.push(
-          bookId,
-          fileId,
-          batchClip.kind,
-          batchClip.page,
-          batchClip.location,
-          batchClip.added_on_raw,
-          batchClip.added_on,
-          batchClip.content,
-          batchClip.content_hash,
-          now,
-          foldText(batchClip.content ?? ""),
+    if (fresh.includes(clip)) {
+      const key = JSON.stringify([clip.title, clip.author ?? ""]);
+      let bookId = bookIds.get(key);
+      if (bookId === undefined) {
+        const rows = await port.select<{ id: number }>(
+          "SELECT id FROM books WHERE title = $1 AND COALESCE(author, '') = COALESCE($2, '')",
+          [clip.title, clip.author],
         );
+        if (rows.length > 0) {
+          bookId = rows[0].id;
+        } else {
+          const created = await port.execute(
+            "INSERT INTO books (title, author, title_folded, author_folded) VALUES ($1, $2, $3, $4)",
+            [clip.title, clip.author, foldText(clip.title), foldText(clip.author ?? "")],
+          );
+          bookId = created.lastInsertId ?? -1;
+        }
+        bookIds.set(key, bookId);
       }
       await port.execute(
         "INSERT INTO clippings (book_id, file_id, kind, page, location, added_on_raw, added_on, content, content_hash, created_at, content_folded) " +
-          `VALUES ${placeholders.join(", ")}`,
-        values,
+          "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+        [
+          bookId,
+          fileId,
+          clip.kind,
+          clip.page,
+          clip.location,
+          clip.added_on_raw,
+          clip.added_on,
+          clip.content,
+          clip.content_hash,
+          now,
+          foldText(clip.content ?? ""),
+        ],
       );
-      inserted += batch.length;
-      batch = [];
+      inserted += 1;
     }
     onProgress(index + 1, total);
-  }
-  // Flush any remaining batch after the loop.
-  if (batch.length > 0) {
-    const values: unknown[] = [];
-    const placeholders: string[] = [];
-    for (const batchClip of batch) {
-      const key = JSON.stringify([batchClip.title, batchClip.author ?? ""]);
-      const bookId = bookIds.get(key)!;
-      placeholders.push("($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)");
-      values.push(
-        bookId,
-        fileId,
-        batchClip.kind,
-        batchClip.page,
-        batchClip.location,
-        batchClip.added_on_raw,
-        batchClip.added_on,
-        batchClip.content,
-        batchClip.content_hash,
-        now,
-        foldText(batchClip.content ?? ""),
-      );
-    }
-    await port.execute(
-      "INSERT INTO clippings (book_id, file_id, kind, page, location, added_on_raw, added_on, content, content_hash, created_at, content_folded) " +
-        `VALUES ${placeholders.join(", ")}`,
-      values,
-    );
-    inserted += batch.length;
   }
 
   return {
@@ -721,7 +672,6 @@ export async function importParsedClippings(
     total,
     inserted,
     duplicates: total - inserted,
-    skipped: input.skipped,
     bookCount: bookIds.size,
     alreadyImported: knownFile !== null && inserted === 0,
   };

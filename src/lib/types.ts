@@ -69,7 +69,6 @@ export interface ImportReport {
   total: number;
   inserted: number;
   duplicates: number;
-  skipped: number;
   bookCount: number;
   alreadyImported: boolean;
 }
