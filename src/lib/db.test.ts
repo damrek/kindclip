@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   addClippingTag,
+  backfillSearchFolding,
   buildCountQuery,
   buildListQuery,
   deleteBook,
@@ -23,6 +24,7 @@ import {
   renameTag,
   resetNote,
   saveFilterState,
+  SETTINGS_KEYS,
   setSetting,
   toggleFavorite,
   updateNote,
@@ -68,6 +70,10 @@ class FakePort implements DbPort {
   favorites = new Set<number>();
   settings = new Map<string, string>();
   insertedClippings: string[] = [];
+  /** Full parameter list of every clipping insert, in insertion order. */
+  clippingInserts: unknown[][] = [];
+  /** Full parameter list of every book insert, in insertion order. */
+  bookInserts: unknown[][] = [];
   fileUpdates: Array<{ id: number; added: number }> = [];
   noteEdits = new Map<number, { content: string; at: string }>();
   noteResets: number[] = [];
@@ -123,10 +129,12 @@ class FakePort implements DbPort {
   ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
     this.executedSql.push(sql);
     if (sql.includes("INSERT INTO clippings")) {
+      this.clippingInserts.push(params ?? []);
       this.insertedClippings.push(params?.[8] as string);
       return { lastInsertId: ++this.lastId, rowsAffected: 1 };
     }
     if (sql.includes("INSERT INTO books")) {
+      this.bookInserts.push(params ?? []);
       const key = `${params?.[0]}|${params?.[1] ?? ""}`;
       const id = ++this.lastId;
       this.books.set(key, id);
@@ -140,9 +148,9 @@ class FakePort implements DbPort {
       if (sql.includes("content_edited = NULL")) {
         this.noteResets.push(params?.[0] as number);
       } else {
-        this.noteEdits.set(params?.[2] as number, {
+        this.noteEdits.set(params?.[3] as number, {
           content: params?.[0] as string,
-          at: params?.[1] as string,
+          at: params?.[2] as string,
         });
       }
       return { rowsAffected: 1 };
@@ -221,7 +229,36 @@ describe("buildListQuery", () => {
       { query: "x", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
-    expect(sql).toContain("COALESCE(c.content_edited, c.content) LIKE");
+    expect(sql).toContain("COALESCE(c.content_edited_folded, c.content_folded) LIKE");
+  });
+
+  it("folds the query before matching the folded search columns", () => {
+    const { sql, params } = buildListQuery(filter({ query: "CAFÉ" }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(params.slice(0, 3)).toEqual(["%cafe%", "%cafe%", "%cafe%"]);
+    expect(sql).toContain("c.content_edited_folded");
+    expect(sql).toContain("c.content_folded");
+    expect(sql).toContain("b.title_folded");
+    expect(sql).toContain("b.author_folded");
+    expect(sql).not.toContain("COALESCE(c.content_edited, c.content) LIKE");
+  });
+
+  it("keeps like wildcards literal after folding", () => {
+    const { params } = buildListQuery(filter({ query: "CAFÉ 100%" }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(params[0]).toBe("%cafe 100\\%%");
+  });
+
+  it("keeps _ and \\ literal after folding", () => {
+    const { params } = buildListQuery(filter({ query: "CAFÉ_100%\\" }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(params[0]).toBe("%cafe\\_100\\%\\\\%");
   });
 
   it("restricts the list to edited notes only", () => {
@@ -400,7 +437,7 @@ describe("exportClippings", () => {
     );
     expect(call?.sql).not.toContain("LIMIT");
     expect(call?.sql).not.toContain("OFFSET");
-    expect(call?.sql).toContain("COALESCE(c.content_edited, c.content) LIKE");
+    expect(call?.sql).toContain("COALESCE(c.content_edited_folded, c.content_folded) LIKE");
     expect(call?.sql).toContain("f.clipping_id IS NOT NULL");
     expect(call?.sql).toContain("c.content_edited IS NOT NULL");
     // Same WHERE as the count query: every filter, in the same order, no extra params.
@@ -530,6 +567,51 @@ describe("importParsedClippings", () => {
     expect(progress.at(-1)).toBe(1);
   });
 
+  it("stores the folded content as an extra insert column", async () => {
+    const port = new FakePort();
+    await importParsedClippings(
+      port,
+      {
+        path: "/tmp/f.txt",
+        fileHash: "file-fold",
+        clippings: [
+          clipping({ content: "Café NIÑO", content_hash: "fold-1" }),
+          clipping({ title: "Other", content: null, content_hash: "fold-2" }),
+        ],
+      },
+      () => {},
+    );
+
+    const params = port.clippingInserts[0];
+    expect(params).toHaveLength(11);
+    expect(params[7]).toBe("Café NIÑO");
+    expect(params[8]).toBe("fold-1");
+    expect(params[10]).toBe("cafe nino");
+    expect(port.clippingInserts[1][7]).toBeNull();
+    expect(port.clippingInserts[1][10]).toBe("");
+  });
+
+  it("stores the folded title and author when creating a book", async () => {
+    const port = new FakePort();
+    await importParsedClippings(
+      port,
+      {
+        path: "/tmp/f.txt",
+        fileHash: "file-fold-books",
+        clippings: [
+          clipping({ title: "Æsir", author: "Straße", content_hash: "book-1" }),
+          clipping({ title: "Other", author: null, content_hash: "book-2" }),
+        ],
+      },
+      () => {},
+    );
+
+    expect(port.bookInserts).toEqual([
+      ["Æsir", "Straße", "aesir", "strasse"],
+      ["Other", null, "other", ""],
+    ]);
+  });
+
   it("dedupes repeated entries inside the same batch", async () => {
     const port = new FakePort();
     const same = clipping({ content_hash: "same" });
@@ -601,6 +683,13 @@ describe("updateNote", () => {
     expect(sql).toContain("kind = 'note'");
   });
 
+  it("writes the folded edit next to the overlay text", async () => {
+    const port = new ScriptedPort();
+    await updateNote(port, 42, "CAFÉ NIÑO");
+    expect(port.executed[0].sql).toContain("content_edited_folded");
+    expect(port.executed[0].params).toEqual(["CAFÉ NIÑO", "cafe nino", expect.any(String), 42]);
+  });
+
   it("reports failure when no row was affected", async () => {
     const port = new (class extends FakePort {
       public override async execute(): Promise<{ rowsAffected?: number }> {
@@ -629,6 +718,12 @@ describe("resetNote", () => {
       }
     })();
     await expect(resetNote(port, 42)).resolves.toBe(false);
+  });
+
+  it("clears the folded edit along with the overlay", async () => {
+    const port = new ScriptedPort();
+    await resetNote(port, 42);
+    expect(port.executed[0].sql).toContain("content_edited_folded = NULL");
   });
 });
 
@@ -762,6 +857,158 @@ describe("settings", () => {
   });
 });
 
+describe("backfillSearchFolding", () => {
+  interface ClippingSeed {
+    id: number;
+    content: string | null;
+    content_edited: string | null;
+  }
+  interface BookSeed {
+    id: number;
+    title: string;
+    author: string | null;
+  }
+
+  /** Scripted port: serves the marker, pages by id and records every write. */
+  class BackfillPort implements DbPort {
+    selectCalls: Array<{ sql: string; params: unknown[] }> = [];
+    writes: Array<{ sql: string; params: unknown[] }> = [];
+
+    constructor(
+      private readonly marker: string | null,
+      private readonly clippings: ClippingSeed[],
+      private readonly books: BookSeed[],
+      private readonly failOnClippingUpdate = false,
+    ) {}
+
+    async select<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+      this.selectCalls.push({ sql, params });
+      if (sql.includes("FROM settings")) {
+        return (this.marker === null ? [] : [{ value: this.marker }]) as unknown as T[];
+      }
+      const cursor = Number(params[0] ?? 0);
+      if (sql.includes("FROM clippings")) {
+        return this.clippings
+          .filter((row) => row.id > cursor)
+          .slice(0, 100) as unknown as T[];
+      }
+      if (sql.includes("FROM books")) {
+        return this.books
+          .filter((row) => row.id > cursor)
+          .slice(0, 100) as unknown as T[];
+      }
+      return [] as T[];
+    }
+
+    async execute(
+      sql: string,
+      params: unknown[] = [],
+    ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
+      if (this.failOnClippingUpdate && sql.includes("UPDATE clippings")) {
+        throw new Error("disk I/O error");
+      }
+      this.writes.push({ sql, params });
+      return { rowsAffected: 1 };
+    }
+  }
+
+  it("returns early without writes when the marker exists", async () => {
+    const port = new BackfillPort(
+      "1",
+      [{ id: 1, content: "Café", content_edited: null }],
+      [{ id: 1, title: "Æsir", author: null }],
+    );
+
+    await backfillSearchFolding(port);
+
+    expect(port.selectCalls).toHaveLength(1);
+    expect(port.selectCalls[0].sql).toContain("FROM settings");
+    expect(port.selectCalls[0].params).toEqual([SETTINGS_KEYS.searchFolding]);
+    expect(port.writes).toEqual([]);
+  });
+
+  it("pages through clippings and books, writing the marker last", async () => {
+    const clippings: ClippingSeed[] = Array.from({ length: 150 }, (_, index) => ({
+      id: index + 1,
+      content: index === 1 ? null : `Café ${index + 1}`,
+      content_edited: index === 0 ? "NIÑO" : null,
+    }));
+    const books: BookSeed[] = Array.from({ length: 120 }, (_, index) => ({
+      id: index + 1,
+      title: `Æsir ${index + 1}`,
+      author: index === 0 ? null : "Straße",
+    }));
+    const port = new BackfillPort(null, clippings, books);
+
+    await backfillSearchFolding(port);
+
+    const clippingSelects = port.selectCalls.filter((call) => call.sql.includes("FROM clippings"));
+    expect(clippingSelects.map((call) => call.params[0])).toEqual([0, 100, 150]);
+    const bookSelects = port.selectCalls.filter((call) => call.sql.includes("FROM books"));
+    expect(bookSelects.map((call) => call.params[0])).toEqual([0, 100, 120]);
+
+    const updates = port.writes.filter((write) => write.sql.startsWith("UPDATE"));
+    expect(updates).toHaveLength(270);
+    expect(updates[0].sql).toContain("UPDATE clippings SET content_folded");
+    expect(updates[0].params).toEqual(["cafe 1", "nino", 1]);
+    expect(updates[1].params).toEqual(["", null, 2]);
+    expect(updates[148].params).toEqual(["cafe 149", null, 149]);
+    expect(updates[149].params).toEqual(["cafe 150", null, 150]);
+    expect(updates[150].sql).toContain("UPDATE books SET title_folded");
+    expect(updates[150].params).toEqual(["aesir 1", "", 1]);
+    expect(updates[151].params).toEqual(["aesir 2", "strasse", 2]);
+
+    const last = port.writes.at(-1);
+    expect(last?.sql).toContain("INTO settings");
+    expect(last?.params).toEqual([SETTINGS_KEYS.searchFolding, "1"]);
+    expect(port.writes).toHaveLength(271);
+  });
+
+  it("folds a NULL-content bookmark as an empty string, never the word null", async () => {
+    const port = new BackfillPort(
+      null,
+      [{ id: 1, content: null, content_edited: "CAFÉ overlay" }],
+      [],
+    );
+
+    await backfillSearchFolding(port);
+
+    const updates = port.writes.filter((write) => write.sql.startsWith("UPDATE"));
+    expect(updates[0].params).toEqual(["", "cafe overlay", 1]);
+    expect(port.writes.at(-1)?.params).toEqual([SETTINGS_KEYS.searchFolding, "1"]);
+  });
+
+  it("does not skip rows when ids are sparse", async () => {
+    const port = new BackfillPort(
+      null,
+      [
+        { id: 1, content: "Café", content_edited: null },
+        { id: 500, content: "NIÑO", content_edited: null },
+        { id: 100000, content: "Łódź", content_edited: null },
+      ],
+      [],
+    );
+
+    await backfillSearchFolding(port);
+
+    const updates = port.writes.filter((write) => write.sql.startsWith("UPDATE"));
+    expect(updates.map((write) => write.params[2])).toEqual([1, 500, 100000]);
+    expect(updates.map((write) => write.params[0])).toEqual(["cafe", "nino", "lodz"]);
+  });
+
+  it("leaves the marker unset when an update fails midway", async () => {
+    const port = new BackfillPort(
+      null,
+      [{ id: 1, content: "Café", content_edited: null }],
+      [],
+      true,
+    );
+
+    await expect(backfillSearchFolding(port)).rejects.toThrow("disk I/O error");
+    expect(port.writes.some((write) => write.sql.includes("INTO settings"))).toBe(false);
+  });
+});
+
 /** Scripted port for the library recipes: unlike FakePort it records the
  * exact statement order and lets each test decide what a statement returns. */
 class ScriptedPort implements DbPort {
@@ -816,7 +1063,15 @@ describe("renameBook", () => {
     expect(port.selects[0].params).toEqual(["Dune", null, 5]);
     expect(port.executed).toHaveLength(1);
     expect(port.executed[0].sql).toContain("UPDATE books SET title");
-    expect(port.executed[0].params).toEqual(["Dune", null, 5]);
+    expect(port.executed[0].sql).toContain("title_folded");
+    expect(port.executed[0].sql).toContain("author_folded");
+    expect(port.executed[0].params).toEqual(["Dune", null, "dune", "", 5]);
+  });
+
+  it("writes the folded title and author for the search columns", async () => {
+    const port = new ScriptedPort();
+    await expect(renameBook(port, 5, "Café", "NIÑO")).resolves.toEqual({ status: "renamed" });
+    expect(port.executed[0].params).toEqual(["Café", "NIÑO", "cafe", "nino", 5]);
   });
 
   it("rejects an empty title before touching the database", async () => {

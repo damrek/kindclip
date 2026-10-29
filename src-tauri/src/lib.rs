@@ -38,6 +38,12 @@ pub fn run() {
             sql: include_str!("../migrations/004_tags.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "search_folding",
+            sql: include_str!("../migrations/005_search_folding.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

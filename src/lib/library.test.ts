@@ -8,6 +8,7 @@ import {
   emptyFilter,
   formatAddedOn,
   filterBooks,
+  foldText,
   formatReference,
   PAGE_SIZES,
   pageWindow,
@@ -203,6 +204,37 @@ describe("totalClippings", () => {
 
   it("is zero for an empty library", () => {
     expect(totalClippings([])).toBe(0);
+  });
+});
+
+describe("foldText", () => {
+  it("folds accents and case to plain lowercase ASCII", () => {
+    expect(foldText("Café")).toBe("cafe");
+    expect(foldText("NIÑO")).toBe("nino");
+    expect(foldText("Straße")).toBe("strasse");
+  });
+
+  it("folds letters Unicode does not decompose", () => {
+    expect(foldText("œuf")).toBe("oeuf");
+    expect(foldText("Æsir")).toBe("aesir");
+    expect(foldText("łódź")).toBe("lodz");
+    expect(foldText("þorn")).toBe("thorn");
+    expect(foldText("ı")).toBe("i");
+  });
+
+  it("folds a decomposed sequence and keeps the empty string empty", () => {
+    expect(foldText("cafe\u0301")).toBe("cafe");
+    expect(foldText("")).toBe("");
+  });
+
+  it("folds the dotted capital I and the non-decomposing letters", () => {
+    expect(foldText("İstanbul")).toBe("istanbul");
+    expect(foldText("ẞ")).toBe("ss");
+    expect(foldText("Đorđe")).toBe("dorde");
+    expect(foldText("Œuvre")).toBe("oeuvre");
+    expect(foldText("Øresund")).toBe("oresund");
+    expect(foldText("Ħal")).toBe("hal");
+    expect(foldText("Þingvellir")).toBe("thingvellir");
   });
 });
 

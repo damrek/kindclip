@@ -19,24 +19,38 @@ export function totalClippings(books: Book[]): number {
   return books.reduce((sum, book) => sum + book.clipping_count, 0);
 }
 
-/** Case- and diacritic-insensitive text used for book matching. */
-function foldForMatch(value: string): string {
+/** Case- and diacritic-insensitive text used for search and book matching.
+ *
+ * NFD splits a precomposed letter into its base plus a combining mark, so
+ * dropping the marks folds every accented letter (including Vietnamese and
+ * Cyrillic). The explicit replacements cover the letters Unicode does not
+ * decompose: ß, æ, œ, ø, ł, đ/ð, þ, ħ and ı. */
+export function foldText(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/æ/g, "ae")
+    .replace(/œ/g, "oe")
+    .replace(/ø/g, "o")
+    .replace(/ł/g, "l")
+    .replace(/đ|ð/g, "d")
+    .replace(/þ/g, "th")
+    .replace(/ħ/g, "h")
+    .replace(/ı/g, "i");
 }
 
 /** Books whose title or author contains the query, in incoming order. */
 export function filterBooks(books: Book[], query: string): Book[] {
-  const needle = foldForMatch(query.trim());
+  const needle = foldText(query.trim());
   if (needle === "") {
     return books;
   }
   return books.filter(
     (book) =>
-      foldForMatch(book.title).includes(needle) ||
-      foldForMatch(book.author ?? "").includes(needle),
+      foldText(book.title).includes(needle) ||
+      foldText(book.author ?? "").includes(needle),
   );
 }
 

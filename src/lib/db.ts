@@ -10,7 +10,7 @@ import type {
   PageRequest,
   Tag,
 } from "./types";
-import { PAGE_SIZES } from "./library";
+import { PAGE_SIZES, foldText } from "./library";
 
 /** Minimal SQL surface the store needs; real (plugin) or fake (tests). */
 export interface DbPort {
@@ -28,12 +28,73 @@ let dbPromise: Promise<DbPort> | null = null;
 /** Shared plugin-sql connection (preloaded + migrated at startup). */
 export function getDb(): Promise<DbPort> {
   if (!dbPromise) {
-    dbPromise = Database.load(DB_URL).then((db) => ({
-      select: <T>(sql: string, params?: unknown[]) => db.select<T>(sql, params),
-      execute: (sql: string, params?: unknown[]) => db.execute(sql, params),
-    }));
+    dbPromise = Database.load(DB_URL).then(async (db) => {
+      const port: DbPort = {
+        select: <T>(sql: string, params?: unknown[]) => db.select<T>(sql, params),
+        execute: (sql: string, params?: unknown[]) => db.execute(sql, params),
+      };
+      await backfillSearchFolding(port);
+      return port;
+    });
   }
   return dbPromise;
+}
+
+/** Fill the folded search columns once per database, then set the marker.
+ * The marker is written only after both passes finish, so a failure midway
+ * leaves it unset and the next launch retries the whole backfill. */
+export async function backfillSearchFolding(port: DbPort): Promise<void> {
+  if ((await getSetting(port, SETTINGS_KEYS.searchFolding)) !== null) {
+    return;
+  }
+
+  let clippingCursor = 0;
+  for (;;) {
+    const rows = await port.select<{
+      id: number;
+      content: string | null;
+      content_edited: string | null;
+    }>(
+      "SELECT id, content, content_edited FROM clippings WHERE id > $1 ORDER BY id LIMIT 100",
+      [clippingCursor],
+    );
+    if (rows.length === 0) {
+      break;
+    }
+    for (const row of rows) {
+      await port.execute(
+        "UPDATE clippings SET content_folded = $1, content_edited_folded = $2 WHERE id = $3",
+        [
+          foldText(row.content ?? ""),
+          row.content_edited === null ? null : foldText(row.content_edited),
+          row.id,
+        ],
+      );
+    }
+    clippingCursor = rows[rows.length - 1].id;
+  }
+
+  let bookCursor = 0;
+  for (;;) {
+    const rows = await port.select<{
+      id: number;
+      title: string;
+      author: string | null;
+    }>("SELECT id, title, author FROM books WHERE id > $1 ORDER BY id LIMIT 100", [bookCursor]);
+    if (rows.length === 0) {
+      break;
+    }
+    for (const row of rows) {
+      await port.execute("UPDATE books SET title_folded = $1, author_folded = $2 WHERE id = $3", [
+        foldText(row.title),
+        foldText(row.author ?? ""),
+        row.id,
+      ]);
+    }
+    bookCursor = rows[rows.length - 1].id;
+  }
+
+  await setSetting(port, SETTINGS_KEYS.searchFolding, "1");
 }
 
 /** Escape user text for use inside a LIKE pattern (with ESCAPE '\'). */
@@ -88,15 +149,15 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
     return `$${params.length}`;
   };
 
-  const query = filter.query.trim();
+  const query = foldText(filter.query.trim());
   if (query !== "") {
     const like = `%${escapeLike(query)}%`;
     const p1 = next(like);
     const p2 = next(like);
     const p3 = next(like);
     conditions.push(
-      `(COALESCE(c.content_edited, c.content) LIKE ${p1} ESCAPE '\\' ` +
-        `OR b.title LIKE ${p2} ESCAPE '\\' OR b.author LIKE ${p3} ESCAPE '\\')`,
+      `(COALESCE(c.content_edited_folded, c.content_folded) LIKE ${p1} ESCAPE '\\' ` +
+        `OR b.title_folded LIKE ${p2} ESCAPE '\\' OR b.author_folded LIKE ${p3} ESCAPE '\\')`,
     );
   }
   if (filter.bookId !== null) {
@@ -298,8 +359,9 @@ export async function toggleFavorite(port: DbPort, clippingId: number): Promise<
  * hash stay untouched, so re-imports remain idempotent. */
 export async function updateNote(port: DbPort, clippingId: number, content: string): Promise<boolean> {
   const result = await port.execute(
-    "UPDATE clippings SET content_edited = $1, edited_at = $2 WHERE id = $3 AND kind = 'note'",
-    [content, new Date().toISOString(), clippingId],
+    "UPDATE clippings SET content_edited = $1, content_edited_folded = $2, edited_at = $3 " +
+      "WHERE id = $4 AND kind = 'note'",
+    [content, foldText(content), new Date().toISOString(), clippingId],
   );
   return (result.rowsAffected ?? 0) > 0;
 }
@@ -307,7 +369,8 @@ export async function updateNote(port: DbPort, clippingId: number, content: stri
 /** Discard the overlay edit and show the original Kindle text again. */
 export async function resetNote(port: DbPort, clippingId: number): Promise<boolean> {
   const result = await port.execute(
-    "UPDATE clippings SET content_edited = NULL, edited_at = NULL WHERE id = $1 AND kind = 'note'",
+    "UPDATE clippings SET content_edited = NULL, content_edited_folded = NULL, edited_at = NULL " +
+      "WHERE id = $1 AND kind = 'note'",
     [clippingId],
   );
   return (result.rowsAffected ?? 0) > 0;
@@ -574,17 +637,17 @@ export async function importParsedClippings(
         if (rows.length > 0) {
           bookId = rows[0].id;
         } else {
-          const created = await port.execute("INSERT INTO books (title, author) VALUES ($1, $2)", [
-            clip.title,
-            clip.author,
-          ]);
+          const created = await port.execute(
+            "INSERT INTO books (title, author, title_folded, author_folded) VALUES ($1, $2, $3, $4)",
+            [clip.title, clip.author, foldText(clip.title), foldText(clip.author ?? "")],
+          );
           bookId = created.lastInsertId ?? -1;
         }
         bookIds.set(key, bookId);
       }
       await port.execute(
-        "INSERT INTO clippings (book_id, file_id, kind, page, location, added_on_raw, added_on, content, content_hash, created_at) " +
-          "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        "INSERT INTO clippings (book_id, file_id, kind, page, location, added_on_raw, added_on, content, content_hash, created_at, content_folded) " +
+          "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
         [
           bookId,
           fileId,
@@ -596,6 +659,7 @@ export async function importParsedClippings(
           clip.content,
           clip.content_hash,
           now,
+          foldText(clip.content ?? ""),
         ],
       );
       inserted += 1;
@@ -680,11 +744,11 @@ export async function renameBook(
   }
 
   try {
-    const result = await port.execute("UPDATE books SET title = $1, author = $2 WHERE id = $3", [
-      cleanTitle,
-      cleanAuthor,
-      bookId,
-    ]);
+    const result = await port.execute(
+      "UPDATE books SET title = $1, author = $2, title_folded = $3, author_folded = $4 " +
+        "WHERE id = $5",
+      [cleanTitle, cleanAuthor, foldText(cleanTitle), foldText(cleanAuthor ?? ""), bookId],
+    );
     return (result.rowsAffected ?? 0) > 0 ? { status: "renamed" } : { status: "missing" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -771,6 +835,7 @@ export const SETTINGS_KEYS = {
   theme: "theme",
   fontScale: "fontScale",
   filter: "filter",
+  searchFolding: "searchFolding",
 } as const;
 
 export async function getSetting(port: DbPort, key: string): Promise<string | null> {
