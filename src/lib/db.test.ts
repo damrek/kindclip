@@ -554,7 +554,12 @@ describe("importParsedClippings", () => {
 
     const report = await importParsedClippings(
       port,
-      { path: "/tmp/My Clippings.txt", fileHash: "file-1", clippings: [seen, fresh1, fresh2] },
+      {
+        path: "/tmp/My Clippings.txt",
+        fileHash: "file-1",
+        clippings: [seen, fresh1, fresh2],
+        skipped: 2,
+      },
       (done, total) => progress.push(done / total),
     );
 
@@ -563,6 +568,7 @@ describe("importParsedClippings", () => {
     expect(report.duplicates).toBe(1);
     expect(report.bookCount).toBe(2);
     expect(report.alreadyImported).toBe(false);
+    expect(report.skipped).toBe(2);
     expect(port.insertedClippings).toEqual(["fresh-1", "fresh-2"]);
     expect(progress.at(-1)).toBe(1);
   });
@@ -578,6 +584,7 @@ describe("importParsedClippings", () => {
           clipping({ content: "Café NIÑO", content_hash: "fold-1" }),
           clipping({ title: "Other", content: null, content_hash: "fold-2" }),
         ],
+        skipped: 0,
       },
       () => {},
     );
@@ -602,6 +609,7 @@ describe("importParsedClippings", () => {
           clipping({ title: "Æsir", author: "Straße", content_hash: "book-1" }),
           clipping({ title: "Other", author: null, content_hash: "book-2" }),
         ],
+        skipped: 0,
       },
       () => {},
     );
@@ -617,7 +625,7 @@ describe("importParsedClippings", () => {
     const same = clipping({ content_hash: "same" });
     const report = await importParsedClippings(
       port,
-      { path: "/tmp/f.txt", fileHash: "file-2", clippings: [same, { ...same }] },
+      { path: "/tmp/f.txt", fileHash: "file-2", clippings: [same, { ...same }], skipped: 0 },
       () => {},
     );
     expect(report.inserted).toBe(1);
@@ -631,7 +639,7 @@ describe("importParsedClippings", () => {
     port.existingHashes.add("dup");
     const report = await importParsedClippings(
       port,
-      { path: "/tmp/f.txt", fileHash: "file-9", clippings: [known] },
+      { path: "/tmp/f.txt", fileHash: "file-9", clippings: [known], skipped: 0 },
       () => {},
     );
     expect(report.alreadyImported).toBe(true);
@@ -645,7 +653,12 @@ describe("importParsedClippings", () => {
     port.existingFiles.set("file-9", 7);
     const report = await importParsedClippings(
       port,
-      { path: "/tmp/f.txt", fileHash: "file-9", clippings: [clipping({ content_hash: "new-1" })] },
+      {
+        path: "/tmp/f.txt",
+        fileHash: "file-9",
+        clippings: [clipping({ content_hash: "new-1" })],
+        skipped: 0,
+      },
       () => {},
     );
     expect(report.alreadyImported).toBe(false);

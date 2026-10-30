@@ -573,6 +573,7 @@ export interface ImportInput {
   path: string;
   fileHash: string;
   clippings: ClippingDto[];
+  skipped: number;
 }
 
 export async function importParsedClippings(
@@ -672,6 +673,7 @@ export async function importParsedClippings(
     total,
     inserted,
     duplicates: total - inserted,
+    skipped: input.skipped,
     bookCount: bookIds.size,
     alreadyImported: knownFile !== null && inserted === 0,
   };
