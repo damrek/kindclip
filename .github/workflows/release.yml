@@ -110,8 +110,45 @@ jobs:
           echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "Auto-bumped ($BUMP) to $VERSION from ${LAST_TAG:-initial}"
 
-  release:
+  create-release:
     needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+    steps:
+      - name: Create or reuse the GitHub release
+        # Every matrix leg uploads in parallel. Creating the release once here
+        # and handing the legs its id keeps tauri-action from racing itself:
+        # v1.9.0 ended up duplicated because two legs each created a release
+        # for the same tag before seeing each other's.
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job has no checkout, and gh resolves the repository from a git
+          # remote; GITHUB_REPOSITORY alone is not enough.
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.prepare.outputs.version }}
+          TITLE: kindclip v${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
+          fi
+          release_id=$(gh release view "$TAG" --json databaseId --jq .databaseId)
+          if [ -z "$release_id" ]; then
+            echo "Could not resolve the release id for $TAG" >&2
+            exit 1
+          fi
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+          echo "Release $TAG has id $release_id"
+
+  release:
+    needs: [prepare, create-release]
     if: needs.prepare.outputs.should_release == 'true'
     strategy:
       fail-fast: false
@@ -178,9 +215,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: 'v${{ needs.prepare.outputs.version }}'
-          releaseName: 'kindclip v${{ needs.prepare.outputs.version }}'
-          generateReleaseNotes: true
-          releaseDraft: false
-          prerelease: false
+          # The release already exists: upload to it by id instead of letting
+          # each leg look it up (and create one) by tag.
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
