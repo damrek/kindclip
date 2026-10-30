@@ -161,3 +161,13 @@ describe("import skipped keys", () => {
     );
   });
 });
+
+describe("prefs.version", () => {
+  it("interpolates the app version in every locale", () => {
+    expect(translate("es", "prefs.version", { version: "1.9.0" })).toBe("Versión 1.9.0");
+    expect(translate("en", "prefs.version", { version: "1.9.0" })).toBe("Version 1.9.0");
+    expect(translate("fr", "prefs.version", { version: "1.9.0" })).toBe("Version 1.9.0");
+    expect(translate("de", "prefs.version", { version: "1.9.0" })).toBe("Version 1.9.0");
+    expect(translate("it", "prefs.version", { version: "1.9.0" })).toBe("Versione 1.9.0");
+  });
+});
