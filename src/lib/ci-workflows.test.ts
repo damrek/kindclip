@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import ciWorkflow from "../../.github/workflows/ci.yml?raw";
-import releaseWorkflow from "../../.github/workflows/release.yml?raw";
+import ciWorkflowRaw from "../../.github/workflows/ci.yml?raw";
+import releaseWorkflowRaw from "../../.github/workflows/release.yml?raw";
+
+// A Windows checkout converts these files to CRLF and ?raw hands the bytes over
+// unchanged, so normalize once and keep every guard below written for plain LF.
+const ciWorkflow = ciWorkflowRaw.replace(/\r\n/g, "\n");
+const releaseWorkflow = releaseWorkflowRaw.replace(/\r\n/g, "\n");
 
 // Textual guards for invariants that fail SILENTLY: a wrong release profile, a
 // per-arch macOS split, or a re-added tag-scoped cache all leave CI green while
@@ -40,5 +45,44 @@ describe("release and CI workflow invariants", () => {
     expect(releaseWorkflow.indexOf("cargo test --release --workspace")).toBeGreaterThan(
       releaseWorkflow.indexOf("npm run build"),
     );
+  });
+});
+
+// v1.9.0 shipped as TWO releases for the same tag, each holding a subset of the
+// assets, because every matrix leg ran tauri-action with tagName and two legs
+// created a release before seeing each other's. These guards keep creation in
+// one unmatrixed job and keep the legs uploading by id.
+describe("release workflow: one release object per tag", () => {
+  it("creates the release once, before the build matrix", () => {
+    expect(releaseWorkflow.match(/gh release create/g)).toHaveLength(1);
+    expect(releaseWorkflow).toMatch(/\n  create-release:\n/);
+    expect(releaseWorkflow).toMatch(/needs: \[prepare, create-release\]/);
+  });
+
+  it("gives gh a repository context in the job that has no checkout", () => {
+    // gh resolves owner/repo from a git remote and ignores GITHUB_REPOSITORY;
+    // without GH_REPO every call fails before the API and no release is made.
+    expect(releaseWorkflow).toMatch(/GH_REPO: \$\{\{ github\.repository \}\}/);
+  });
+
+  it("uploads by release id instead of letting each leg create by tag", () => {
+    expect(releaseWorkflow).toContain(
+      "releaseId: ${{ needs.create-release.outputs.release_id }}",
+    );
+    expect(releaseWorkflow).not.toMatch(/tagName:/);
+    expect(releaseWorkflow).not.toMatch(/releaseName:/);
+  });
+
+  it("fails instead of uploading with an empty release id", () => {
+    // tauri-action only logs "No releaseId or tagName provided, skipping all
+    // uploads..." and still exits green, so this has to be caught here.
+    expect(releaseWorkflow).toContain('if [ -z "$release_id" ]');
+    expect(releaseWorkflow).toContain("Could not resolve the release id for $TAG");
+  });
+
+  it("generates the notes once, at creation, with draft defaulting to false", () => {
+    expect(releaseWorkflow).toContain("--generate-notes");
+    expect(releaseWorkflow).not.toMatch(/generateReleaseNotes:/);
+    expect(releaseWorkflow).not.toMatch(/releaseDraft:/);
   });
 });
