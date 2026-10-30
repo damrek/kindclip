@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getContext } from "svelte";
+  import { getVersion } from "@tauri-apps/api/app";
   import Icon from "./Icon.svelte";
   import {
     I18N_CONTEXT_KEY,
@@ -26,6 +27,17 @@
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
   let open = $state(false);
+  let version = $state<string | null>(null);
+
+  $effect(() => {
+    getVersion()
+      .then((value) => {
+        version = value;
+      })
+      .catch(() => {
+        // Outside the Tauri runtime (plain browser) the version stays hidden.
+      });
+  });
 
   function toggleMenu(): void {
     open = !open;
@@ -149,6 +161,14 @@
           <span class="min-w-0 flex-1 truncate">{i18n.t("db.open")}</span>
         </button>
       </div>
+
+      {#if version}
+        <p
+          class="mt-2 border-t border-neutral-100 pt-2 text-center text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-500"
+        >
+          {i18n.t("prefs.version", { version })}
+        </p>
+      {/if}
     </div>
   {/if}
 </div>
