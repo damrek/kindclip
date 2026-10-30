@@ -129,9 +129,17 @@ class FakePort implements DbPort {
   ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
     this.executedSql.push(sql);
     if (sql.includes("INSERT INTO clippings")) {
-      this.clippingInserts.push(params ?? []);
-      this.insertedClippings.push(params?.[8] as string);
-      return { lastInsertId: ++this.lastId, rowsAffected: 1 };
+      const allParams = params ?? [];
+      // Multi-row INSERT: params come as flat array [row1col1, row1col2, ..., row2col1, row2col2, ...]
+      // Each row has 11 columns. Split into individual rows.
+      const colsPerRow = 11;
+      const rowCount = allParams.length / colsPerRow;
+      for (let i = 0; i < rowCount; i++) {
+        const rowParams = allParams.slice(i * colsPerRow, (i + 1) * colsPerRow);
+        this.clippingInserts.push(rowParams);
+        this.insertedClippings.push(rowParams[8] as string);
+      }
+      return { lastInsertId: ++this.lastId, rowsAffected: rowCount };
     }
     if (sql.includes("INSERT INTO books")) {
       this.bookInserts.push(params ?? []);
