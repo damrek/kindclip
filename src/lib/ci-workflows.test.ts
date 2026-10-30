@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import ciWorkflow from "../../.github/workflows/ci.yml?raw";
-import releaseWorkflow from "../../.github/workflows/release.yml?raw";
+import ciWorkflowRaw from "../../.github/workflows/ci.yml?raw";
+import releaseWorkflowRaw from "../../.github/workflows/release.yml?raw";
+
+// A Windows checkout converts these files to CRLF and ?raw hands the bytes over
+// unchanged, so normalize once and keep every guard below written for plain LF.
+const ciWorkflow = ciWorkflowRaw.replace(/\r\n/g, "\n");
+const releaseWorkflow = releaseWorkflowRaw.replace(/\r\n/g, "\n");
 
 // Textual guards for invariants that fail SILENTLY: a wrong release profile, a
 // per-arch macOS split, or a re-added tag-scoped cache all leave CI green while
