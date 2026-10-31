@@ -3,11 +3,13 @@
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { formatAddedOn, formatReference, tagOverflow } from "../lib/library";
   import type { ClippingKind, ClippingRow, Tag } from "../lib/types";
+  import Icon from "./Icon.svelte";
 
   interface Props {
     clipping: ClippingRow;
     allTags: Tag[];
     copied: boolean;
+    onOpen: (id: number) => void;
     onToggleFavorite: (id: number) => void;
     onCopy: (id: number) => void;
     onEdit: (id: number, content: string) => Promise<boolean>;
@@ -23,6 +25,7 @@
     clipping,
     allTags,
     copied,
+    onOpen,
     onToggleFavorite,
     onCopy,
     onEdit,
@@ -255,6 +258,15 @@
     <span>{addedOnLabel}</span>
     <span class="flex-1"></span>
     {#if !editing}
+      <button
+        type="button"
+        onclick={() => onOpen(clipping.id)}
+        aria-label={i18n.t("reading.open")}
+        title={i18n.t("reading.open")}
+        class="rounded-full p-1.5 text-neutral-300 transition hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-300"
+      >
+        <Icon name="expand" class="h-4 w-4" />
+      </button>
       {#if canEdit}
         <button
           type="button"
