@@ -162,6 +162,33 @@ describe("import skipped keys", () => {
   });
 });
 
+describe("reading view keys", () => {
+  it("interpolates the position in every locale", () => {
+    const params = { current: 7, total: 137 };
+    expect(translate("es", "reading.position", params)).toBe("7 de 137");
+    expect(translate("en", "reading.position", params)).toBe("7 of 137");
+    expect(translate("fr", "reading.position", params)).toBe("7 sur 137");
+    expect(translate("de", "reading.position", params)).toBe("7 von 137");
+    expect(translate("it", "reading.position", params)).toBe("7 di 137");
+  });
+
+  it("resolves every reading label in every locale", () => {
+    const keys = [
+      "reading.open",
+      "reading.title",
+      "reading.close",
+      "reading.prev",
+      "reading.next",
+      "reading.hint",
+    ] as const;
+    for (const locale of LOCALES) {
+      for (const key of keys) {
+        expect(translate(locale, key), `${locale}.${key}`).not.toBe(key);
+      }
+    }
+  });
+});
+
 describe("prefs.version", () => {
   it("interpolates the app version in every locale", () => {
     expect(translate("es", "prefs.version", { version: "1.9.0" })).toBe("Versión 1.9.0");

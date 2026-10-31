@@ -7,6 +7,7 @@
   import LibraryDialog from "./components/LibraryDialog.svelte";
   import Pagination from "./components/Pagination.svelte";
   import PreferencesMenu from "./components/PreferencesMenu.svelte";
+  import ReadingView from "./components/ReadingView.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
   import { save } from "@tauri-apps/plugin-dialog";
@@ -93,6 +94,18 @@
     type BookSortKey,
     type BookSortDir,
   } from "./lib/library";
+  import {
+    advanceReading,
+    canStep,
+    openReadingSession,
+    pageToLoad,
+    readingCurrent,
+    readingPage,
+    readingPosition,
+    stepWithinWindow,
+    type ReadingDirection,
+    type ReadingSession,
+  } from "./lib/reading";
   import type {
     Book,
     ClippingFilter,
@@ -138,6 +151,12 @@
   let libraryError = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Full-window reading session; null when closed. */
+  let reading = $state<ReadingSession | null>(null);
+  let readingLoading = $state(false);
+  let readingError = $state<string | null>(null);
+  /** Invalidates an in-flight page load when the session closes or restarts. */
+  let readingRequest = 0;
   /** Note pending reset confirmation (dialog rendered at app root). */
   let resetTarget = $state<ClippingRow | null>(null);
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
@@ -637,6 +656,61 @@
     }
   }
 
+  /** Open the full-window reading view on one visible row. */
+  function startReading(id: number): void {
+    if (!result) return;
+    const session = openReadingSession(result, id);
+    if (!session) return;
+    readingRequest += 1;
+    readingError = null;
+    readingLoading = false;
+    reading = session;
+  }
+
+  /** Close and leave the list on the page where reading stopped. */
+  function closeReading(): void {
+    if (!reading) return;
+    const targetPage = readingPage(reading);
+    readingRequest += 1;
+    reading = null;
+    readingLoading = false;
+    readingError = null;
+    if (targetPage !== page) {
+      page = targetPage;
+    }
+  }
+
+  /** Step one row; fetch the adjacent page only when the window runs out. */
+  async function stepReading(dir: ReadingDirection): Promise<void> {
+    const session = reading;
+    if (!session || readingLoading) return;
+    const moved = stepWithinWindow(session, dir);
+    if (moved) {
+      reading = moved;
+      return;
+    }
+    if (pageToLoad(session, dir) === null) return;
+    const request = ++readingRequest;
+    readingLoading = true;
+    readingError = null;
+    try {
+      const next = await advanceReading(session, dir, (page, pageSize) =>
+        listClippings(filter, { page, pageSize }, clippingSort),
+      );
+      if (request !== readingRequest) return; // Closed or reopened while loading.
+      reading = next;
+    } catch (error) {
+      if (request === readingRequest) {
+        readingError = error instanceof Error ? error.message : String(error);
+      }
+    } finally {
+      // Replacing the session on success must still release the busy flag.
+      if (request === readingRequest) {
+        readingLoading = false;
+      }
+    }
+  }
+
   function clearFilters(): void {
     query = "";
     debouncedQuery = "";
@@ -956,6 +1030,8 @@
     books.find((book) => book.id === bookId)?.title ??
       (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
   );
+  /** Row shown full-window; null while the reading view is closed. */
+  const readingClipping = $derived(reading ? readingCurrent(reading) : null);
 
   const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
     markdown: "md",
@@ -1008,7 +1084,7 @@
   });
 </script>
 
-<div class="flex h-full flex-col">
+<div class="flex h-full flex-col" inert={reading !== null}>
   <header
     class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"
   >
@@ -1256,6 +1332,7 @@
                 {clipping}
                 {allTags}
                 copied={clipping.id === copiedId}
+                onOpen={startReading}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
                 onEdit={editNote}
@@ -1313,6 +1390,21 @@
     if (libraryOpen && !libraryBusy && event.key === "Escape") libraryOpen = false;
   }}
 />
+
+{#if reading && readingClipping}
+  <ReadingView
+    clipping={readingClipping}
+    position={readingPosition(reading)}
+    total={reading.total}
+    canPrev={canStep(reading, "prev")}
+    canNext={canStep(reading, "next")}
+    loading={readingLoading}
+    error={readingError}
+    onPrev={() => void stepReading("prev")}
+    onNext={() => void stepReading("next")}
+    onClose={closeReading}
+  />
+{/if}
 
 {#if resetTarget}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">

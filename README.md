@@ -28,7 +28,9 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
    detected by hash, failed parses auto-heal.
 4. **Export** (header icon) → current filters to Markdown, JSON or CSV,
    grouped by book.
-5. **Manage library** (header icon) → rename/merge books, delete a book, or
+5. **Read** (⤢ on any card) → full-window reading view; ←/→ move through the
+   whole filtered list, Esc closes and keeps your place.
+6. **Manage library** (header icon) → rename/merge books, delete a book, or
    undo a single bad import without wiping the database.
 
 ## Features
@@ -37,6 +39,8 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 - **Robust parser**: UTF-8/16 (BOM or mid-file), localized dates (en/es/de/fr/it/pt),
   Highlight/Note/Bookmark kinds — including modern Spanish firmware («Tu resaltado»).
 - **Multi-file library** with content-hash deduplication across imports.
+- **Reading view**: open any clipping full-window and move through the whole
+  filtered list with ← / →; Esc closes and keeps your place.
 - **Note editing**: inline rewrite with **Edited** badge, reset to original anytime,
   edited-notes filter. `My Clippings.txt` is never modified (one-way sync).
 
@@ -149,8 +153,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus "on this day"
   clippings from previous years.
-- **Reading view**: open one clipping full-screen and move through the list with
-  the keyboard.
 - **Backup & restore**: export and import a snapshot of `kindclip.db` so tags,
   favorites and edited notes survive a reinstall.
 - **Search upgrades**: multi-word queries and highlighted matches.
