@@ -118,8 +118,13 @@
   let books = $state<Book[]>([]);
   let allTags = $state<TagCount[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
-  let loading = $state(false);
+  /** True from boot: the stored filter is applied before the first list load. */
+  let loading = $state(true);
   let loadError = $state<string | null>(null);
+  /** Invalidates an in-flight list load when a newer one starts. */
+  let listRequest = 0;
+  /** Set once the stored filter has been applied; gates load and save. */
+  let prefsReady = $state(false);
 
   let query = $state("");
   let debouncedQuery = $state("");
@@ -266,19 +271,27 @@
     s: number,
     sort: ClippingSort,
   ): Promise<void> {
+    const request = ++listRequest;
     loading = true;
     loadError = null;
     try {
       await getDb();
       const first = await listClippings(f, { page: p, pageSize: s }, sort);
+      if (request !== listRequest) return; // Superseded by a newer filter or page.
       const last = clampPage(p, first.total, s);
-      result =
+      const next =
         last === p ? first : await listClippings(f, { page: last, pageSize: s }, sort);
+      if (request !== listRequest) return;
+      result = next;
       page = last;
     } catch (error) {
-      loadError = error instanceof Error ? error.message : String(error);
+      if (request === listRequest) {
+        loadError = error instanceof Error ? error.message : String(error);
+      }
     } finally {
-      loading = false;
+      if (request === listRequest) {
+        loading = false;
+      }
     }
   }
 
@@ -364,6 +377,13 @@
       }
     } catch {
       // Non-fatal: the app works with defaults and in-memory filters.
+    } finally {
+      // The stored filter (or the defaults) is in place: the list may load
+      // and the filter state may be saved. Without this gate the first load
+      // runs with the empty default filter, so a list saved with
+      // kinds = [note, highlight] briefly shows every kind and a slow DB
+      // start can even persist the defaults back over the stored filter.
+      prefsReady = true;
     }
   }
 
@@ -383,7 +403,13 @@
   // loadList reads filter/page/pageSize after an await, so they must be
   // passed as arguments here — otherwise the list loads once on mount
   // and filters/pagination/sidebar silently stop working.
+  //
+  // Waiting for prefsReady keeps the first load from running with the empty
+  // default filter: the stored kinds must be applied first, or a list saved
+  // as notes + highlights flashes every kind (bookmarks included) and a slow
+  // cold start can leave that unfiltered page on screen.
   $effect(() => {
+    if (!prefsReady) return;
     void loadList(filter, page, pageSize, clippingSort);
   });
 
@@ -397,7 +423,10 @@
 
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
+  // Gated until the stored filter is applied, so the defaults are never written
+  // over a filter the user already saved.
   $effect(() => {
+    if (!prefsReady) return;
     saveFilters({
       query: debouncedQuery,
       bookId,
