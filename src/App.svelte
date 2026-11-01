@@ -91,6 +91,7 @@
     withTag,
     withoutTag,
     withoutTagId,
+    emptyFilter,
     type BookSortKey,
     type BookSortDir,
   } from "./lib/library";
@@ -123,6 +124,9 @@
   let loadError = $state<string | null>(null);
   /** Invalidates an in-flight list load when a newer one starts. */
   let listRequest = 0;
+  /** Filter and sort that produced `result`, committed atomically with it. */
+  let resultFilter: ClippingFilter = emptyFilter();
+  let resultSort: ClippingSort = DEFAULT_CLIPPING_SORT;
   /** Set once the stored filter has been applied; gates load and save. */
   let prefsReady = $state(false);
 
@@ -162,6 +166,12 @@
   let readingError = $state<string | null>(null);
   /** Invalidates an in-flight page load when the session closes or restarts. */
   let readingRequest = 0;
+  /** Filter/sort snapshot the reading window fetches adjacent pages with. */
+  let readingSource: { filter: ClippingFilter; sort: ClippingSort } | null = null;
+  /** Element that opened the reading view; focus returns to it on close. */
+  let readingOpener: HTMLElement | null = null;
+  /** Scroller holding the cards; the focus fallback when the opener is gone. */
+  let listRegion = $state<HTMLElement | null>(null);
   /** Note pending reset confirmation (dialog rendered at app root). */
   let resetTarget = $state<ClippingRow | null>(null);
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
@@ -282,7 +292,11 @@
       const next =
         last === p ? first : await listClippings(f, { page: last, pageSize: s }, sort);
       if (request !== listRequest) return;
+      // Commit rows and the filter that produced them together: the reading
+      // view must never fetch a page with a filter other than this one.
       result = next;
+      resultFilter = { ...f, kinds: [...f.kinds], tagIds: [...f.tagIds] };
+      resultSort = sort;
       page = last;
     } catch (error) {
       if (request === listRequest) {
@@ -693,28 +707,48 @@
     readingRequest += 1;
     readingError = null;
     readingLoading = false;
+    // The window holds rows from the filter on screen; keep that exact filter
+    // for the adjacent pages, not the live one, which may already differ while
+    // a search or page load is in flight.
+    readingSource = { filter: resultFilter, sort: resultSort };
+    readingOpener =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     reading = session;
   }
 
   /** Close and leave the list on the page where reading stopped. */
-  function closeReading(): void {
+  async function closeReading(): Promise<void> {
     if (!reading) return;
     const targetPage = readingPage(reading);
+    const opener = readingOpener;
     readingRequest += 1;
     reading = null;
     readingLoading = false;
     readingError = null;
-    if (targetPage !== page) {
+    readingSource = null;
+    readingOpener = null;
+    const pageChanged = targetPage !== page;
+    if (pageChanged) {
       page = targetPage;
     }
+    // Hand focus back. On the same page the opener is still mounted, so focus
+    // returns to it; a page change reloads the list and unmounts it, so focus
+    // parks on the list itself instead of dropping to <body>.
+    await tick();
+    const target =
+      !pageChanged && opener !== null && opener.isConnected ? opener : listRegion;
+    target?.focus();
   }
 
   /** Step one row; fetch the adjacent page only when the window runs out. */
   async function stepReading(dir: ReadingDirection): Promise<void> {
     const session = reading;
-    if (!session || readingLoading) return;
+    const source = readingSource;
+    if (!session || !source || readingLoading) return;
     const moved = stepWithinWindow(session, dir);
     if (moved) {
+      // A successful step dismisses a banner left over from a failed fetch.
+      readingError = null;
       reading = moved;
       return;
     }
@@ -724,7 +758,7 @@
     readingError = null;
     try {
       const next = await advanceReading(session, dir, (page, pageSize) =>
-        listClippings(filter, { page, pageSize }, clippingSort),
+        listClippings(source.filter, { page, pageSize }, source.sort),
       );
       if (request !== readingRequest) return; // Closed or reopened while loading.
       reading = next;
@@ -1354,7 +1388,11 @@
           </div>
         {/if}
 
-        <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">
+        <div
+          bind:this={listRegion}
+          tabindex="-1"
+          class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}"
+        >
           {#if result && result.items.length > 0}
             {#each result.items as clipping (clipping.id)}
               <ClippingCard
