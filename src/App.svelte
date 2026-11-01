@@ -91,6 +91,7 @@
     withTag,
     withoutTag,
     withoutTagId,
+    emptyFilter,
     type BookSortKey,
     type BookSortDir,
   } from "./lib/library";
@@ -118,8 +119,16 @@
   let books = $state<Book[]>([]);
   let allTags = $state<TagCount[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
-  let loading = $state(false);
+  /** True from boot: the stored filter is applied before the first list load. */
+  let loading = $state(true);
   let loadError = $state<string | null>(null);
+  /** Invalidates an in-flight list load when a newer one starts. */
+  let listRequest = 0;
+  /** Filter and sort that produced `result`, committed atomically with it. */
+  let resultFilter: ClippingFilter = emptyFilter();
+  let resultSort: ClippingSort = DEFAULT_CLIPPING_SORT;
+  /** Set once the stored filter has been applied; gates load and save. */
+  let prefsReady = $state(false);
 
   let query = $state("");
   let debouncedQuery = $state("");
@@ -157,6 +166,12 @@
   let readingError = $state<string | null>(null);
   /** Invalidates an in-flight page load when the session closes or restarts. */
   let readingRequest = 0;
+  /** Filter/sort snapshot the reading window fetches adjacent pages with. */
+  let readingSource: { filter: ClippingFilter; sort: ClippingSort } | null = null;
+  /** Element that opened the reading view; focus returns to it on close. */
+  let readingOpener: HTMLElement | null = null;
+  /** Scroller holding the cards; the focus fallback when the opener is gone. */
+  let listRegion = $state<HTMLElement | null>(null);
   /** Note pending reset confirmation (dialog rendered at app root). */
   let resetTarget = $state<ClippingRow | null>(null);
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
@@ -266,19 +281,31 @@
     s: number,
     sort: ClippingSort,
   ): Promise<void> {
+    const request = ++listRequest;
     loading = true;
     loadError = null;
     try {
       await getDb();
       const first = await listClippings(f, { page: p, pageSize: s }, sort);
+      if (request !== listRequest) return; // Superseded by a newer filter or page.
       const last = clampPage(p, first.total, s);
-      result =
+      const next =
         last === p ? first : await listClippings(f, { page: last, pageSize: s }, sort);
+      if (request !== listRequest) return;
+      // Commit rows and the filter that produced them together: the reading
+      // view must never fetch a page with a filter other than this one.
+      result = next;
+      resultFilter = { ...f, kinds: [...f.kinds], tagIds: [...f.tagIds] };
+      resultSort = sort;
       page = last;
     } catch (error) {
-      loadError = error instanceof Error ? error.message : String(error);
+      if (request === listRequest) {
+        loadError = error instanceof Error ? error.message : String(error);
+      }
     } finally {
-      loading = false;
+      if (request === listRequest) {
+        loading = false;
+      }
     }
   }
 
@@ -364,6 +391,13 @@
       }
     } catch {
       // Non-fatal: the app works with defaults and in-memory filters.
+    } finally {
+      // The stored filter (or the defaults) is in place: the list may load
+      // and the filter state may be saved. Without this gate the first load
+      // runs with the empty default filter, so a list saved with
+      // kinds = [note, highlight] briefly shows every kind and a slow DB
+      // start can even persist the defaults back over the stored filter.
+      prefsReady = true;
     }
   }
 
@@ -383,7 +417,13 @@
   // loadList reads filter/page/pageSize after an await, so they must be
   // passed as arguments here — otherwise the list loads once on mount
   // and filters/pagination/sidebar silently stop working.
+  //
+  // Waiting for prefsReady keeps the first load from running with the empty
+  // default filter: the stored kinds must be applied first, or a list saved
+  // as notes + highlights flashes every kind (bookmarks included) and a slow
+  // cold start can leave that unfiltered page on screen.
   $effect(() => {
+    if (!prefsReady) return;
     void loadList(filter, page, pageSize, clippingSort);
   });
 
@@ -397,7 +437,10 @@
 
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
+  // Gated until the stored filter is applied, so the defaults are never written
+  // over a filter the user already saved.
   $effect(() => {
+    if (!prefsReady) return;
     saveFilters({
       query: debouncedQuery,
       bookId,
@@ -664,28 +707,48 @@
     readingRequest += 1;
     readingError = null;
     readingLoading = false;
+    // The window holds rows from the filter on screen; keep that exact filter
+    // for the adjacent pages, not the live one, which may already differ while
+    // a search or page load is in flight.
+    readingSource = { filter: resultFilter, sort: resultSort };
+    readingOpener =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     reading = session;
   }
 
   /** Close and leave the list on the page where reading stopped. */
-  function closeReading(): void {
+  async function closeReading(): Promise<void> {
     if (!reading) return;
     const targetPage = readingPage(reading);
+    const opener = readingOpener;
     readingRequest += 1;
     reading = null;
     readingLoading = false;
     readingError = null;
-    if (targetPage !== page) {
+    readingSource = null;
+    readingOpener = null;
+    const pageChanged = targetPage !== page;
+    if (pageChanged) {
       page = targetPage;
     }
+    // Hand focus back. On the same page the opener is still mounted, so focus
+    // returns to it; a page change reloads the list and unmounts it, so focus
+    // parks on the list itself instead of dropping to <body>.
+    await tick();
+    const target =
+      !pageChanged && opener !== null && opener.isConnected ? opener : listRegion;
+    target?.focus();
   }
 
   /** Step one row; fetch the adjacent page only when the window runs out. */
   async function stepReading(dir: ReadingDirection): Promise<void> {
     const session = reading;
-    if (!session || readingLoading) return;
+    const source = readingSource;
+    if (!session || !source || readingLoading) return;
     const moved = stepWithinWindow(session, dir);
     if (moved) {
+      // A successful step dismisses a banner left over from a failed fetch.
+      readingError = null;
       reading = moved;
       return;
     }
@@ -695,7 +758,7 @@
     readingError = null;
     try {
       const next = await advanceReading(session, dir, (page, pageSize) =>
-        listClippings(filter, { page, pageSize }, clippingSort),
+        listClippings(source.filter, { page, pageSize }, source.sort),
       );
       if (request !== readingRequest) return; // Closed or reopened while loading.
       reading = next;
@@ -1325,7 +1388,11 @@
           </div>
         {/if}
 
-        <div class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}">
+        <div
+          bind:this={listRegion}
+          tabindex="-1"
+          class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}"
+        >
           {#if result && result.items.length > 0}
             {#each result.items as clipping (clipping.id)}
               <ClippingCard
