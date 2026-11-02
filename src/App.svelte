@@ -124,8 +124,9 @@
   let loadError = $state<string | null>(null);
   /** Invalidates an in-flight list load when a newer one starts. */
   let listRequest = 0;
-  /** Filter and sort that produced `result`, committed atomically with it. */
-  let resultFilter: ClippingFilter = emptyFilter();
+  /** Filter and sort that produced `result`, committed atomically with it.
+   * Reactive because the cards and the reading view highlight its query. */
+  let resultFilter = $state<ClippingFilter>(emptyFilter());
   let resultSort: ClippingSort = DEFAULT_CLIPPING_SORT;
   /** Set once the stored filter has been applied; gates load and save. */
   let prefsReady = $state(false);
@@ -167,7 +168,7 @@
   /** Invalidates an in-flight page load when the session closes or restarts. */
   let readingRequest = 0;
   /** Filter/sort snapshot the reading window fetches adjacent pages with. */
-  let readingSource: { filter: ClippingFilter; sort: ClippingSort } | null = null;
+  let readingSource = $state<{ filter: ClippingFilter; sort: ClippingSort } | null>(null);
   /** Element that opened the reading view; focus returns to it on close. */
   let readingOpener: HTMLElement | null = null;
   /** Scroller holding the cards; the focus fallback when the opener is gone. */
@@ -1399,6 +1400,7 @@
                 {clipping}
                 {allTags}
                 copied={clipping.id === copiedId}
+                query={resultFilter.query}
                 onOpen={startReading}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
@@ -1461,6 +1463,7 @@
 {#if reading && readingClipping}
   <ReadingView
     clipping={readingClipping}
+    query={readingSource?.filter.query ?? ""}
     position={readingPosition(reading)}
     total={reading.total}
     canPrev={canStep(reading, "prev")}

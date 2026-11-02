@@ -253,12 +253,46 @@ describe("buildListQuery", () => {
     expect(sql).not.toContain("COALESCE(c.content_edited, c.content) LIKE");
   });
 
+  it("requires every word of a multi-word query, in any field", () => {
+    const { sql, params } = buildListQuery(filter({ query: "Stoic  AURORA" }), {
+      page: 1,
+      pageSize: 20,
+    });
+    // One AND group per distinct folded term, three fields per group.
+    expect(sql.match(/COALESCE\(c\.content_edited_folded/g)).toHaveLength(2);
+    expect(params.slice(0, 6)).toEqual([
+      "%stoic%",
+      "%stoic%",
+      "%stoic%",
+      "%aurora%",
+      "%aurora%",
+      "%aurora%",
+    ]);
+    expect(params.slice(-2)).toEqual([20, 0]);
+  });
+
+  it("matches the same word only once even when the query repeats it", () => {
+    const { sql, params } = buildListQuery(filter({ query: "stoic stoic" }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(sql.match(/COALESCE\(c\.content_edited_folded/g)).toHaveLength(1);
+    expect(params.slice(0, 3)).toEqual(["%stoic%", "%stoic%", "%stoic%"]);
+  });
+
   it("keeps like wildcards literal after folding", () => {
     const { params } = buildListQuery(filter({ query: "CAFÉ 100%" }), {
       page: 1,
       pageSize: 20,
     });
-    expect(params[0]).toBe("%cafe 100\\%%");
+    expect(params.slice(0, 6)).toEqual([
+      "%cafe%",
+      "%cafe%",
+      "%cafe%",
+      "%100\\%%",
+      "%100\\%%",
+      "%100\\%%",
+    ]);
   });
 
   it("keeps _ and \\ literal after folding", () => {

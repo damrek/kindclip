@@ -3,12 +3,15 @@
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { formatAddedOn, formatReference, tagOverflow } from "../lib/library";
   import type { ClippingKind, ClippingRow, Tag } from "../lib/types";
+  import HighlightedText from "./HighlightedText.svelte";
   import Icon from "./Icon.svelte";
 
   interface Props {
     clipping: ClippingRow;
     allTags: Tag[];
     copied: boolean;
+    /** Search query that produced the visible list, for highlight marks. */
+    query: string;
     onOpen: (id: number) => void;
     onToggleFavorite: (id: number) => void;
     onCopy: (id: number) => void;
@@ -25,6 +28,7 @@
     clipping,
     allTags,
     copied,
+    query,
     onOpen,
     onToggleFavorite,
     onCopy,
@@ -162,7 +166,7 @@
     <blockquote
       class="border-l-2 border-amber-400 pl-4 text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200"
     >
-      {displayContent}
+      <HighlightedText text={displayContent} {query} />
     </blockquote>
   {:else}
     <p class="text-sm text-neutral-400 italic dark:text-neutral-500">
@@ -171,9 +175,9 @@
   {/if}
 
   <div class="mt-4 text-sm">
-    <span class="block font-medium text-neutral-900 dark:text-neutral-100">{clipping.title}</span>
+    <span class="block font-medium text-neutral-900 dark:text-neutral-100"><HighlightedText text={clipping.title} {query} /></span>
     {#if clipping.author}
-      <span class="block text-neutral-500 dark:text-neutral-400">{clipping.author}</span>
+      <span class="block text-neutral-500 dark:text-neutral-400"><HighlightedText text={clipping.author} {query} /></span>
     {/if}
   </div>
 

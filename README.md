@@ -56,7 +56,8 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 
 ### Search & Filter
 - **Unified Filters menu** (badged count, removable chips, Clear all): full-text
-  search (content/title/author, accent- and case-insensitive), book,
+  search (content/title/author, accent- and case-insensitive) where every word
+  must match, with the hits highlighted in the list and the reading view; book,
   multi-select type/status/tag filters.
   Click a card's type badge or Edited badge to toggle that filter instantly,
   like tags. All combinable. Configurable pagination (20/50/100).
@@ -155,7 +156,6 @@ Planned, no dates attached:
   clippings from previous years.
 - **Backup & restore**: export and import a snapshot of `kindclip.db` so tags,
   favorites and edited notes survive a reinstall.
-- **Search upgrades**: multi-word queries and highlighted matches.
 - **Keyboard-first**: shortcuts for search, dialogs and navigation.
 - **Drag & drop import**: drop `My Clippings.txt` anywhere on the window.
 - **Copy as quote**: Markdown citation with book, author and page.

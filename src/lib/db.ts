@@ -11,6 +11,7 @@ import type {
   Tag,
 } from "./types";
 import { PAGE_SIZES, foldText } from "./library";
+import { searchTerms } from "./search";
 
 /** Minimal SQL surface the store needs; real (plugin) or fake (tests). */
 export interface DbPort {
@@ -149,9 +150,10 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
     return `$${params.length}`;
   };
 
-  const query = foldText(filter.query.trim());
-  if (query !== "") {
-    const like = `%${escapeLike(query)}%`;
+  // Every query word must match somewhere (content, title or author), in any
+  // order; a query is a set of terms, not one phrase.
+  for (const term of searchTerms(filter.query)) {
+    const like = `%${escapeLike(term)}%`;
     const p1 = next(like);
     const p2 = next(like);
     const p3 = next(like);

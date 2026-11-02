@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { importParsedClippings, type DbPort } from "./db";
+import { importParsedClippings, buildListQuery, type DbPort } from "./db";
 import type { ClippingDto } from "./types";
 
 /** Applied in order, exactly like tauri-plugin-sql does at startup. */
@@ -158,5 +158,66 @@ describe("importParsedClippings against real SQLite", () => {
     // 500 rows * 11 columns = 5,500 parameters, below SQLite's 32,766 limit.
     const firstChunkNames = [...statements[0].matchAll(/\$(\d+)/g)];
     expect(Math.max(...firstChunkNames.map((match) => Number(match[1])))).toBe(5_500);
+  });
+});
+
+describe("multi-word search against real SQLite", () => {
+  it("requires every word, each one in any field and in any order", async () => {
+    const port = new SqlitePort();
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-search",
+        skipped: 0,
+        clippings: [
+          clipping({
+            title: "Meditations",
+            author: "Marcus Aurelius",
+            content: "A stoic aurora",
+            content_hash: "both-content",
+          }),
+          clipping({
+            title: "Aurora",
+            author: "Someone",
+            content: "Just stoic",
+            content_hash: "title-and-content",
+          }),
+          clipping({
+            title: "Other",
+            author: "Nobody",
+            content: "Aurora only",
+            content_hash: "one-word",
+          }),
+          clipping({
+            title: "Stoic",
+            author: "Aurora",
+            kind: "bookmark",
+            content: null,
+            content_hash: "title-and-author",
+          }),
+        ],
+      },
+      () => {},
+    );
+
+    const { sql, params } = buildListQuery(
+      {
+        query: "aurora  STOIC",
+        bookId: null,
+        kinds: [],
+        favoritesOnly: false,
+        editedOnly: false,
+        tagIds: [],
+      },
+      { page: 1, pageSize: 20 },
+    );
+    const rows = await port.select<{ content_hash: string }>(sql, params);
+
+    expect(rows.map((row) => row.content_hash).sort()).toEqual([
+      "both-content",
+      "title-and-author",
+      "title-and-content",
+    ]);
   });
 });
