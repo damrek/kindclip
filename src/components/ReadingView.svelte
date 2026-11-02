@@ -3,10 +3,13 @@
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { formatAddedOn, formatReference } from "../lib/library";
   import type { ClippingRow } from "../lib/types";
+  import HighlightedText from "./HighlightedText.svelte";
   import Icon from "./Icon.svelte";
 
   interface Props {
     clipping: ClippingRow;
+    /** Search query that produced the visible list, for highlight marks. */
+    query: string;
     /** 1-based position across the whole filtered list. */
     position: number;
     total: number;
@@ -21,6 +24,7 @@
 
   const {
     clipping,
+    query,
     position,
     total,
     canPrev,
@@ -136,7 +140,7 @@
         <blockquote
           class="border-l-2 border-amber-400 pl-6 text-2xl leading-relaxed text-neutral-800 dark:text-neutral-200"
         >
-          {displayContent}
+          <HighlightedText text={displayContent} {query} />
         </blockquote>
       {:else}
         <p class="text-base text-neutral-400 italic dark:text-neutral-500">
@@ -146,11 +150,11 @@
 
       <div class="mt-10 border-t border-neutral-200 pt-5 dark:border-neutral-800">
         <p class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-          {clipping.title}
+          <HighlightedText text={clipping.title} {query} />
         </p>
         {#if clipping.author}
           <p class="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
-            {clipping.author}
+            <HighlightedText text={clipping.author} {query} />
           </p>
         {/if}
         <div
