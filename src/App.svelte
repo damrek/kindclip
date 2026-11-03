@@ -8,9 +8,10 @@
   import Pagination from "./components/Pagination.svelte";
   import PreferencesMenu from "./components/PreferencesMenu.svelte";
   import ReadingView from "./components/ReadingView.svelte";
+  import RestoreDialog from "./components/RestoreDialog.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
-  import { save } from "@tauri-apps/plugin-dialog";
+  import { open, save } from "@tauri-apps/plugin-dialog";
   import { setContext, tick } from "svelte";
   import {
     I18N_CONTEXT_KEY,
@@ -39,6 +40,7 @@
   import { readSidebarOpen, saveSidebarOpen } from "./lib/sidebar";
   import {
     addClippingTag,
+    closeDb,
     DEFAULT_CLIPPING_SORT,
     deleteBook,
     deleteTag,
@@ -73,6 +75,15 @@
   } from "./lib/db";
   import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
+  import {
+    BACKUP_EXTENSION,
+    backupFileName,
+    baseName,
+    inspectBackupFile,
+    isBackupError,
+    schemaVersion,
+    type BackupInfo,
+  } from "./lib/backup";
   import {
     exportFileName,
     serializeCsv,
@@ -154,6 +165,16 @@
   let exportOpen = $state(false);
   let exporting = $state(false);
   let exportStatus = $state<string | null>(null);
+  let backingUp = $state(false);
+  let backupStatus = $state<string | null>(null);
+  let restoreOpen = $state(false);
+  let restoreBusy = $state(false);
+  let restoreChecking = $state(false);
+  let restorePath = $state<string | null>(null);
+  let restoreFile = $state("");
+  let restoreInfo = $state<BackupInfo | null>(null);
+  let restoreError = $state<string | null>(null);
+  let restoreRequest = 0;
   let libraryOpen = $state(false);
   let libraryBusy = $state(false);
   let libraryFiles = $state<ImportedFile[]>([]);
@@ -894,6 +915,136 @@
     }
   }
 
+  /** Write a consistent SQLite snapshot (VACUUM INTO) to the picked path. */
+  async function onBackup(): Promise<void> {
+    if (backingUp) return;
+    backingUp = true;
+    backupStatus = t("backup.saving");
+    try {
+      const fileName = backupFileName();
+      let defaultPath = fileName;
+      try {
+        defaultPath = await invoke<string>("export_default_path", {
+          suggestedFileName: fileName,
+        });
+      } catch {
+        // Non-fatal: the bare file name is a valid default path.
+      }
+      const path = await save({
+        defaultPath,
+        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
+      });
+      if (path === null) {
+        backupStatus = null;
+        return;
+      }
+      await invoke("clear_backup_target", { path });
+      const port = await getDb();
+      await port.execute("VACUUM INTO $1", [path]);
+      backupStatus = t("backup.done", { file: baseName(path) });
+    } catch (error) {
+      backupStatus = t("backup.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      backingUp = false;
+    }
+  }
+
+  /** Map a rejected snapshot to the reason shown in the restore dialog. */
+  function restoreFailure(error: unknown): string {
+    if (isBackupError(error)) {
+      if (error.code === "not-kindclip") return t("restore.invalid");
+      if (error.code === "newer-version") return t("restore.newer");
+      return t("restore.corrupt", { message: error.message });
+    }
+    return t("restore.error", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  /** Pick a snapshot, open it apart from the live DB and show what it holds. */
+  async function onRestoreRequest(): Promise<void> {
+    if (restoreBusy || backingUp) return;
+
+    let selected: string | null = null;
+    try {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
+      });
+      selected = typeof picked === "string" ? picked : null;
+    } catch (error) {
+      restorePath = null;
+      restoreFile = "";
+      restoreInfo = null;
+      restoreChecking = false;
+      restoreError = t("restore.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      restoreOpen = true;
+      return;
+    }
+    if (selected === null) return;
+
+    const request = ++restoreRequest;
+    restorePath = selected;
+    restoreFile = baseName(selected);
+    restoreInfo = null;
+    restoreError = null;
+    restoreChecking = true;
+    restoreOpen = true;
+    try {
+      const port = await getDb();
+      const current = await schemaVersion(port);
+      const info = await inspectBackupFile(selected, current);
+      if (request === restoreRequest) {
+        restoreInfo = info;
+      }
+    } catch (error) {
+      if (request === restoreRequest) {
+        restoreError = restoreFailure(error);
+      }
+    } finally {
+      if (request === restoreRequest) {
+        restoreChecking = false;
+      }
+    }
+  }
+
+  function closeRestore(): void {
+    if (restoreBusy) return;
+    restoreRequest += 1;
+    restoreOpen = false;
+    restoreChecking = false;
+  }
+
+  /** Close the pool, replace the database file and let Rust restart the app. */
+  async function confirmRestore(): Promise<void> {
+    if (restorePath === null || restoreInfo === null || restoreBusy) return;
+    restoreBusy = true;
+    restoreError = null;
+    try {
+      await closeDb();
+      await invoke("restore_database_file", { backupPath: restorePath });
+      // Rust restarts the app on success and never returns; reaching this
+      // point means the restart did not happen.
+      restoreError = t("restore.restartFailed");
+    } catch (error) {
+      restoreError = t("restore.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        await getDb();
+        await refreshAfterLibraryChange();
+      } catch {
+        // Keep the restore error on screen; the next launch retries the open.
+      }
+    } finally {
+      restoreBusy = false;
+    }
+  }
+
   async function loadLibraryFiles(): Promise<void> {
     try {
       const port = await getDb();
@@ -1215,10 +1366,14 @@
         theme={themeChoice}
         font={fontScale}
         dbBusy={locatingDb}
+        backingUp={backingUp}
+        backupStatus={backupStatus}
         onLocale={setLocale}
         onTheme={setTheme}
         onFont={setFontScale}
         onOpenDb={onOpenDbLocation}
+        onBackup={onBackup}
+        onRestore={onRestoreRequest}
       />
     </div>
   </header>
@@ -1457,6 +1612,7 @@
     if (resetTarget && event.key === "Escape") resetTarget = null;
     if (exportOpen && !exporting && event.key === "Escape") exportOpen = false;
     if (libraryOpen && !libraryBusy && event.key === "Escape") libraryOpen = false;
+    if (restoreOpen && !restoreBusy && event.key === "Escape") closeRestore();
   }}
 />
 
@@ -1554,5 +1710,17 @@
     onRenameTag={libraryRenameTag}
     onMergeTags={libraryMergeTags}
     onDeleteTag={libraryDeleteTag}
+  />
+{/if}
+
+{#if restoreOpen}
+  <RestoreDialog
+    fileName={restoreFile}
+    info={restoreInfo}
+    checking={restoreChecking}
+    busy={restoreBusy}
+    error={restoreError}
+    onClose={closeRestore}
+    onConfirm={confirmRestore}
   />
 {/if}

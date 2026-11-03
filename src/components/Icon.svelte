@@ -8,6 +8,8 @@
     | "folder"
     | "library"
     | "export"
+    | "backup"
+    | "restore"
     | "close"
     | "expand";
 
@@ -28,6 +30,8 @@
     ],
     library: ["M4 6h16", "M4 12h16", "M4 18h10"],
     export: ["M12 15V3", "M8 7l4-4 4 4", "M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"],
+    backup: ["M12 3v12", "M8 11l4 4 4-4", "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"],
+    restore: ["M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5"],
     close: ["M6 6l12 12", "M18 6L6 18"],
     expand: ["M15 3h6v6", "M9 21H3v-6", "M21 3l-7 7", "M3 21l7-7"],
   };

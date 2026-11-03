@@ -17,13 +17,30 @@
     theme: ThemeChoice;
     font: FontScale;
     dbBusy: boolean;
+    backingUp: boolean;
+    backupStatus: string | null;
     onLocale: (locale: Locale) => void;
     onTheme: (choice: ThemeChoice) => void;
     onFont: (scale: FontScale) => void;
     onOpenDb: () => void;
+    onBackup: () => void;
+    onRestore: () => void;
   }
 
-  const { locale, theme, font, dbBusy, onLocale, onTheme, onFont, onOpenDb }: Props = $props();
+  const {
+    locale,
+    theme,
+    font,
+    dbBusy,
+    backingUp,
+    backupStatus,
+    onLocale,
+    onTheme,
+    onFont,
+    onOpenDb,
+    onBackup,
+    onRestore,
+  }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
   let open = $state(false);
@@ -54,6 +71,11 @@
   function openDb(): void {
     close();
     onOpenDb();
+  }
+
+  function startRestore(): void {
+    close();
+    onRestore();
   }
 </script>
 
@@ -153,6 +175,24 @@
         </p>
         <button
           type="button"
+          onclick={onBackup}
+          disabled={backingUp || dbBusy}
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <Icon name="backup" />
+          <span class="min-w-0 flex-1 truncate">{i18n.t("prefs.backup")}</span>
+        </button>
+        <button
+          type="button"
+          onclick={startRestore}
+          disabled={backingUp || dbBusy}
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <Icon name="restore" />
+          <span class="min-w-0 flex-1 truncate">{i18n.t("prefs.restore")}</span>
+        </button>
+        <button
+          type="button"
           onclick={openDb}
           disabled={dbBusy}
           class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800"
@@ -160,6 +200,11 @@
           <Icon name="folder" />
           <span class="min-w-0 flex-1 truncate">{i18n.t("db.open")}</span>
         </button>
+        {#if backupStatus}
+          <p class="px-2 pt-1 text-xs text-neutral-500 dark:text-neutral-400" role="status">
+            {backupStatus}
+          </p>
+        {/if}
       </div>
 
       {#if version}
