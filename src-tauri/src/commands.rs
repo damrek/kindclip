@@ -1,7 +1,12 @@
 //! Tauri commands: file import and export entry points (T4).
 
+use std::path::{Path, PathBuf};
+
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+
+/// Every SQLite database starts with this 16-byte header.
+const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
 
 /// A parsed clippings file, ready for the frontend import orchestration.
 #[derive(Debug, Serialize)]
@@ -87,6 +92,152 @@ pub fn export_default_path(
         .download_dir()
         .map_err(|err| format!("cannot resolve download dir: {err}"))?;
     Ok(dir.join(&suggested_file_name).to_string_lossy().to_string())
+}
+
+/// Path with `suffix` appended to the full file name (`db` + `-wal`, …).
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+/// Check that `path` is a regular file with the SQLite header and return its
+/// size. Rejecting the file before plugin-sql loads it keeps a wrong path from
+/// being silently created as an empty database.
+fn read_sqlite_magic(path: &Path) -> Result<u64, String> {
+    use std::io::Read;
+
+    let metadata = std::fs::metadata(path)
+        .map_err(|err| format!("cannot read file '{}': {err}", path.display()))?;
+    if !metadata.is_file() {
+        return Err(format!("'{}' is not a file", path.display()));
+    }
+    let mut file = std::fs::File::open(path)
+        .map_err(|err| format!("cannot read file '{}': {err}", path.display()))?;
+    let mut header = [0u8; 16];
+    if file.read_exact(&mut header).is_err() || header.as_slice() != SQLITE_MAGIC {
+        return Err(format!("'{}' is not a SQLite database", path.display()));
+    }
+    Ok(metadata.len())
+}
+
+/// Pre-flight check for a backup the user picked in the restore dialog.
+#[tauri::command]
+pub fn validate_backup_file(path: String) -> Result<u64, String> {
+    read_sqlite_magic(Path::new(&path))
+}
+
+/// Remove the target of a new backup so `VACUUM INTO` can write it.
+///
+/// The native save dialog already asked the user to confirm an overwrite;
+/// this only clears a regular file or accepts a path that does not exist yet.
+#[tauri::command]
+pub fn clear_backup_target(path: String) -> Result<(), String> {
+    let path = Path::new(&path);
+    if path.is_dir() {
+        return Err(format!("'{}' is a directory", path.display()));
+    }
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(format!("cannot clear '{}': {err}", path.display())),
+    }
+}
+
+/// Whether two paths point at the same file on disk.
+fn same_path(left: &Path, right: &Path) -> bool {
+    match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
+}
+
+/// Replace the live database with a backup, keeping the previous file as
+/// `<database>.before-restore`. Sidecars from the replaced database are
+/// removed so a stale journal can never roll back into the restored file.
+///
+/// The chosen backup is staged next to the database first. Without that step,
+/// restoring `<database>.before-restore` — which the UI offers as a snapshot —
+/// would overwrite the source with the safety copy of the current database
+/// before it is read.
+pub(crate) fn restore_database_at(backup_path: &Path, db_path: &Path) -> Result<PathBuf, String> {
+    read_sqlite_magic(backup_path)?;
+
+    if same_path(backup_path, db_path) {
+        return Err(format!(
+            "'{}' is the live database; choose a separate backup file",
+            backup_path.display()
+        ));
+    }
+
+    let safety_path = with_suffix(db_path, ".before-restore");
+    let staged_path = with_suffix(db_path, ".restore-source");
+    // An interrupted restore can leave the staged copy behind and the user may
+    // then pick it as the backup; copying a file onto itself would truncate it.
+    let staged_is_backup = same_path(&staged_path, backup_path);
+
+    if !staged_is_backup {
+        std::fs::copy(backup_path, &staged_path)
+            .map_err(|err| format!("cannot stage the backup '{}': {err}", backup_path.display()))?;
+    }
+
+    let restored = replace_database_with(&staged_path, db_path, &safety_path);
+
+    // The staged copy is an implementation detail of a single restore.
+    if !staged_is_backup {
+        let _ = std::fs::remove_file(&staged_path);
+    }
+
+    restored?;
+    Ok(safety_path)
+}
+
+fn replace_database_with(
+    snapshot: &Path,
+    db_path: &Path,
+    safety_path: &Path,
+) -> Result<(), String> {
+    if db_path.exists() {
+        std::fs::copy(db_path, safety_path).map_err(|err| {
+            format!(
+                "cannot save the current database to '{}': {err}",
+                safety_path.display()
+            )
+        })?;
+    }
+
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let sidecar = with_suffix(db_path, suffix);
+        if sidecar.exists() {
+            std::fs::remove_file(&sidecar)
+                .map_err(|err| format!("cannot remove '{}': {err}", sidecar.display()))?;
+        }
+    }
+
+    if let Err(err) = std::fs::copy(snapshot, db_path) {
+        // Put the previous database back so a failed copy never leaves a
+        // half-written library behind.
+        if safety_path.exists() {
+            let _ = std::fs::copy(safety_path, db_path);
+        }
+        return Err(format!(
+            "cannot restore the backup over '{}': {err}",
+            db_path.display()
+        ));
+    }
+    Ok(())
+}
+
+/// Restore a validated backup and restart the app.
+///
+/// plugin-sql consumes its registered migrations on the first load of the
+/// process, so a swapped file can only be migrated on a fresh launch. The
+/// frontend closes its pool before invoking this command.
+#[tauri::command]
+pub fn restore_database_file(app: tauri::AppHandle, backup_path: String) -> Result<(), String> {
+    let db_path = db_file_path(app.clone())?;
+    restore_database_at(Path::new(&backup_path), Path::new(&db_path))?;
+    app.restart()
 }
 
 #[cfg(test)]
@@ -179,5 +330,139 @@ mod tests {
         let result = write_export_file(path.to_string_lossy().to_string(), "hola".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("cannot write file"));
+    }
+
+    fn backup_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("kindclip-t5-{name}"));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn sqlite_bytes(contents: &[u8]) -> Vec<u8> {
+        let mut bytes = b"SQLite format 3\0".to_vec();
+        bytes.extend_from_slice(contents);
+        bytes
+    }
+
+    fn write_sqlite(path: &Path, contents: &[u8]) {
+        std::fs::write(path, sqlite_bytes(contents)).unwrap();
+    }
+
+    #[test]
+    fn validate_backup_file_accepts_a_sqlite_file() {
+        let dir = backup_dir("validate-ok");
+        let path = dir.join("backup.db");
+        write_sqlite(&path, b"payload");
+        let size = validate_backup_file(path.to_string_lossy().to_string()).unwrap();
+        assert_eq!(size, 23);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn validate_backup_file_rejects_a_text_file() {
+        let dir = backup_dir("validate-text");
+        let path = dir.join("notes.txt");
+        std::fs::write(&path, b"not a database at all").unwrap();
+        let error = validate_backup_file(path.to_string_lossy().to_string()).unwrap_err();
+        assert!(error.contains("SQLite"), "{error}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn validate_backup_file_rejects_a_missing_file() {
+        let path = std::env::temp_dir().join("kindclip-t5-definitely-missing.db");
+        let error = validate_backup_file(path.to_string_lossy().to_string()).unwrap_err();
+        assert!(error.contains("cannot read file"), "{error}");
+    }
+
+    #[test]
+    fn clear_backup_target_removes_an_existing_file() {
+        let dir = backup_dir("clear-existing");
+        let path = dir.join("backup.db");
+        std::fs::write(&path, b"old").unwrap();
+        clear_backup_target(path.to_string_lossy().to_string()).unwrap();
+        assert!(!path.exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn clear_backup_target_accepts_a_missing_file() {
+        let dir = backup_dir("clear-missing");
+        let path = dir.join("backup.db");
+        clear_backup_target(path.to_string_lossy().to_string()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_copies_the_snapshot_and_keeps_the_previous_database() {
+        let dir = backup_dir("restore-ok");
+        let db = dir.join("kindclip.db");
+        let backup = dir.join("backup.db");
+        std::fs::write(&db, b"old database").unwrap();
+        // Stale sidecars from the replaced file must never reach the new one.
+        std::fs::write(dir.join("kindclip.db-wal"), b"wal").unwrap();
+        std::fs::write(dir.join("kindclip.db-shm"), b"shm").unwrap();
+        std::fs::write(dir.join("kindclip.db-journal"), b"journal").unwrap();
+        write_sqlite(&backup, b"new database");
+
+        let safety = restore_database_at(&backup, &db).unwrap();
+
+        assert_eq!(std::fs::read(&db).unwrap(), sqlite_bytes(b"new database"));
+        assert_eq!(std::fs::read(&safety).unwrap(), b"old database");
+        assert!(safety
+            .to_string_lossy()
+            .ends_with("kindclip.db.before-restore"));
+        assert!(!dir.join("kindclip.db-wal").exists());
+        assert!(!dir.join("kindclip.db-shm").exists());
+        assert!(!dir.join("kindclip.db-journal").exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_rejects_a_non_sqlite_backup_without_touching_the_database() {
+        let dir = backup_dir("restore-invalid");
+        let db = dir.join("kindclip.db");
+        let backup = dir.join("backup.db");
+        std::fs::write(&db, b"old database").unwrap();
+        std::fs::write(&backup, b"not a database").unwrap();
+
+        let error = restore_database_at(&backup, &db).unwrap_err();
+
+        assert!(error.contains("SQLite"), "{error}");
+        assert_eq!(std::fs::read(&db).unwrap(), b"old database");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_refuses_the_live_database_as_its_own_backup() {
+        let dir = backup_dir("restore-self");
+        let db = dir.join("kindclip.db");
+        write_sqlite(&db, b"only copy");
+
+        let error = restore_database_at(&db, &db).unwrap_err();
+
+        assert!(error.contains("live database"), "{error}");
+        assert_eq!(std::fs::read(&db).unwrap(), sqlite_bytes(b"only copy"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_accepts_the_safety_copy_as_the_backup() {
+        let dir = backup_dir("restore-safety-source");
+        let db = dir.join("kindclip.db");
+        let safety = dir.join("kindclip.db.before-restore");
+        std::fs::write(&db, b"current database").unwrap();
+        write_sqlite(&safety, b"previous database");
+
+        let kept = restore_database_at(&safety, &db).unwrap();
+
+        assert_eq!(
+            std::fs::read(&db).unwrap(),
+            sqlite_bytes(b"previous database")
+        );
+        assert_eq!(std::fs::read(&kept).unwrap(), b"current database");
+        assert!(!dir.join("kindclip.db.restore-source").exists());
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
