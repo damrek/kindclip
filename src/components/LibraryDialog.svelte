@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { focusOnMount, trapFocus } from "../lib/focus";
   import { filterBooks } from "../lib/library";
   import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
   import type { Book } from "../lib/types";
@@ -262,6 +263,8 @@
     aria-modal="true"
     aria-label={i18n.t("library.title")}
     tabindex="-1"
+    use:focusOnMount
+    use:trapFocus
     class="relative flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900"
   >
     <div class="flex items-start justify-between gap-4">

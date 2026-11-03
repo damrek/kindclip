@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { getContext } from "svelte";
+  import { getContext, tick } from "svelte";
   import Icon from "./Icon.svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import type { TagCount } from "../lib/db";
   import type { ClippingKind } from "../lib/types";
 
   interface Props {
+    /** Controlled by App so Escape closes one layer in order. */
+    open?: boolean;
     kinds: ClippingKind[];
     favoritesOnly: boolean;
     editedOnly: boolean;
@@ -18,7 +20,8 @@
     onClear: () => void;
   }
 
-  const {
+  let {
+    open = $bindable(false),
     kinds,
     favoritesOnly,
     editedOnly,
@@ -34,7 +37,23 @@
 
   const KIND_OPTIONS: ClippingKind[] = ["highlight", "note", "bookmark"];
 
-  let open = $state(false);
+  let trigger = $state<HTMLButtonElement | null>(null);
+  let panel = $state<HTMLElement | null>(null);
+  let wasOpen = false;
+
+  // Keyboard-first: the panel takes focus when opened (f) and the trigger
+  // gets it back when Escape or a click closes the menu.
+  $effect(() => {
+    if (open === wasOpen) return;
+    wasOpen = open;
+    void tick().then(() => {
+      if (open) {
+        panel?.focus();
+      } else {
+        trigger?.focus();
+      }
+    });
+  });
 
   const activeCount = $derived(
     kinds.length + (favoritesOnly ? 1 : 0) + (editedOnly ? 1 : 0) + tagIds.length,
@@ -52,17 +71,12 @@
     onClear();
     close();
   }
-
-  function onKeydown(event: KeyboardEvent): void {
-    if (open && event.key === "Escape") close();
-  }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <div class="relative">
   <button
     type="button"
+    bind:this={trigger}
     onclick={toggleMenu}
     aria-expanded={open}
     aria-haspopup="dialog"
@@ -92,6 +106,8 @@
     <div
       role="dialog"
       aria-label={i18n.t("filters.title")}
+      tabindex="-1"
+      bind:this={panel}
       class="absolute right-0 z-20 mt-1 max-h-[70vh] w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 shadow-lg outline-none dark:border-neutral-700 dark:bg-neutral-900"
     >
       <p class="px-2 pt-1 pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">

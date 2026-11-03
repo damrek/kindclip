@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { selectOnInteraction } from "../lib/focus";
   import { formatAddedOn, formatReference, tagOverflow } from "../lib/library";
   import type { ClippingKind, ClippingRow, Tag } from "../lib/types";
   import HighlightedText from "./HighlightedText.svelte";
@@ -12,6 +13,8 @@
     copied: boolean;
     /** Search query that produced the visible list, for highlight marks. */
     query: string;
+    /** Click or focus inside the card makes it the keyboard selection. */
+    onSelect: (id: number) => void;
     onOpen: (id: number) => void;
     onToggleFavorite: (id: number) => void;
     onCopy: (id: number) => void;
@@ -29,6 +32,7 @@
     allTags,
     copied,
     query,
+    onSelect,
     onOpen,
     onToggleFavorite,
     onCopy,
@@ -113,6 +117,7 @@
   function onTagKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       tagFormOpen = false;
       tagDraft = "";
     }
@@ -136,6 +141,9 @@
 </script>
 
 <article
+  data-clipping-id={clipping.id}
+  tabindex="-1"
+  use:selectOnInteraction={() => onSelect(clipping.id)}
   class="clipping-card rounded-2xl border border-neutral-200 bg-white p-5 transition-colors hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700"
 >
   {#if editing}

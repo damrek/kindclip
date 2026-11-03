@@ -9,6 +9,7 @@
   import PreferencesMenu from "./components/PreferencesMenu.svelte";
   import ReadingView from "./components/ReadingView.svelte";
   import RestoreDialog from "./components/RestoreDialog.svelte";
+  import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
@@ -118,6 +119,15 @@
     type ReadingDirection,
     type ReadingSession,
   } from "./lib/reading";
+  import {
+    isInteractiveTarget,
+    isTypingTarget,
+    resolveShortcut,
+    stepSelection,
+    type SelectionDirection,
+    type ShortcutAction,
+  } from "./lib/shortcuts";
+  import { focusOnMount, trapFocus } from "./lib/focus";
   import type {
     Book,
     ClippingFilter,
@@ -194,11 +204,30 @@
   let readingOpener: HTMLElement | null = null;
   /** Scroller holding the cards; the focus fallback when the opener is gone. */
   let listRegion = $state<HTMLElement | null>(null);
+  /** Card selected with j/k; the target of Enter, * and c. */
+  let selectedId = $state<number | null>(null);
+  let shortcutsOpen = $state(false);
+  /** Controlled so App can close one overlay per Escape. */
+  let filtersOpen = $state(false);
+  let prefsOpen = $state(false);
+  /** Element that opened the current modal; focus returns to it on close. */
+  let modalOpener: HTMLElement | null = null;
   /** Note pending reset confirmation (dialog rendered at app root). */
   let resetTarget = $state<ClippingRow | null>(null);
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
   let themeChoice = $state<ThemeChoice>(loadThemeChoice());
   let fontScale = $state<FontScale>(loadStoredFontScale());
+
+  /** Reading view or a modal: the shell is inert and shortcuts are off. */
+  const modalOpen = $derived(
+    reading !== null ||
+      resetTarget !== null ||
+      exportOpen ||
+      libraryOpen ||
+      restoreOpen ||
+      shortcutsOpen,
+  );
+  const pages = $derived(Math.max(1, Math.ceil((result?.total ?? 0) / pageSize)));
 
   function readStoredFontScale(): string | null {
     try {
@@ -482,6 +511,14 @@
     document.documentElement.lang = locale;
   });
 
+  /** A reload that drops the selected row (page, filter, delete) clears it. */
+  $effect(() => {
+    if (selectedId === null) return;
+    if (result === null || !result.items.some((item) => item.id === selectedId)) {
+      selectedId = null;
+    }
+  });
+
   function selectBook(id: number | null): void {
     bookId = id;
     page = 1;
@@ -509,6 +546,9 @@
   /** Escape clears the query first, then folds the field away. */
   function onSearchKeydown(event: KeyboardEvent): void {
     if (event.key !== "Escape") return;
+    // The window handler closes overlays; the field owns this Escape.
+    event.preventDefault();
+    event.stopPropagation();
     if (query !== "") {
       query = "";
       return;
@@ -711,6 +751,7 @@
 
   /** Open the reset confirmation dialog for a note (rendered at app root). */
   function requestReset(id: number): void {
+    rememberOpener();
     resetTarget = result?.items.find((item) => item.id === id) ?? null;
   }
 
@@ -760,6 +801,194 @@
     const target =
       !pageChanged && opener !== null && opener.isConnected ? opener : listRegion;
     target?.focus();
+  }
+
+  /** Remember where focus was before a modal opened. */
+  function rememberOpener(): void {
+    modalOpener =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+
+  /** Give focus back once the modal unmounted and the shell is not inert. */
+  function restoreOpener(): void {
+    const opener = modalOpener;
+    modalOpener = null;
+    void tick().then(() => {
+      const target = opener !== null && opener.isConnected ? opener : listRegion;
+      target?.focus();
+    });
+  }
+
+  function openShortcuts(): void {
+    if (shortcutsOpen) return;
+    rememberOpener();
+    shortcutsOpen = true;
+  }
+
+  function closeShortcuts(): void {
+    if (!shortcutsOpen) return;
+    shortcutsOpen = false;
+    restoreOpener();
+  }
+
+  function closeReset(): void {
+    if (resetTarget === null) return;
+    resetTarget = null;
+    restoreOpener();
+  }
+
+  function closeExport(): void {
+    if (!exportOpen) return;
+    exportOpen = false;
+    restoreOpener();
+  }
+
+  function closeLibrary(): void {
+    if (!libraryOpen) return;
+    libraryOpen = false;
+    restoreOpener();
+  }
+
+  /** Focus a visible card so it becomes the j/k, Enter, * and c target. */
+  async function moveSelection(direction: SelectionDirection): Promise<void> {
+    const next = stepSelection(result?.items ?? [], selectedId, direction);
+    if (next === null) return;
+    selectedId = next;
+    await tick();
+    listRegion
+      ?.querySelector<HTMLElement>(`[data-clipping-id="${next}"]`)
+      ?.focus();
+  }
+
+  function stepPage(direction: "next" | "prev"): void {
+    const next = direction === "next" ? page + 1 : page - 1;
+    if (next < 1 || next > pages) return;
+    page = next;
+    selectedId = null;
+  }
+
+  function runShortcut(action: ShortcutAction): void {
+    switch (action) {
+      case "focus-search":
+        void openSearch();
+        break;
+      case "open-help":
+        openShortcuts();
+        break;
+      case "toggle-sidebar":
+        toggleSidebar();
+        break;
+      case "open-filters":
+        filtersOpen = true;
+        break;
+      case "open-preferences":
+        prefsOpen = true;
+        break;
+      case "next-clipping":
+        void moveSelection("next");
+        break;
+      case "prev-clipping":
+        void moveSelection("prev");
+        break;
+      case "open-clipping":
+        if (selectedId !== null) startReading(selectedId);
+        break;
+      case "toggle-favorite":
+        if (selectedId !== null) void toggleStar(selectedId);
+        break;
+      case "copy-clipping":
+        if (selectedId !== null) void copyContent(selectedId);
+        break;
+      case "next-page":
+        stepPage("next");
+        break;
+      case "prev-page":
+        stepPage("prev");
+        break;
+    }
+  }
+
+  /** One window listener: Escape closes one layer, everything else resolves. */
+  function onWindowKeydown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) return;
+
+    if (event.key === "Escape") {
+      // The reading view owns its own Escape and arrows.
+      if (reading !== null) return;
+      if (shortcutsOpen) {
+        event.preventDefault();
+        closeShortcuts();
+        return;
+      }
+      if (resetTarget !== null) {
+        event.preventDefault();
+        closeReset();
+        return;
+      }
+      if (exportOpen) {
+        event.preventDefault();
+        if (!exporting) closeExport();
+        return;
+      }
+      if (libraryOpen) {
+        event.preventDefault();
+        if (!libraryBusy) closeLibrary();
+        return;
+      }
+      if (restoreOpen) {
+        event.preventDefault();
+        if (!restoreBusy) closeRestore();
+        return;
+      }
+      if (filtersOpen) {
+        event.preventDefault();
+        filtersOpen = false;
+        return;
+      }
+      if (prefsOpen) {
+        event.preventDefault();
+        prefsOpen = false;
+        return;
+      }
+      if (query !== "") {
+        event.preventDefault();
+        query = "";
+        return;
+      }
+      if (searchExpanded) {
+        event.preventDefault();
+        searchExpanded = false;
+        return;
+      }
+      if (selectedId !== null) {
+        event.preventDefault();
+        selectedId = null;
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      }
+      return;
+    }
+
+    // ? toggles the help it opened.
+    if (shortcutsOpen && event.key === "?") {
+      event.preventDefault();
+      closeShortcuts();
+      return;
+    }
+
+    const target = event.target instanceof Element ? event.target : null;
+    const action = resolveShortcut(event, {
+      typing: isTypingTarget(target),
+      interactive: isInteractiveTarget(target),
+      overlay: modalOpen || filtersOpen || prefsOpen,
+      hasLibrary,
+      hasResults: (result?.items.length ?? 0) > 0,
+      hasSelection: selectedId !== null,
+      canPrevPage: page > 1,
+      canNextPage: page < pages,
+    });
+    if (action === null) return;
+    event.preventDefault();
+    runShortcut(action);
   }
 
   /** Step one row; fetch the adjacent page only when the window runs out. */
@@ -857,6 +1086,7 @@
   /** Open the export dialog from the header (clears the previous outcome). */
   function openExport(): void {
     if (!result || result.total === 0) return;
+    rememberOpener();
     exportStatus = null;
     exportOpen = true;
   }
@@ -891,7 +1121,7 @@
       if (path === null) return; // Cancelled: the dialog stays open.
       await invoke("write_export_file", { path, contents: text });
       exportStatus = t("export.done", { count: rows.length, file: fileName });
-      exportOpen = false;
+      closeExport();
     } catch (error) {
       exportStatus = t("export.error", {
         message: error instanceof Error ? error.message : String(error),
@@ -966,6 +1196,7 @@
   /** Pick a snapshot, open it apart from the live DB and show what it holds. */
   async function onRestoreRequest(): Promise<void> {
     if (restoreBusy || backingUp) return;
+    rememberOpener();
 
     let selected: string | null = null;
     try {
@@ -1017,6 +1248,7 @@
     restoreRequest += 1;
     restoreOpen = false;
     restoreChecking = false;
+    restoreOpener();
   }
 
   /** Close the pool, replace the database file and let Rust restart the app. */
@@ -1057,6 +1289,7 @@
   }
 
   async function openLibrary(): Promise<void> {
+    rememberOpener();
     libraryStatus = null;
     libraryError = null;
     libraryOpen = true;
@@ -1299,7 +1532,7 @@
   });
 </script>
 
-<div class="flex h-full flex-col" inert={reading !== null}>
+<div class="flex h-full flex-col" inert={modalOpen}>
   <header
     class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"
   >
@@ -1362,6 +1595,7 @@
         {importing ? t("header.importing") : t("header.import")}
       </button>
       <PreferencesMenu
+        bind:open={prefsOpen}
         locale={locale}
         theme={themeChoice}
         font={fontScale}
@@ -1374,6 +1608,7 @@
         onOpenDb={onOpenDbLocation}
         onBackup={onBackup}
         onRestore={onRestoreRequest}
+        onShortcuts={openShortcuts}
       />
     </div>
   </header>
@@ -1484,6 +1719,7 @@
           </div>
 
           <FilterMenu
+            bind:open={filtersOpen}
             {kinds}
             {favoritesOnly}
             {editedOnly}
@@ -1556,6 +1792,7 @@
                 {allTags}
                 copied={clipping.id === copiedId}
                 query={resultFilter.query}
+                onSelect={(id) => (selectedId = id)}
                 onOpen={startReading}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
@@ -1607,14 +1844,7 @@
   {/if}
 </div>
 
-<svelte:window
-  onkeydown={(event) => {
-    if (resetTarget && event.key === "Escape") resetTarget = null;
-    if (exportOpen && !exporting && event.key === "Escape") exportOpen = false;
-    if (libraryOpen && !libraryBusy && event.key === "Escape") libraryOpen = false;
-    if (restoreOpen && !restoreBusy && event.key === "Escape") closeRestore();
-  }}
-/>
+<svelte:window onkeydown={onWindowKeydown} />
 
 {#if reading && readingClipping}
   <ReadingView
@@ -1637,7 +1867,7 @@
     <button
       type="button"
       aria-label={t("card.cancel")}
-      onclick={() => (resetTarget = null)}
+      onclick={closeReset}
       class="absolute inset-0 cursor-default bg-black/50"
     ></button>
     <div
@@ -1645,6 +1875,8 @@
       aria-modal="true"
       aria-label={t("card.reset")}
       tabindex={-1}
+      use:focusOnMount
+      use:trapFocus
       class="relative w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900"
     >
       <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
@@ -1667,7 +1899,7 @@
       <div class="mt-4 flex items-center justify-end gap-2">
         <button
           type="button"
-          onclick={() => (resetTarget = null)}
+          onclick={closeReset}
           class="rounded-full border border-neutral-200 px-3.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
         >
           {t("card.cancel")}
@@ -1689,7 +1921,7 @@
     count={result?.total ?? 0}
     scope={exportScope}
     busy={exporting}
-    onClose={() => (exportOpen = false)}
+    onClose={closeExport}
     onExport={onExport}
   />
 {/if}
@@ -1702,7 +1934,7 @@
     busy={libraryBusy}
     status={libraryStatus}
     error={libraryError}
-    onClose={() => (libraryOpen = false)}
+    onClose={closeLibrary}
     onRename={libraryRename}
     onMerge={libraryMerge}
     onDeleteBook={libraryDeleteBook}
@@ -1723,4 +1955,8 @@
     onClose={closeRestore}
     onConfirm={confirmRestore}
   />
+{/if}
+
+{#if shortcutsOpen}
+  <ShortcutsDialog onClose={closeShortcuts} />
 {/if}
