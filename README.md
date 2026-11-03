@@ -32,6 +32,9 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
    whole filtered list, Esc closes and keeps your place.
 6. **Manage library** (header icon) → rename/merge books, delete a book, or
    undo a single bad import without wiping the database.
+7. **Back up** (⋯ menu → Data) → save a snapshot of `kindclip.db`;
+   **Restore from a backup** brings your tags, favorites and edited notes back,
+   on a fresh install too.
 
 ## Features
 
@@ -68,7 +71,13 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 - **Export** filtered view to Markdown, JSON, CSV — one file grouped by book,
   favorites/tags marked, labels in app language; JSON/CSV use stable English
   fields (original + edited notes, tags) for scripting.
-- **Open database location** (⋯ menu) reveals `kindclip.db` in file manager.
+- **Backup & restore** (⋯ → Data): save a consistent snapshot of `kindclip.db`
+  (default `kindclip-backup-YYYY-MM-DD.db`) and restore it on any install. The
+  picked file is verified — real SQLite, kindclip tables, no failed migrations —
+  and its contents are shown before replacing anything. The previous database
+  is kept as `kindclip.db.before-restore` and the app restarts; older snapshots
+  migrate on launch, snapshots from a newer version are refused.
+- **Open database location** (⋯ → Data) reveals `kindclip.db` in file manager.
 
 ### UI & Accessibility
 - **Collapsible shell**: sidebar toggle (remembered), search collapses to icon
@@ -114,6 +123,7 @@ version, checks, tests, attaches bundles for macOS (ARM+Intel), Linux, Windows.
 src/                        # Svelte 5 + Tailwind v4 frontend
   lib/
     db.ts                   # SQL port (plugin-sql): queries + import orchestration
+    backup.ts               # Snapshot naming, validation, restore handoff
     exporter.ts             # Export serializers: Markdown/JSON/CSV
     importer.ts             # Import flow: pick → parse → persist
     i18n.ts                 # es/en/fr/de/it dictionaries
@@ -125,7 +135,7 @@ src/                        # Svelte 5 + Tailwind v4 frontend
 src-tauri/
   src/
     lib.rs                  # Migrations + plugin/command registration
-    commands.rs             # parse_clippings_file, db_file_path, write_export_file
+    commands.rs             # parse_clippings_file, db_file_path, write_export_file, restore_database_file
   migrations/               # 001 init … 005 search folding
   capabilities/             # Least-privilege (sql, dialog, clipboard, opener)
 crates/clippings-parser/    # Pure My Clippings.txt parser (no Tauri deps)
@@ -143,6 +153,9 @@ Resolved to standard per-OS config dir (`identifier: app.kindclip`):
 
 Delete the file to wipe library + note edits and re-import from scratch.  
 Or use **Manage library** / **⋯ → Open database location** for granular actions.  
+A restore keeps the replaced file as `kindclip.db.before-restore` next to it, so
+an unwanted restore can be undone by hand while the app is closed.  
+
 Quick count:
 ```bash
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
@@ -154,8 +167,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus "on this day"
   clippings from previous years.
-- **Backup & restore**: export and import a snapshot of `kindclip.db` so tags,
-  favorites and edited notes survive a reinstall.
 - **Keyboard-first**: shortcuts for search, dialogs and navigation.
 - **Drag & drop import**: drop `My Clippings.txt` anywhere on the window.
 - **Copy as quote**: Markdown citation with book, author and page.

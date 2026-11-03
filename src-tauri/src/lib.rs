@@ -59,7 +59,10 @@ pub fn run() {
             commands::parse_clippings_file,
             commands::db_file_path,
             commands::write_export_file,
-            commands::export_default_path
+            commands::export_default_path,
+            commands::validate_backup_file,
+            commands::clear_backup_target,
+            commands::restore_database_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running kindclip");
