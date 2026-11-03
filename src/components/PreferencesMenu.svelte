@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getContext } from "svelte";
+  import { getContext, tick } from "svelte";
   import { getVersion } from "@tauri-apps/api/app";
   import Icon from "./Icon.svelte";
   import {
@@ -13,6 +13,8 @@
   import { FONT_SCALES, type FontScale } from "../lib/font";
 
   interface Props {
+    /** Controlled by App so Escape closes one layer in order. */
+    open?: boolean;
     locale: Locale;
     theme: ThemeChoice;
     font: FontScale;
@@ -25,9 +27,11 @@
     onOpenDb: () => void;
     onBackup: () => void;
     onRestore: () => void;
+    onShortcuts: () => void;
   }
 
-  const {
+  let {
+    open = $bindable(false),
     locale,
     theme,
     font,
@@ -40,11 +44,28 @@
     onOpenDb,
     onBackup,
     onRestore,
+    onShortcuts,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
-  let open = $state(false);
   let version = $state<string | null>(null);
+  let trigger = $state<HTMLButtonElement | null>(null);
+  let panel = $state<HTMLElement | null>(null);
+  let wasOpen = false;
+
+  // Keyboard-first: the panel takes focus when opened and the trigger gets it
+  // back when Escape or a click closes the menu.
+  $effect(() => {
+    if (open === wasOpen) return;
+    wasOpen = open;
+    void tick().then(() => {
+      if (open) {
+        panel?.focus();
+      } else {
+        trigger?.focus();
+      }
+    });
+  });
 
   $effect(() => {
     getVersion()
@@ -64,10 +85,6 @@
     open = false;
   }
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (open && event.key === "Escape") close();
-  }
-
   function openDb(): void {
     close();
     onOpenDb();
@@ -77,13 +94,17 @@
     close();
     onRestore();
   }
-</script>
 
-<svelte:window onkeydown={onKeydown} />
+  function startShortcuts(): void {
+    close();
+    onShortcuts();
+  }
+</script>
 
 <div class="relative">
   <button
     type="button"
+    bind:this={trigger}
     onclick={toggleMenu}
     aria-expanded={open}
     aria-haspopup="dialog"
@@ -105,6 +126,8 @@
     <div
       role="dialog"
       aria-label={i18n.t("prefs.title")}
+      tabindex="-1"
+      bind:this={panel}
       class="absolute right-0 z-20 mt-1 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-neutral-200 bg-white p-3 shadow-lg outline-none dark:border-neutral-700 dark:bg-neutral-900"
     >
       <p class="pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
@@ -205,6 +228,22 @@
             {backupStatus}
           </p>
         {/if}
+      </div>
+
+      <div class="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+        <button
+          type="button"
+          onclick={startShortcuts}
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <Icon name="keyboard" />
+          <span class="min-w-0 flex-1 truncate">{i18n.t("shortcuts.open")}</span>
+          <kbd
+            class="rounded border border-neutral-200 px-1 text-[10px] font-medium text-neutral-400 dark:border-neutral-700 dark:text-neutral-500"
+          >
+            ?
+          </kbd>
+        </button>
       </div>
 
       {#if version}

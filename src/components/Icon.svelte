@@ -11,7 +11,8 @@
     | "backup"
     | "restore"
     | "close"
-    | "expand";
+    | "expand"
+    | "keyboard";
 
   interface Props {
     name: IconName;
@@ -34,6 +35,14 @@
     restore: ["M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5"],
     close: ["M6 6l12 12", "M18 6L6 18"],
     expand: ["M15 3h6v6", "M9 21H3v-6", "M21 3l-7 7", "M3 21l7-7"],
+    keyboard: [
+      "M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z",
+      "M6 10h.01",
+      "M10 10h.01",
+      "M14 10h.01",
+      "M18 10h.01",
+      "M8 14h8",
+    ],
   };
 </script>
 

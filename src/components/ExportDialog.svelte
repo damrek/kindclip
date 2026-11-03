@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { focusOnMount, trapFocus } from "../lib/focus";
   import type { ExportFormat } from "../lib/exporter";
 
   interface Props {
@@ -40,6 +41,8 @@
     aria-modal="true"
     aria-label={i18n.t("export.title")}
     tabindex="-1"
+    use:focusOnMount
+    use:trapFocus
     class="relative w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900"
   >
     <h2 class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
