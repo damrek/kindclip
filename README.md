@@ -35,6 +35,9 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 7. **Back up** (⋯ menu → Data) → save a snapshot of `kindclip.db`;
    **Restore from a backup** brings your tags, favorites and edited notes back,
    on a fresh install too.
+8. **Keyboard** → press `?` for the full shortcut list. `/` or `Ctrl/Cmd+K`
+   focuses search, `j`/`k` (or ↑/↓) walk the list, `Enter` opens the reading
+   view, `Esc` closes one layer at a time, and typing fields are never hijacked.
 
 ## Features
 
@@ -83,7 +86,14 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 - **Collapsible shell**: sidebar toggle (remembered), search collapses to icon
   until clicked or has text.
 - **Grouped header**: sidebar toggle, Import, Export, Manage library, ⋯ menu
-  (Preferences: language, system/light/dark theme, text size S/M/L, DB location).
+  (Preferences: language, system/light/dark theme, text size S/M/L, DB location,
+  keyboard shortcuts).
+- **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
+  `Ctrl/Cmd+F` focus search; `j`/`k` (or ↑/↓) move the selection, `Enter` opens
+  the reading view, `*` favorites, `c` copies, `s`/`f` toggle the sidebar and
+  filters, `n`/`p` (or PageDown/PageUp) page, `Ctrl/Cmd+,` opens preferences.
+  `Esc` closes exactly one layer at a time — dialogs, menus, filters, folded
+  search, then selection — and typing fields are never hijacked.
 - **5 languages** (es/en/fr/de/it, Spanish default).
 - Bundled **Inter** font, custom icons, minimal macOS-style UI over native frame.
 
@@ -167,7 +177,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus "on this day"
   clippings from previous years.
-- **Keyboard-first**: shortcuts for search, dialogs and navigation.
 - **Drag & drop import**: drop `My Clippings.txt` anywhere on the window.
 - **Copy as quote**: Markdown citation with book, author and page.
 - **Note ↔ highlight pairing**: show a note next to the highlight it belongs to.
