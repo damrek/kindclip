@@ -2,8 +2,8 @@
 
 Desktop viewer for your Kindle highlights. Import `My Clippings.txt`, search
 by text, book or author, page through results, star favorites, tag clippings,
-edit notes and export to Markdown, JSON or CSV. Native look, tiny binaries,
-on Windows, Linux and macOS.
+edit notes, export to Markdown, JSON or CSV, and see your reading stats.
+Native look, tiny binaries, on Windows, Linux and macOS.
 
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)
 ![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
@@ -36,7 +36,9 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 7. **Back up** (⋯ menu → Data) → save a snapshot of `kindclip.db`;
    **Restore from a backup** brings your tags, favorites and edited notes back,
    on a fresh install too.
-8. **Keyboard** → press `?` for the full shortcut list. `/` or `Ctrl/Cmd+K`
+8. **Stats** (chart icon) → clippings per year, per kind and per book for the
+   whole library, with totals.
+9. **Keyboard** → press `?` for the full shortcut list. `/` or `Ctrl/Cmd+K`
    focuses search, `j`/`k` (or ↑/↓) walk the list, `Enter` opens the reading
    view, `Esc` closes one layer at a time, and typing fields are never hijacked.
 
@@ -62,6 +64,8 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
   delete book + clippings, list imported files to undo one import. Destructive
   actions confirm; re-importing the same file restores its clippings, but
   favorites, tags and edited notes are not recoverable.
+- **Reading stats** (header chart icon): library-wide totals and clippings per
+  year, kind and top book, with undated clippings grouped as “no date”.
 
 ### Search & Filter
 - **Unified Filters menu** (badged count, removable chips, Clear all): full-text
@@ -139,6 +143,7 @@ src/                        # Svelte 5 + Tailwind v4 frontend
     backup.ts               # Snapshot naming, validation, restore handoff
     exporter.ts             # Export serializers: Markdown/JSON/CSV
     importer.ts             # Import flow: pick → parse → persist
+    stats.ts                # Reading stats: year, kind and book aggregates
     i18n.ts                 # es/en/fr/de/it dictionaries
     theme.ts                # system/light/dark theme
     types.ts                # Shared frontend/backend contracts
@@ -183,7 +188,6 @@ Planned, no dates attached:
 - **Copy as quote**: Markdown citation with book, author and page.
 - **Note ↔ highlight pairing**: show a note next to the highlight it belongs to.
 - **Bulk actions**: tag, favorite or export a selection.
-- **Reading stats**: clippings per year, book and kind.
 - **Desktop polish**: auto-update, remembered window size and diagnostic logs.
 
 The layered architecture (parser → commands → SQL → UI) keeps additions local.

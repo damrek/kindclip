@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { importParsedClippings, buildListQuery, type DbPort } from "./db";
+import { loadReadingStats, TOP_BOOKS } from "./stats";
 import type { ClippingDto } from "./types";
 
 /** Applied in order, exactly like tauri-plugin-sql does at startup. */
@@ -218,6 +219,113 @@ describe("multi-word search against real SQLite", () => {
       "both-content",
       "title-and-author",
       "title-and-content",
+    ]);
+  });
+});
+
+describe("reading stats against real SQLite", () => {
+  async function seed(port: SqlitePort): Promise<void> {
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-stats",
+        skipped: 0,
+        clippings: [
+          clipping({
+            title: "Meditations",
+            author: "Marcus",
+            added_on: "2020-01-06T10:15:00",
+            content_hash: "stats-1",
+          }),
+          clipping({
+            title: "Meditations",
+            author: "Marcus",
+            added_on: "2021-03-02T10:15:00",
+            content_hash: "stats-2",
+          }),
+          clipping({
+            title: "Meditations",
+            author: "Marcus",
+            kind: "note",
+            added_on: "2021-05-05T10:15:00",
+            content_hash: "stats-3",
+          }),
+          clipping({
+            title: "Other",
+            author: null,
+            kind: "bookmark",
+            added_on: "2021-06-01T10:15:00",
+            content_hash: "stats-4",
+          }),
+          clipping({
+            title: "Other",
+            author: null,
+            added_on: null,
+            content_hash: "stats-5",
+          }),
+        ],
+      },
+      () => {},
+    );
+  }
+
+  it("groups clippings by year, kind and book, with undated clippings last", async () => {
+    const port = new SqlitePort();
+    await seed(port);
+
+    const stats = await loadReadingStats(port);
+
+    expect(stats.total).toBe(5);
+    expect(stats.bookCount).toBe(2);
+    expect(stats.years).toEqual([
+      { year: "2021", count: 3 },
+      { year: "2020", count: 1 },
+      { year: null, count: 1 },
+    ]);
+    expect(stats.kinds).toEqual([
+      { kind: "highlight", count: 3 },
+      { kind: "bookmark", count: 1 },
+      { kind: "note", count: 1 },
+    ]);
+    expect(stats.books).toEqual([
+      { title: "Meditations", author: "Marcus", count: 3 },
+      { title: "Other", author: null, count: 2 },
+    ]);
+  });
+
+  it("keeps the book list bounded and breaks ties by title", async () => {
+    const port = new SqlitePort();
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-many-books",
+        skipped: 0,
+        clippings: Array.from({ length: 10 }, (_, index) =>
+          clipping({
+            title: `Book ${String(index).padStart(2, "0")}`,
+            author: null,
+            added_on: "2022-01-01T00:00:00",
+            content_hash: `many-${index}`,
+          }),
+        ),
+      },
+      () => {},
+    );
+
+    const stats = await loadReadingStats(port);
+
+    expect(stats.books).toHaveLength(TOP_BOOKS);
+    expect(stats.books.map((book) => book.title)).toEqual([
+      "Book 00",
+      "Book 01",
+      "Book 02",
+      "Book 03",
+      "Book 04",
+      "Book 05",
+      "Book 06",
+      "Book 07",
     ]);
   });
 });
