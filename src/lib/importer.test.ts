@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runImportFlow, type ImportDeps } from "./importer";
+import { pickDroppedFile, runImportFlow, runImportFromPath, type ImportDeps } from "./importer";
 import type { ClippingDto } from "./types";
 import type { DbPort } from "./db";
 
@@ -98,5 +98,58 @@ describe("runImportFlow", () => {
       getPort: async () => fakePort(),
     };
     await expect(runImportFlow(deps, () => {})).rejects.toThrow("cannot read file");
+  });
+});
+
+describe("runImportFromPath", () => {
+  it("imports the given path without opening the picker", async () => {
+    const picked: string[] = [];
+    const deps: ImportDeps = {
+      pickFile: async () => {
+        picked.push("picker");
+        return null;
+      },
+      parseFile: async (path) => ({ path, fileHash: "h", clippings: [dto("a")], skipped: 0 }),
+      getPort: async () => fakePort(),
+    };
+    const outcome = await runImportFromPath(deps, "/tmp/dropped.txt", () => {});
+    expect(outcome.status).toBe("done");
+    if (outcome.status === "done") {
+      expect(outcome.report.inserted).toBe(1);
+    }
+    expect(picked).toEqual([]);
+  });
+
+  it("reports an empty dropped file with its path", async () => {
+    const deps: ImportDeps = {
+      pickFile: async () => null,
+      parseFile: async (path) => ({ path, fileHash: "h", clippings: [], skipped: 4 }),
+      getPort: async () => fakePort(),
+    };
+    await expect(runImportFromPath(deps, "/tmp/dropped.txt", () => {})).resolves.toEqual({
+      status: "empty",
+      path: "/tmp/dropped.txt",
+      skipped: 4,
+    });
+  });
+});
+
+describe("pickDroppedFile", () => {
+  it("returns the first .txt path, ignoring other files", () => {
+    expect(
+      pickDroppedFile(["/tmp/cover.jpg", "/tmp/My Clippings.txt", "/tmp/other.txt"]),
+    ).toBe("/tmp/My Clippings.txt");
+  });
+
+  it("matches the .txt extension case-insensitively", () => {
+    expect(pickDroppedFile(["/tmp/My Clippings.TXT"])).toBe("/tmp/My Clippings.TXT");
+  });
+
+  it("returns null when the drop carries no text file", () => {
+    expect(pickDroppedFile(["/tmp/cover.jpg", "/tmp/notes.md"])).toBeNull();
+  });
+
+  it("returns null for an empty drop", () => {
+    expect(pickDroppedFile([])).toBeNull();
   });
 });
