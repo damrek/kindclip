@@ -32,6 +32,15 @@ export async function runImportFlow(
   if (path === null) {
     return { status: "cancelled" };
   }
+  return runImportFromPath(deps, path, onProgress);
+}
+
+/** Import one known path (dropped file, or the picker's choice). */
+export async function runImportFromPath(
+  deps: ImportDeps,
+  path: string,
+  onProgress: (done: number, total: number) => void,
+): Promise<ImportOutcome> {
   const parsed = await deps.parseFile(path);
   if (parsed.clippings.length === 0) {
     return { status: "empty", path, skipped: parsed.skipped };
@@ -43,6 +52,11 @@ export async function runImportFlow(
     onProgress,
   );
   return { status: "done", report };
+}
+
+/** First dropped `.txt` path, or null when the drop carries none. */
+export function pickDroppedFile(paths: readonly string[]): string | null {
+  return paths.find((path) => path.toLowerCase().endsWith(".txt")) ?? null;
 }
 
 /** Production deps backed by the Tauri runtime (dialog + Rust command). */

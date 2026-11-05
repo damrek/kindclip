@@ -14,6 +14,7 @@
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
   import {
     I18N_CONTEXT_KEY,
@@ -75,7 +76,7 @@
     type StoredFilterState,
     type TagCount,
   } from "./lib/db";
-  import { runImportFlow, tauriImportDeps } from "./lib/importer";
+  import { runImportFlow, pickDroppedFile, runImportFromPath, tauriImportDeps, type ImportDeps, type ImportOutcome } from "./lib/importer";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
     BACKUP_EXTENSION,
@@ -172,6 +173,8 @@
   let pageSize = $state(20);
 
   let importing = $state(false);
+  /** Files are being dragged over the window (native Tauri drag & drop). */
+  let dragActive = $state(false);
   let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
   let exportOpen = $state(false);
@@ -1086,12 +1089,22 @@
     selectBook(null);
   }
 
+  type ImportRunner = (
+    deps: ImportDeps,
+    onProgress: (done: number, total: number) => void,
+  ) => Promise<ImportOutcome>;
+
   async function onImport(): Promise<void> {
+    await performImport(runImportFlow);
+  }
+
+  /** S1: one import run for both the picker and a native file drop. */
+  async function performImport(run: ImportRunner): Promise<void> {
     if (importing) return;
     importing = true;
     importStatus = t("import.reading");
     try {
-      const outcome = await runImportFlow(tauriImportDeps(), (done, total) => {
+      const outcome = await run(tauriImportDeps(), (done, total) => {
         importStatus = t("import.progress", { done, total });
       });
       if (outcome.status === "cancelled") {
@@ -1132,6 +1145,47 @@
       importing = false;
     }
   }
+
+  /** S1: a native file drop imports the first `.txt` it carries. */
+  function onDropPaths(paths: string[]): void {
+    if (importing || modalOpen) return;
+    const path = pickDroppedFile(paths);
+    if (path === null) {
+      importStatus = t("import.notTxt");
+      return;
+    }
+    void performImport((deps, onProgress) => runImportFromPath(deps, path, onProgress));
+  }
+
+  // Native drag & drop: Tauri intercepts the OS drag before the webview, so
+  // the overlay is pure feedback — the paths arrive in the drop payload.
+  $effect(() => {
+    let unlisten: (() => void) | null = null;
+    let disposed = false;
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const payload = event.payload;
+        if (payload.type === "enter") {
+          dragActive = !modalOpen && !importing;
+        } else if (payload.type === "leave") {
+          dragActive = false;
+        } else if (payload.type === "drop") {
+          dragActive = false;
+          onDropPaths(payload.paths);
+        }
+      })
+      .then((stop) => {
+        if (disposed) stop();
+        else unlisten = stop;
+      })
+      .catch(() => {
+        // Plain browser (no Tauri bridge): the native drop is unavailable.
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  });
 
   /** Open the export dialog from the header (clears the previous outcome). */
   function openExport(): void {
@@ -1905,6 +1959,18 @@
 </div>
 
 <svelte:window onkeydown={onWindowKeydown} />
+
+{#if dragActive}
+  <div class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-8" role="status">
+    <div
+      class="absolute inset-4 rounded-3xl border-2 border-dashed border-amber-400 bg-amber-50/90 dark:border-amber-500 dark:bg-neutral-900/90"
+    ></div>
+    <div class="relative text-center">
+      <p class="text-lg font-medium">{t("drop.title")}</p>
+      <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{t("drop.body")}</p>
+    </div>
+  </div>
+{/if}
 
 {#if reading && readingClipping}
   <ReadingView
