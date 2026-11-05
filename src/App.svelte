@@ -10,6 +10,7 @@
   import ReadingView from "./components/ReadingView.svelte";
   import RestoreDialog from "./components/RestoreDialog.svelte";
   import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
+  import StatsDialog from "./components/StatsDialog.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
   import { open, save } from "@tauri-apps/plugin-dialog";
@@ -136,6 +137,7 @@
     PagedResult,
     Tag,
   } from "./lib/types";
+  import { loadReadingStats, type ReadingStats } from "./lib/stats";
 
   let books = $state<Book[]>([]);
   let allTags = $state<TagCount[]>([]);
@@ -190,6 +192,12 @@
   let libraryFiles = $state<ImportedFile[]>([]);
   let libraryStatus = $state<string | null>(null);
   let libraryError = $state<string | null>(null);
+  let statsOpen = $state(false);
+  let statsLoading = $state(false);
+  let statsData = $state<ReadingStats | null>(null);
+  let statsError = $state<string | null>(null);
+  /** Invalidates an in-flight stats load when the dialog closes or reopens. */
+  let statsRequest = 0;
   let copiedId = $state<number | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Full-window reading session; null when closed. */
@@ -224,6 +232,7 @@
       resetTarget !== null ||
       exportOpen ||
       libraryOpen ||
+      statsOpen ||
       restoreOpen ||
       shortcutsOpen,
   );
@@ -849,6 +858,42 @@
     restoreOpener();
   }
 
+  /** S1: whole-library aggregates, fetched fresh each time the dialog opens. */
+  async function openStats(): Promise<void> {
+    if (statsOpen) return;
+    rememberOpener();
+    statsOpen = true;
+    statsData = null;
+    statsError = null;
+    statsLoading = true;
+    const request = ++statsRequest;
+    try {
+      const data = await loadReadingStats(await getDb());
+      if (request === statsRequest) {
+        statsData = data;
+      }
+    } catch (error) {
+      if (request === statsRequest) {
+        statsError = t("stats.error", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      if (request === statsRequest) {
+        statsLoading = false;
+      }
+    }
+  }
+
+  function closeStats(): void {
+    if (!statsOpen) return;
+    statsRequest += 1;
+    statsOpen = false;
+    statsLoading = false;
+    statsError = null;
+    restoreOpener();
+  }
+
   /** Focus a visible card so it becomes the j/k, Enter, * and c target. */
   async function moveSelection(direction: SelectionDirection): Promise<void> {
     const next = stepSelection(result?.items ?? [], selectedId, direction);
@@ -933,6 +978,11 @@
       if (libraryOpen) {
         event.preventDefault();
         if (!libraryBusy) closeLibrary();
+        return;
+      }
+      if (statsOpen) {
+        event.preventDefault();
+        closeStats();
         return;
       }
       if (restoreOpen) {
@@ -1568,6 +1618,16 @@
       {/if}
       <button
         type="button"
+        onclick={openStats}
+        disabled={!hasLibrary}
+        title={t("stats.open")}
+        aria-label={t("stats.open")}
+        class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        <Icon name="stats" />
+      </button>
+      <button
+        type="button"
         onclick={openLibrary}
         disabled={!hasLibrary}
         title={t("library.open")}
@@ -1859,6 +1919,15 @@
     onPrev={() => void stepReading("prev")}
     onNext={() => void stepReading("next")}
     onClose={closeReading}
+  />
+{/if}
+
+{#if statsOpen}
+  <StatsDialog
+    stats={statsData}
+    loading={statsLoading}
+    error={statsError}
+    onClose={closeStats}
   />
 {/if}
 

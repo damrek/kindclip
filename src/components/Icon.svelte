@@ -12,7 +12,8 @@
     | "restore"
     | "close"
     | "expand"
-    | "keyboard";
+    | "keyboard"
+    | "stats";
 
   interface Props {
     name: IconName;
@@ -43,6 +44,7 @@
       "M18 10h.01",
       "M8 14h8",
     ],
+    stats: ["M3 3v18h18", "M18 17V9", "M13 17V5", "M8 17v-3"],
   };
 </script>
 
