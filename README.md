@@ -24,8 +24,9 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 1. Download an installer from [Releases](https://github.com/damrek/kindclip/releases/latest):
    `.AppImage`/`.deb`/`.rpm` (Linux), `.exe`/`.msi` (Windows), `.dmg` (macOS).
 2. Plug in your Kindle, copy `documents/My Clippings.txt`.
-3. **Import** → pick the file → browse. Re-import anytime: duplicates are
-   detected by hash, failed parses auto-heal.
+3. **Import** → pick the file → browse, or drag `My Clippings.txt` anywhere
+   on the window and drop it. Re-import anytime: duplicates are detected by
+   hash, failed parses auto-heal.
 4. **Export** (header icon) → current filters to Markdown, JSON or CSV,
    grouped by book.
 5. **Read** (⤢ on any card) → full-window reading view; ←/→ move through the
@@ -45,6 +46,8 @@ with active chips, and the ⋯ preferences menu — in dark theme.*
 - **Robust parser**: UTF-8/16 (BOM or mid-file), localized dates (en/es/de/fr/it/pt),
   Highlight/Note/Bookmark kinds — including modern Spanish firmware («Tu resaltado»).
 - **Multi-file library** with content-hash deduplication across imports.
+- **Drag & drop import**: drop `My Clippings.txt` anywhere on the window — same
+  parse, dedupe and progress report as the Import button, no picker needed.
 - **Reading view**: open any clipping full-window and move through the whole
   filtered list with ← / →; Esc closes and keeps your place.
 - **Note editing**: inline rewrite with **Edited** badge, reset to original anytime,
@@ -177,7 +180,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus "on this day"
   clippings from previous years.
-- **Drag & drop import**: drop `My Clippings.txt` anywhere on the window.
 - **Copy as quote**: Markdown citation with book, author and page.
 - **Note ↔ highlight pairing**: show a note next to the highlight it belongs to.
 - **Bulk actions**: tag, favorite or export a selection.
