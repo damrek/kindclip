@@ -77,6 +77,7 @@
     type TagCount,
   } from "./lib/db";
   import { runImportFlow, pickDroppedFile, runImportFromPath, tauriImportDeps, type ImportDeps, type ImportOutcome } from "./lib/importer";
+  import { logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
     BACKUP_EXTENSION,
@@ -365,6 +366,7 @@
       if (request === listRequest) {
         loadError = error instanceof Error ? error.message : String(error);
       }
+      logger.error("list-load", error);
     } finally {
       if (request === listRequest) {
         loading = false;
@@ -383,6 +385,7 @@
       }
     } catch (error) {
       loadError = error instanceof Error ? error.message : String(error);
+      logger.error("books-load", error);
     }
   }
 
@@ -452,8 +455,9 @@
           sortDir,
         });
       }
-    } catch {
+    } catch (error) {
       // Non-fatal: the app works with defaults and in-memory filters.
+      logger.error("preferences-load", error);
     } finally {
       // The stored filter (or the defaults) is in place: the list may load
       // and the filter state may be saved. Without this gate the first load
@@ -1114,8 +1118,12 @@
           outcome.skipped > 0
             ? t("import.emptySkipped", { path: outcome.path, skipped: outcome.skipped })
             : t("import.empty", { path: outcome.path });
+        logger.info(`import: no clippings, ${outcome.skipped} skipped`);
       } else {
         const report = outcome.report;
+        logger.info(
+          `import: ${report.inserted} inserted, ${report.duplicates} duplicates, ${report.skipped} skipped, ${report.bookCount} books`,
+        );
         importStatus =
           report.alreadyImported && report.skipped === 0
             ? t("import.duplicate")
@@ -1141,6 +1149,7 @@
       importStatus = t("import.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("import", error);
     } finally {
       importing = false;
     }
@@ -1224,12 +1233,14 @@
       });
       if (path === null) return; // Cancelled: the dialog stays open.
       await invoke("write_export_file", { path, contents: text });
+      logger.info(`export: wrote ${format} with ${rows.length} clippings`);
       exportStatus = t("export.done", { count: rows.length, file: fileName });
       closeExport();
     } catch (error) {
       exportStatus = t("export.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("export", error);
     } finally {
       exporting = false;
     }
@@ -1244,6 +1255,7 @@
       importStatus = t("db.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("db-location", error);
     } finally {
       locatingDb = false;
     }
@@ -1275,11 +1287,13 @@
       await invoke("clear_backup_target", { path });
       const port = await getDb();
       await port.execute("VACUUM INTO $1", [path]);
+      logger.info(`backup: wrote ${baseName(path)}`);
       backupStatus = t("backup.done", { file: baseName(path) });
     } catch (error) {
       backupStatus = t("backup.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("backup", error);
     } finally {
       backingUp = false;
     }
@@ -1317,6 +1331,7 @@
       restoreError = t("restore.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("restore-pick", error);
       restoreOpen = true;
       return;
     }
@@ -1340,6 +1355,7 @@
       if (request === restoreRequest) {
         restoreError = restoreFailure(error);
       }
+      logger.error("restore-inspect", error);
     } finally {
       if (request === restoreRequest) {
         restoreChecking = false;
@@ -1365,11 +1381,13 @@
       await invoke("restore_database_file", { backupPath: restorePath });
       // Rust restarts the app on success and never returns; reaching this
       // point means the restart did not happen.
+      logger.warn("restore: the app did not restart after a successful restore");
       restoreError = t("restore.restartFailed");
     } catch (error) {
       restoreError = t("restore.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("restore", error);
       try {
         await getDb();
         await refreshAfterLibraryChange();
@@ -1389,6 +1407,7 @@
       libraryError = t("library.error", {
         message: error instanceof Error ? error.message : String(error),
       });
+      logger.error("library-load", error);
     }
   }
 
