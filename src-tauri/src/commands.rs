@@ -34,16 +34,67 @@ pub fn db_file_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(dir.join("kindclip.db").to_string_lossy().to_string())
 }
 
+/// Open a directory in the system file manager through the opener's Rust API.
+///
+/// The plugin's Rust methods do not perform the command scope check, so the
+/// webview never receives a filesystem opener permission.
+fn open_directory(app: &tauri::AppHandle, dir: &Path, label: &str) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    std::fs::create_dir_all(dir)
+        .map_err(|err| format!("cannot create '{}': {err}", dir.display()))?;
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|err| format!("cannot open '{}': {err}", dir.display()))?;
+    log::info!("{label}: opened '{}'", dir.display());
+    Ok(())
+}
+
+/// Open the diagnostic log directory in the system file manager.
+#[tauri::command]
+pub fn open_logs_dir(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+
+    let dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|err| format!("cannot resolve app log dir: {err}"))?;
+    open_directory(&app, &dir, "logs")
+}
+
+/// Open the folder that holds the live database.
+///
+/// Used when the file itself cannot be revealed, for example before the first
+/// launch created it. The parent directory is resolved in Rust so the webview
+/// never needs to compute or request a filesystem path.
+#[tauri::command]
+pub fn open_db_dir(app: tauri::AppHandle) -> Result<(), String> {
+    let db_path = db_file_path(app.clone())?;
+    let dir = Path::new(&db_path)
+        .parent()
+        .ok_or_else(|| format!("'{db_path}' has no parent directory"))?;
+    open_directory(&app, dir, "db")
+}
+
 /// Read `My Clippings.txt` from disk, hash it (S5 dedupe key) and parse it (S2).
 #[tauri::command]
 pub fn parse_clippings_file(path: String) -> Result<ParsedFile, String> {
-    let bytes = std::fs::read(&path).map_err(|err| format!("cannot read file '{path}': {err}"))?;
+    let bytes = std::fs::read(&path).map_err(|err| {
+        log::warn!("import: cannot read '{path}': {err}");
+        format!("cannot read file '{path}': {err}")
+    })?;
     let file_hash: String = Sha256::digest(&bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let text = clippings_parser::decode_bytes(&bytes);
     let parsed = clippings_parser::parse_clippings_with_stats(&text);
+    log::info!(
+        "import: read '{path}' ({} bytes) into {} clippings with {} skipped blocks",
+        bytes.len(),
+        parsed.clippings.len(),
+        parsed.skipped
+    );
     Ok(ParsedFile {
         path,
         file_hash,
@@ -70,7 +121,13 @@ pub(crate) fn validate_file_name(name: &str) -> Result<(), String> {
 /// path through the native save dialog and this command persists the contents.
 #[tauri::command]
 pub fn write_export_file(path: String, contents: String) -> Result<(), String> {
-    std::fs::write(&path, contents).map_err(|err| format!("cannot write file '{path}': {err}"))
+    let bytes = contents.len();
+    std::fs::write(&path, contents).map_err(|err| {
+        log::warn!("export: cannot write '{path}': {err}");
+        format!("cannot write file '{path}': {err}")
+    })?;
+    log::info!("export: wrote '{path}' ({bytes} bytes)");
+    Ok(())
 }
 
 /// Default export target inside the Downloads directory (S10).
@@ -124,7 +181,12 @@ fn read_sqlite_magic(path: &Path) -> Result<u64, String> {
 /// Pre-flight check for a backup the user picked in the restore dialog.
 #[tauri::command]
 pub fn validate_backup_file(path: String) -> Result<u64, String> {
-    read_sqlite_magic(Path::new(&path))
+    let size = read_sqlite_magic(Path::new(&path)).map_err(|err| {
+        log::warn!("backup: rejected '{path}': {err}");
+        err
+    })?;
+    log::info!("backup: validated '{path}' ({size} bytes)");
+    Ok(size)
 }
 
 /// Remove the target of a new backup so `VACUUM INTO` can write it.
@@ -138,9 +200,15 @@ pub fn clear_backup_target(path: String) -> Result<(), String> {
         return Err(format!("'{}' is a directory", path.display()));
     }
     match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            log::info!("backup: cleared existing target '{}'", path.display());
+            Ok(())
+        }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(format!("cannot clear '{}': {err}", path.display())),
+        Err(err) => {
+            log::warn!("backup: cannot clear '{}': {err}", path.display());
+            Err(format!("cannot clear '{}': {err}", path.display()))
+        }
     }
 }
 
@@ -188,7 +256,20 @@ pub(crate) fn restore_database_at(backup_path: &Path, db_path: &Path) -> Result<
         let _ = std::fs::remove_file(&staged_path);
     }
 
-    restored?;
+    restored.map_err(|err| {
+        log::warn!(
+            "restore: cannot replace '{}' with '{}': {err}",
+            db_path.display(),
+            backup_path.display()
+        );
+        err
+    })?;
+    log::info!(
+        "restore: replaced '{}' with '{}' (previous database kept at '{}')",
+        db_path.display(),
+        backup_path.display(),
+        safety_path.display()
+    );
     Ok(safety_path)
 }
 
@@ -237,6 +318,7 @@ fn replace_database_with(
 pub fn restore_database_file(app: tauri::AppHandle, backup_path: String) -> Result<(), String> {
     let db_path = db_file_path(app.clone())?;
     restore_database_at(Path::new(&backup_path), Path::new(&db_path))?;
+    log::info!("restore: restarting the app to reopen the restored database");
     app.restart()
 }
 

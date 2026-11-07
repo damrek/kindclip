@@ -82,7 +82,8 @@ header.*
 - **Collapsible shell**: sidebar toggle (remembered); search collapses to an
   icon until clicked or filled.
 - **Grouped header**: stats, library, export, Import, and ⋯ preferences
-  (language, system/light/dark theme, text size S/M/L, DB location, shortcuts).
+  (language, system/light/dark theme, text size S/M/L, DB location, logs
+  folder, shortcuts).
 - **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
   `Ctrl/Cmd+F` focus search; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the
   reading view, `*` favorites, `c` copies, `s`/`f` toggle sidebar and filters,
@@ -90,6 +91,11 @@ header.*
   one layer at a time and typing fields are never hijacked.
 - **5 languages** (es/en/fr/de/it, Spanish default), bundled **Inter** font,
   custom icons, and a minimal macOS-style UI over the native frame.
+- **Remembered window**: size, position and maximized state are restored on
+  launch, and the window only appears once that state is applied.
+- **Diagnostic logs** (⋯ → Diagnostics): rotating local files record startup,
+  import, export, backup and restore outcomes — paths, counts, sizes and errors
+  only, never clipping text or notes. Nothing is uploaded.
 
 ## Development
 
@@ -132,7 +138,7 @@ src/                        # Svelte 5 + Tailwind v4 frontend
 src-tauri/
   src/                      # migrations, plugin/command registration, file I/O
   migrations/               # 001 init … 005 search folding
-  capabilities/             # least-privilege: sql, dialog, clipboard, opener
+  capabilities/             # least-privilege: sql, dialog, clipboard, opener, log
 crates/clippings-parser/    # pure My Clippings.txt parser (no Tauri deps)
 ```
 
@@ -155,6 +161,13 @@ Quick count:
 python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
 ```
 
+Diagnostic logs live in the standard per-OS log dir — `~/.local/share/app.kindclip/logs`
+(Linux), `%LOCALAPPDATA%\app.kindclip\logs` (Windows), `~/Library/Logs/app.kindclip`
+(macOS). Installed builds write `kindclip.log` and `tauri dev` writes
+`kindclip-dev.log`, rotated at 1 MB over three files. Open the folder from
+**⋯ → Diagnostics → Open logs folder**. They hold paths, counts, sizes and error
+messages only — never clipping text, notes, search queries, tags or book titles.
+
 ## Roadmap
 
 Planned, no dates attached:
@@ -164,7 +177,7 @@ Planned, no dates attached:
 - **Copy as quote**: a Markdown citation with book, author and page.
 - **Note ↔ highlight pairing** and **bulk actions** (tag, favorite or export a
   selection).
-- **Desktop polish**: auto-update, remembered window size and diagnostic logs.
+- **Desktop polish**: signed auto-update.
 
 The layered architecture (parser → commands → SQL → UI) keeps additions local.
 

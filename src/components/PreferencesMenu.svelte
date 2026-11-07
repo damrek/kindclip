@@ -1,7 +1,9 @@
 <script lang="ts">
   import { getContext, tick } from "svelte";
   import { getVersion } from "@tauri-apps/api/app";
+  import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
+  import { describeError, logger } from "../lib/log";
   import {
     I18N_CONTEXT_KEY,
     LOCALES,
@@ -49,6 +51,7 @@
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
   let version = $state<string | null>(null);
+  let logsError = $state<string | null>(null);
   let trigger = $state<HTMLButtonElement | null>(null);
   let panel = $state<HTMLElement | null>(null);
   let wasOpen = false;
@@ -78,6 +81,7 @@
   });
 
   function toggleMenu(): void {
+    if (!open) logsError = null;
     open = !open;
   }
 
@@ -98,6 +102,18 @@
   function startShortcuts(): void {
     close();
     onShortcuts();
+  }
+
+  /** Diagnostics: the menu stays open so a failure can be reported in place. */
+  async function openLogs(): Promise<void> {
+    logsError = null;
+    try {
+      await invoke("open_logs_dir");
+      logger.info("logs: opened the logs folder");
+    } catch (error) {
+      logger.error("logs-open", error);
+      logsError = i18n.t("logs.error", { message: describeError(error) });
+    }
   }
 </script>
 
@@ -227,6 +243,26 @@
           <p class="px-2 pt-1 text-xs text-neutral-500 dark:text-neutral-400" role="status">
             {backupStatus}
           </p>
+        {/if}
+      </div>
+
+      <div class="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+        <p class="pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+          {i18n.t("prefs.diagnostics")}
+        </p>
+        <button
+          type="button"
+          onclick={openLogs}
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <Icon name="folder" />
+          <span class="min-w-0 flex-1 truncate">{i18n.t("logs.open")}</span>
+        </button>
+        <p class="px-2 pt-1 text-xs text-neutral-400 dark:text-neutral-500">
+          {i18n.t("logs.privacy")}
+        </p>
+        {#if logsError}
+          <p class="px-2 pt-1 text-xs text-red-700 dark:text-red-400" role="alert">{logsError}</p>
         {/if}
       </div>
 
