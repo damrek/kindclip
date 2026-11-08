@@ -37,7 +37,11 @@
      - `accent` doubles as a button background, so it must also keep
        `inverse-fg` readable (4.5:1), not just 3:1 as a UI color;
      - `accent-hover` is *lighter* than `accent` in dark themes: it is both a
-       hovered button background (dark text) and a hovered text color.
+       hovered button background (dark text) and a hovered text color;
+     - `mark-bg` and `selection` are the strongest accent tint that keeps `fg`
+       at 4.6:1 on the tint (a 30% tint put highlighted text at 3.4-4.3:1),
+       and both `::selection` and search marks force `fg` as the text color;
+     - `focus-ring` is the solid accent, at least 3.19:1 on every surface.
    `fg-subtle` and `fg-faint` stay at their upstream values; they are the
    placeholder/decorative levels and are not part of the AA guarantee.
    theme.test.ts pins every pairing listed here.
@@ -73,9 +77,13 @@
   --accent-text: #92400e;
   --accent-soft: #fffbeb;
   --accent-soft-strong: #fef3c7;
-  --mark-bg: rgb(254 230 132 / 0.8);
-  --selection: rgb(252 211 77 / 0.4);
-  --focus-ring: rgb(245 158 11 / 0.7);
+  /* Solid pre-composited values: the same pixels as the v1.14 translucent
+     mark and selection on white, but deterministic and testable. The focus
+     ring is solid amber-600 (3.19:1 on white); amber-500 at 70% was 2.15:1,
+     below the 3:1 non-text contrast minimum. */
+  --mark-bg: #feeb9d;
+  --selection: #feedb8;
+  --focus-ring: #d97706;
 
   /* Danger */
   --danger: #b91c1c;
@@ -115,9 +123,9 @@
      contrast of the text on top is deterministic. */
   --accent-soft: #354352;
   --accent-soft-strong: #394d61;
-  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
-  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
-  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+  --mark-bg: #354454;
+  --selection: #354454;
+  --focus-ring: var(--accent);
 
   --danger: #e48088;
   --danger-solid: #e48088;
@@ -153,9 +161,9 @@
   --accent-text: #adc7da;
   --accent-soft: #424a50;
   --accent-soft-strong: #46525a;
-  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
-  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
-  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+  --mark-bg: #434b51;
+  --selection: #434b51;
+  --focus-ring: var(--accent);
 
   --danger: #ff8885;
   --danger-solid: #ff8885;
@@ -191,9 +199,9 @@
   --accent-text: #b3d7e1;
   --accent-soft: #445161;
   --accent-soft-strong: #4a5b6b;
-  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
-  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
-  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+  --mark-bg: #4f6373;
+  --selection: #4f6373;
+  --focus-ring: var(--accent);
 
   --danger: #dba1a7;
   --danger-solid: #dba1a7;
@@ -229,9 +237,9 @@
   --accent-text: #6cb9ec;
   --accent-soft: #0d4154;
   --accent-soft-strong: #114960;
-  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
-  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
-  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+  --mark-bg: #0e4458;
+  --selection: #0e4458;
+  --focus-ring: var(--accent);
 
   --danger: #ea7970;
   --danger-solid: #ea7970;
@@ -290,6 +298,7 @@ body {
 
 ::selection {
   background-color: var(--selection);
+  color: var(--fg);
 }
 
 :focus-visible {

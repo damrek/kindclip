@@ -11,4 +11,4 @@
   const segments = $derived(highlightSegments(text, query));
 </script>
 
-{#each segments as segment, index (index)}{#if segment.match}<mark class="rounded-sm bg-mark px-0 text-inherit">{segment.text}</mark>{:else}{segment.text}{/if}{/each}
+{#each segments as segment, index (index)}{#if segment.match}<mark class="rounded-sm bg-mark px-0 text-fg">{segment.text}</mark>{:else}{segment.text}{/if}{/each}

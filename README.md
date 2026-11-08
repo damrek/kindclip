@@ -82,8 +82,12 @@ header.*
 - **Collapsible shell**: sidebar toggle (remembered); search collapses to an
   icon until clicked or filled.
 - **Grouped header**: stats, library, export, Import, and ⋯ preferences
-  (language, system/light/dark theme, text size S/M/L, DB location, logs
+  (language, system/light/dark theme with four dark palettes — Atom One Dark,
+  Darcula, Nord and Solarized Dark — text size S/M/L, DB location, logs
   folder, shortcuts).
+- **WCAG AA palettes**: body, muted, accent and status text clear 4.5:1 on
+  every surface they land on, in all five themes; search marks and text
+  selection are tuned the same way.
 - **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
   `Ctrl/Cmd+F` focus search; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the
   reading view, `*` favorites, `c` copies, `s`/`f` toggle sidebar and filters,

@@ -72,6 +72,14 @@ function luminance(hex: string): number {
   return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
 }
 
+/** Resolve a token that aliases another one (`--focus-ring: var(--accent)`). */
+function tokenColor(tokens: Record<string, string>, name: string): string {
+  const value = tokens[name];
+  if (!value) throw new Error(`Missing --${name}`);
+  const alias = value.match(/^var\(--([a-z-]+)\)$/);
+  return alias ? tokenColor(tokens, alias[1]!) : value;
+}
+
 function contrast(foreground: string, background: string): number {
   const [lighter, darker] = [luminance(foreground), luminance(background)].sort(
     (a, b) => b - a,
@@ -178,6 +186,9 @@ const TEXT_PAIRS: Array<[fg: string, bg: string, min: number]> = [
   ["danger", "danger-soft", 4.5],
   ["success", "surface", 4.5],
   ["success", "surface-raised", 4.5],
+  // Search marks and text selection repaint the background under the text.
+  ["fg", "mark-bg", 4.5],
+  ["fg", "selection", 4.5],
 ];
 
 /** `accent` and friends double as UI colors (borders, rings, stars): 3:1. */
@@ -185,6 +196,8 @@ const UI_PAIRS: Array<[color: string, bg: string]> = [
   ["accent", "surface"],
   ["accent", "surface-raised"],
   ["accent", "accent-soft"],
+  ["focus-ring", "surface"],
+  ["focus-ring", "surface-raised"],
 ];
 
 /** Solid buttons put `inverse-fg` on a saturated background. New palettes must
@@ -208,7 +221,7 @@ describe("app.css palettes", () => {
   it.each(ALL_PALETTES)("%s meets WCAG AA on every real text pairing", (palette) => {
     const tokens = paletteTokens(palette);
     for (const [fg, bg, min] of TEXT_PAIRS) {
-      const ratio = contrast(tokens[fg]!, tokens[bg]!);
+      const ratio = contrast(tokenColor(tokens, fg), tokenColor(tokens, bg));
       expect(ratio, `${fg} on ${bg} in ${palette}`).toBeGreaterThanOrEqual(min);
     }
   });
@@ -216,7 +229,7 @@ describe("app.css palettes", () => {
   it.each(ALL_PALETTES)("%s keeps accents visible as UI colors", (palette) => {
     const tokens = paletteTokens(palette);
     for (const [color, bg] of UI_PAIRS) {
-      const ratio = contrast(tokens[color]!, tokens[bg]!);
+      const ratio = contrast(tokenColor(tokens, color), tokenColor(tokens, bg));
       expect(ratio, `${color} as UI on ${bg} in ${palette}`).toBeGreaterThanOrEqual(
         3,
       );
@@ -239,6 +252,16 @@ describe("app.css palettes", () => {
     expect(gap, "luminance gap fg - fg-muted").toBeGreaterThan(0.04);
   });
 
+  it.each(ALL_PALETTES)("%s keeps the mark and selection visible on both surfaces", (palette) => {
+    const tokens = paletteTokens(palette);
+    for (const bg of ["surface", "surface-raised"]) {
+      for (const tint of ["mark-bg", "selection"]) {
+        const ratio = contrast(tokenColor(tokens, tint), tokenColor(tokens, bg));
+        expect(ratio, `${tint} against ${bg} in ${palette}`).toBeGreaterThanOrEqual(1.15);
+      }
+    }
+  });
+
   it("keeps the light palette at the v1.14 rendering", () => {
     const tokens = paletteTokens("light");
     // Parity contract: these are the values the pre-theming app rendered.
@@ -253,6 +276,8 @@ describe("app.css palettes", () => {
     expect(tokens["accent-soft"]).toBe("#fffbeb");
     expect(tokens["accent-soft-strong"]).toBe("#fef3c7");
     expect(tokens["danger-solid"]).toBe("#dc2626");
-    expect(tokens["mark-bg"]).toBe("rgb(254 230 132 / 0.8)");
+    // Pre-composited twins of the v1.14 translucent mark and selection.
+    expect(tokens["mark-bg"]).toBe("#feeb9d");
+    expect(tokens["selection"]).toBe("#feedb8");
   });
 });
