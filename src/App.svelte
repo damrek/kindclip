@@ -1664,7 +1664,7 @@
 
 <div class="flex h-full flex-col" inert={modalOpen}>
   <header
-    class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"
+    class="flex items-center justify-between gap-4 border-b border-line px-4 py-2.5"
   >
     <div class="flex min-w-0 items-center gap-2">
       {#if hasLibrary}
@@ -1675,7 +1675,7 @@
           aria-expanded={sidebarOpen}
           aria-controls="book-sidebar"
           title={t("sidebar.toggle")}
-          class="rounded-lg p-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          class="rounded-lg p-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg"
         >
           <Icon name="sidebar" />
         </button>
@@ -1687,12 +1687,12 @@
     </div>
     <div class="flex min-w-0 items-center gap-1">
       {#if importStatus}
-        <p class="truncate text-sm text-neutral-500 dark:text-neutral-400" role="status">
+        <p class="truncate text-sm text-fg-muted" role="status">
           {importStatus}
         </p>
       {/if}
       {#if exportStatus}
-        <p class="truncate text-sm text-neutral-500 dark:text-neutral-400" role="status">
+        <p class="truncate text-sm text-fg-muted" role="status">
           {exportStatus}
         </p>
       {/if}
@@ -1702,7 +1702,7 @@
         disabled={!hasLibrary}
         title={t("stats.open")}
         aria-label={t("stats.open")}
-        class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+        class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
       >
         <Icon name="stats" />
       </button>
@@ -1712,7 +1712,7 @@
         disabled={!hasLibrary}
         title={t("library.open")}
         aria-label={t("library.open")}
-        class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+        class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
       >
         <Icon name="library" />
       </button>
@@ -1722,7 +1722,7 @@
         disabled={!result || result.total === 0}
         title={t("export.button")}
         aria-label={t("export.button")}
-        class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+        class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
       >
         <Icon name="export" />
       </button>
@@ -1730,7 +1730,7 @@
         type="button"
         onclick={onImport}
         disabled={importing}
-        class="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+        class="rounded-full bg-inverse px-4 py-1.5 text-sm font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
       >
         {importing ? t("header.importing") : t("header.import")}
       </button>
@@ -1754,7 +1754,7 @@
   </header>
 
   {#if loadError}
-    <p class="border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300" role="alert">
+    <p class="border-b border-danger-border bg-danger-soft px-6 py-2 text-sm text-danger" role="alert">
       {loadError}
     </p>
   {/if}
@@ -1763,20 +1763,20 @@
     <main class="flex flex-1 items-center justify-center px-6">
       <div class="max-w-sm text-center">
         <div
-          class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-2xl dark:bg-amber-950"
+          class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft-strong text-2xl"
           aria-hidden="true"
         >
           &#10077;
         </div>
         <h2 class="text-base font-medium">{t("empty.title")}</h2>
-        <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <p class="mt-1 text-sm text-fg-muted">
           {t("empty.body")}
         </p>
         <button
           type="button"
           onclick={onImport}
           disabled={importing}
-          class="mt-4 rounded-full bg-neutral-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+          class="mt-4 rounded-full bg-inverse px-5 py-2 text-sm font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
         >
           {importing ? t("header.importing") : t("empty.cta")}
         </button>
@@ -1795,7 +1795,7 @@
       {/if}
       <aside
         id="book-sidebar"
-        class="absolute inset-y-0 left-0 z-30 w-64 shrink-0 overflow-y-auto border-r border-neutral-200 bg-white p-3 shadow-xl md:static md:z-auto md:bg-transparent md:shadow-none dark:border-neutral-800 dark:bg-neutral-950 md:dark:bg-transparent {sidebarOpen
+        class="absolute inset-y-0 left-0 z-30 w-64 shrink-0 overflow-y-auto border-r border-line bg-surface p-3 shadow-xl md:static md:z-auto md:bg-transparent md:shadow-none {sidebarOpen
           ? ''
           : 'hidden'}"
       >
@@ -1813,13 +1813,13 @@
 
       <main class="flex min-w-0 flex-1 flex-col">
         <div
-          class="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-6 py-3 dark:border-neutral-800"
+          class="flex flex-wrap items-center gap-2 border-b border-line px-6 py-3"
         >
           <div class="flex min-w-0 flex-1 items-center">
             {#if searchExpanded || query !== ""}
               <div class="relative w-full max-w-sm">
                 <span
-                  class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-neutral-400"
+                  class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-subtle"
                   aria-hidden="true"
                 >
                   <Icon name="search" class="h-4 w-4" />
@@ -1832,14 +1832,14 @@
                   onblur={onSearchBlur}
                   placeholder={t("search.placeholder")}
                   aria-label={t("search.placeholder")}
-                  class="w-full rounded-full border border-neutral-200 bg-neutral-50 py-2 pr-8 pl-9 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-neutral-500"
+                  class="w-full rounded-full border border-line bg-surface-inset py-2 pr-8 pl-9 text-sm outline-none placeholder:text-fg-subtle focus:border-line-strong"
                 />
                 {#if query !== ""}
                   <button
                     type="button"
                     onclick={clearSearch}
                     aria-label={t("search.clear")}
-                    class="absolute top-1/2 right-2 -translate-y-1/2 rounded-full px-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
+                    class="absolute top-1/2 right-2 -translate-y-1/2 rounded-full px-2 text-fg-subtle hover:text-fg"
                   >
                     ×
                   </button>
@@ -1851,7 +1851,7 @@
                 onclick={openSearch}
                 title={t("search.open")}
                 aria-label={t("search.open")}
-                class="rounded-full px-2.5 py-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                class="rounded-full px-2.5 py-2 text-fg-muted transition hover:bg-surface-hover hover:text-fg"
               >
                 <Icon name="search" />
               </button>
@@ -1878,7 +1878,7 @@
               value={`${sortBy}:${sortDir}`}
               onchange={(event) => setClippingSort(event.currentTarget.value)}
               aria-label={t("clippingSort.label")}
-              class="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-500"
+              class="cursor-pointer rounded-full border border-line bg-surface-raised px-3 py-2 text-sm text-fg outline-none focus:border-line-strong"
             >
               <option value="date:desc">{t("clippingSort.dateDesc")}</option>
               <option value="date:asc">{t("clippingSort.dateAsc")}</option>
@@ -1892,11 +1892,11 @@
 
         {#if activeChips.length > 0}
           <div
-            class="flex flex-wrap items-center gap-1.5 border-b border-neutral-200 px-6 py-2 dark:border-neutral-800"
+            class="flex flex-wrap items-center gap-1.5 border-b border-line px-6 py-2"
           >
             {#each activeChips as chip (chip.key)}
               <span
-                class="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-300"
+                class="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs font-medium text-fg-muted"
               >
                 <span>{chip.label}</span>
                 <button
@@ -1904,7 +1904,7 @@
                   onclick={chip.remove}
                   aria-label={t("filters.remove", { name: chip.label })}
                   title={t("filters.remove", { name: chip.label })}
-                  class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-neutral-400 transition hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-200"
+                  class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-fg-subtle transition hover:text-fg"
                 >
                   ×
                 </button>
@@ -1913,7 +1913,7 @@
             <button
               type="button"
               onclick={clearFilters}
-              class="ml-1 text-xs font-medium text-neutral-500 underline-offset-2 transition hover:text-neutral-800 hover:underline dark:text-neutral-400 dark:hover:text-neutral-200"
+              class="ml-1 text-xs font-medium text-fg-muted underline-offset-2 transition hover:text-fg hover:underline"
             >
               {t("results.clear")}
             </button>
@@ -1948,7 +1948,7 @@
           {:else if !loading}
             <div class="py-16 text-center">
               <p class="text-base font-medium">{t("results.empty")}</p>
-              <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+              <p class="mt-1 text-sm text-fg-muted">
                 {#if hasActiveFilters}
                   {t("results.noMatch")}
                 {:else}
@@ -1959,7 +1959,7 @@
                 <button
                   type="button"
                   onclick={clearFilters}
-                  class="mt-4 rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-medium transition hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  class="mt-4 rounded-full border border-line-strong px-4 py-1.5 text-sm font-medium transition hover:bg-surface-hover"
                 >
                   {t("results.clear")}
                 </button>
@@ -1969,7 +1969,7 @@
         </div>
 
         {#if result && result.total > 0}
-          <div class="border-t border-neutral-200 px-6 py-3 dark:border-neutral-800">
+          <div class="border-t border-line px-6 py-3">
             <Pagination
               page={result.page}
               total={result.total}
@@ -1989,11 +1989,11 @@
 {#if dragActive}
   <div class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-8" role="status">
     <div
-      class="absolute inset-4 rounded-3xl border-2 border-dashed border-amber-400 bg-amber-50/90 dark:border-amber-500 dark:bg-neutral-900/90"
+      class="absolute inset-4 rounded-3xl border-2 border-dashed border-accent bg-surface/90"
     ></div>
     <div class="relative text-center">
       <p class="text-lg font-medium">{t("drop.title")}</p>
-      <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{t("drop.body")}</p>
+      <p class="mt-1 text-sm text-fg-muted">{t("drop.body")}</p>
     </div>
   </div>
 {/if}
@@ -2038,22 +2038,22 @@
       tabindex={-1}
       use:focusOnMount
       use:trapFocus
-      class="relative w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900"
+      class="relative w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
     >
-      <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+      <p class="text-sm font-medium text-fg">
         {t("card.reset")}
       </p>
-      <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+      <p class="mt-1 text-sm text-fg-muted">
         {t("card.resetConfirm")}
       </p>
       {#if resetTarget.content}
         <blockquote
-          class="mt-3 max-h-48 overflow-y-auto border-l-2 border-amber-400 pl-4 text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200"
+          class="mt-3 max-h-48 overflow-y-auto border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
         >
           {resetTarget.content}
         </blockquote>
       {:else}
-        <p class="mt-3 text-sm text-neutral-400 italic dark:text-neutral-500">
+        <p class="mt-3 text-sm text-fg-subtle italic">
           {t("card.noText", { kind: t(`kind.${resetTarget.kind}`) })}
         </p>
       {/if}
@@ -2061,14 +2061,14 @@
         <button
           type="button"
           onclick={closeReset}
-          class="rounded-full border border-neutral-200 px-3.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover"
         >
           {t("card.cancel")}
         </button>
         <button
           type="button"
           onclick={confirmResetDialog}
-          class="rounded-full bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
+          class="rounded-full bg-danger-solid px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:bg-danger-solid-hover"
         >
           {t("card.reset")}
         </button>

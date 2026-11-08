@@ -126,7 +126,7 @@
     aria-haspopup="dialog"
     title={i18n.t("prefs.open")}
     aria-label={i18n.t("prefs.open")}
-    class="rounded-full px-2.5 py-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+    class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg"
   >
     <Icon name="more" class="h-4 w-4" />
   </button>
@@ -144,19 +144,19 @@
       aria-label={i18n.t("prefs.title")}
       tabindex="-1"
       bind:this={panel}
-      class="absolute right-0 z-20 mt-1 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-neutral-200 bg-white p-3 shadow-lg outline-none dark:border-neutral-700 dark:bg-neutral-900"
+      class="absolute right-0 z-20 mt-1 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-line bg-surface-raised p-3 shadow-lg outline-none"
     >
-      <p class="pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+      <p class="pb-1 text-xs font-medium text-fg-muted">
         {i18n.t("prefs.appearance")}
       </p>
 
       <label class="block pb-1">
-        <span class="text-xs text-neutral-500 dark:text-neutral-400">{i18n.t("lang.label")}</span>
+        <span class="text-xs text-fg-muted">{i18n.t("lang.label")}</span>
         <select
           value={locale}
           onchange={(event) => onLocale(event.currentTarget.value as Locale)}
           aria-label={i18n.t("lang.label")}
-          class="mt-0.5 w-full cursor-pointer rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-700 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:focus:border-neutral-500"
+          class="mt-0.5 w-full cursor-pointer rounded-lg border border-line bg-surface-raised px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
         >
           {#each LOCALES as code (code)}
             <option value={code}>{LOCALE_NAMES[code]}</option>
@@ -165,9 +165,9 @@
       </label>
 
       <div class="pb-1">
-        <span class="text-xs text-neutral-500 dark:text-neutral-400">{i18n.t("prefs.theme")}</span>
+        <span class="text-xs text-fg-muted">{i18n.t("prefs.theme")}</span>
         <div
-          class="mt-0.5 flex rounded-lg border border-neutral-200 p-0.5 dark:border-neutral-700"
+          class="mt-0.5 flex rounded-lg border border-line p-0.5"
           role="group"
           aria-label={i18n.t("prefs.theme")}
         >
@@ -177,8 +177,8 @@
               onclick={() => onTheme(choice)}
               aria-pressed={theme === choice}
               class="flex-1 rounded-md px-2 py-1 text-xs font-medium transition {theme === choice
-                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
-                : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+                ? 'bg-inverse text-inverse-fg'
+                : 'text-fg-muted hover:bg-surface-hover'}"
             >
               {i18n.t(`theme.${choice}`)}
             </button>
@@ -187,9 +187,9 @@
       </div>
 
       <div>
-        <span class="text-xs text-neutral-500 dark:text-neutral-400">{i18n.t("prefs.font")}</span>
+        <span class="text-xs text-fg-muted">{i18n.t("prefs.font")}</span>
         <div
-          class="mt-0.5 flex rounded-lg border border-neutral-200 p-0.5 dark:border-neutral-700"
+          class="mt-0.5 flex rounded-lg border border-line p-0.5"
           role="group"
           aria-label={i18n.t("prefs.font")}
         >
@@ -199,8 +199,8 @@
               onclick={() => onFont(scale)}
               aria-pressed={font === scale}
               class="flex-1 rounded-md px-2 py-1 text-xs font-medium transition {font === scale
-                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
-                : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+                ? 'bg-inverse text-inverse-fg'
+                : 'text-fg-muted hover:bg-surface-hover'}"
             >
               {i18n.t(`font.${scale}`)}
             </button>
@@ -208,15 +208,15 @@
         </div>
       </div>
 
-      <div class="mt-3 border-t border-neutral-100 pt-2 dark:border-neutral-800">
-        <p class="pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+      <div class="mt-3 border-t border-line-subtle pt-2">
+        <p class="pb-1 text-xs font-medium text-fg-muted">
           {i18n.t("prefs.data")}
         </p>
         <button
           type="button"
           onclick={onBackup}
           disabled={backingUp || dbBusy}
-          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
         >
           <Icon name="backup" />
           <span class="min-w-0 flex-1 truncate">{i18n.t("prefs.backup")}</span>
@@ -225,7 +225,7 @@
           type="button"
           onclick={startRestore}
           disabled={backingUp || dbBusy}
-          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
         >
           <Icon name="restore" />
           <span class="min-w-0 flex-1 truncate">{i18n.t("prefs.restore")}</span>
@@ -234,48 +234,48 @@
           type="button"
           onclick={openDb}
           disabled={dbBusy}
-          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
         >
           <Icon name="folder" />
           <span class="min-w-0 flex-1 truncate">{i18n.t("db.open")}</span>
         </button>
         {#if backupStatus}
-          <p class="px-2 pt-1 text-xs text-neutral-500 dark:text-neutral-400" role="status">
+          <p class="px-2 pt-1 text-xs text-fg-muted" role="status">
             {backupStatus}
           </p>
         {/if}
       </div>
 
-      <div class="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
-        <p class="pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+      <div class="mt-2 border-t border-line-subtle pt-2">
+        <p class="pb-1 text-xs font-medium text-fg-muted">
           {i18n.t("prefs.diagnostics")}
         </p>
         <button
           type="button"
           onclick={openLogs}
-          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover"
         >
           <Icon name="folder" />
           <span class="min-w-0 flex-1 truncate">{i18n.t("logs.open")}</span>
         </button>
-        <p class="px-2 pt-1 text-xs text-neutral-400 dark:text-neutral-500">
+        <p class="px-2 pt-1 text-xs text-fg-subtle">
           {i18n.t("logs.privacy")}
         </p>
         {#if logsError}
-          <p class="px-2 pt-1 text-xs text-red-700 dark:text-red-400" role="alert">{logsError}</p>
+          <p class="px-2 pt-1 text-xs text-danger" role="alert">{logsError}</p>
         {/if}
       </div>
 
-      <div class="mt-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+      <div class="mt-2 border-t border-line-subtle pt-2">
         <button
           type="button"
           onclick={startShortcuts}
-          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-600 transition hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover"
         >
           <Icon name="keyboard" />
           <span class="min-w-0 flex-1 truncate">{i18n.t("shortcuts.open")}</span>
           <kbd
-            class="rounded border border-neutral-200 px-1 text-[10px] font-medium text-neutral-400 dark:border-neutral-700 dark:text-neutral-500"
+            class="rounded border border-line px-1 text-[10px] font-medium text-fg-subtle"
           >
             ?
           </kbd>
@@ -284,7 +284,7 @@
 
       {#if version}
         <p
-          class="mt-2 border-t border-neutral-100 pt-2 text-center text-xs text-neutral-400 dark:border-neutral-800 dark:text-neutral-500"
+          class="mt-2 border-t border-line-subtle pt-2 text-center text-xs text-fg-subtle"
         >
           {i18n.t("prefs.version", { version })}
         </p>

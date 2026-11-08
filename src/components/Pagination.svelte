@@ -28,7 +28,7 @@
 </script>
 
 <div class="flex flex-wrap items-center justify-between gap-3">
-  <p class="text-sm text-neutral-500 dark:text-neutral-400" aria-live="polite">
+  <p class="text-sm text-fg-muted" aria-live="polite">
     {i18n.t("pg.range", { from, to, total })}
   </p>
 
@@ -38,14 +38,14 @@
       onclick={prev}
       disabled={page <= 1}
       aria-label={i18n.t("pg.prev")}
-      class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30 dark:text-neutral-300 dark:hover:bg-neutral-800"
+      class="rounded-lg px-2.5 py-1.5 text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-30"
     >
       ‹
     </button>
 
     {#each window as item, index (index)}
       {#if item === "…"}
-        <span class="px-1 text-sm text-neutral-400">…</span>
+        <span class="px-1 text-sm text-fg-subtle">…</span>
       {:else}
         <button
           type="button"
@@ -53,8 +53,8 @@
           aria-label={i18n.t("pg.page", { n: item })}
           aria-current={item === page ? "page" : undefined}
           class="min-w-8 rounded-lg px-2 py-1.5 text-sm transition {item === page
-            ? 'bg-neutral-900 font-medium text-white dark:bg-white dark:text-neutral-900'
-            : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+            ? 'bg-inverse font-medium text-inverse-fg'
+            : 'text-fg-muted hover:bg-surface-hover'}"
         >
           {item}
         </button>
@@ -66,18 +66,18 @@
       onclick={next}
       disabled={page >= pages}
       aria-label={i18n.t("pg.next")}
-      class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30 dark:text-neutral-300 dark:hover:bg-neutral-800"
+      class="rounded-lg px-2.5 py-1.5 text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-30"
     >
       ›
     </button>
   </div>
 
-  <label class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+  <label class="flex items-center gap-2 text-sm text-fg-muted">
     {i18n.t("pg.perPage")}
     <select
       value={pageSize}
       onchange={(event) => onSizeChange(Number(event.currentTarget.value))}
-      class="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+      class="rounded-lg border border-line bg-surface-raised px-2 py-1.5 text-sm text-fg"
     >
       {#each PAGE_SIZES as size (size)}
         <option value={size}>{size}</option>

@@ -86,22 +86,22 @@
   role="dialog"
   aria-modal="true"
   aria-label={i18n.t("reading.title")}
-  class="reading-panel fixed inset-0 z-40 flex flex-col bg-white dark:bg-neutral-950"
+  class="reading-panel fixed inset-0 z-40 flex flex-col bg-surface"
 >
   <header
-    class="flex items-center gap-3 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800"
+    class="flex items-center gap-3 border-b border-line px-4 py-2.5"
   >
     <button
       type="button"
       onclick={onClose}
       aria-label={i18n.t("reading.close")}
       title={i18n.t("reading.close")}
-      class="rounded-lg p-1.5 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      class="rounded-lg p-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg"
     >
       <Icon name="close" />
     </button>
     <p
-      class="min-w-0 flex-1 truncate text-center text-xs font-medium text-neutral-500 tabular-nums dark:text-neutral-400"
+      class="min-w-0 flex-1 truncate text-center text-xs font-medium text-fg-muted tabular-nums"
       aria-live="polite"
     >
       {i18n.t("reading.position", { current: position, total })}
@@ -113,7 +113,7 @@
         disabled={!canPrev || loading}
         aria-label={i18n.t("reading.prev")}
         title={i18n.t("reading.prev")}
-        class="rounded-lg px-3 py-1.5 text-lg leading-none text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        class="rounded-lg px-3 py-1.5 text-lg leading-none text-fg-muted transition hover:bg-surface-hover disabled:opacity-30"
       >
         ‹
       </button>
@@ -123,7 +123,7 @@
         disabled={!canNext || loading}
         aria-label={i18n.t("reading.next")}
         title={i18n.t("reading.next")}
-        class="rounded-lg px-3 py-1.5 text-lg leading-none text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-30 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        class="rounded-lg px-3 py-1.5 text-lg leading-none text-fg-muted transition hover:bg-surface-hover disabled:opacity-30"
       >
         ›
       </button>
@@ -138,30 +138,30 @@
     <article class="mx-auto max-w-2xl px-8 py-12">
       {#if displayContent}
         <blockquote
-          class="border-l-2 border-amber-400 pl-6 text-2xl leading-relaxed text-neutral-800 dark:text-neutral-200"
+          class="border-l-2 border-accent pl-6 text-2xl leading-relaxed text-fg"
         >
           <HighlightedText text={displayContent} {query} />
         </blockquote>
       {:else}
-        <p class="text-base text-neutral-400 italic dark:text-neutral-500">
+        <p class="text-base text-fg-subtle italic">
           {i18n.t("card.noText", { kind: kindLabel })}
         </p>
       {/if}
 
-      <div class="mt-10 border-t border-neutral-200 pt-5 dark:border-neutral-800">
-        <p class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+      <div class="mt-10 border-t border-line pt-5">
+        <p class="text-base font-semibold text-fg">
           <HighlightedText text={clipping.title} {query} />
         </p>
         {#if clipping.author}
-          <p class="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">
+          <p class="mt-0.5 text-sm text-fg-muted">
             <HighlightedText text={clipping.author} {query} />
           </p>
         {/if}
         <div
-          class="mt-3 flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400"
+          class="mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted"
         >
           <span
-            class="rounded-full bg-neutral-100 px-2.5 py-0.5 font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+            class="rounded-full bg-surface-hover px-2.5 py-0.5 font-medium text-fg-muted"
           >
             {kindLabel}
           </span>
@@ -171,7 +171,7 @@
           <span>{addedOnLabel}</span>
           {#each clipping.tags as tag (tag.id)}
             <span
-              class="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+              class="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-text"
             >
               #{tag.name}
             </span>
@@ -182,14 +182,14 @@
   </div>
 
   <div
-    class="flex items-center justify-center gap-3 border-t border-neutral-200 px-6 py-3 dark:border-neutral-800"
+    class="flex items-center justify-center gap-3 border-t border-line px-6 py-3"
   >
     {#if error}
-      <p class="truncate text-xs text-red-600 dark:text-red-400" role="alert">
+      <p class="truncate text-xs text-danger" role="alert">
         {error}
       </p>
     {:else}
-      <p class="text-xs text-neutral-400 dark:text-neutral-500">
+      <p class="text-xs text-fg-subtle">
         {i18n.t("reading.hint")}
       </p>
     {/if}
