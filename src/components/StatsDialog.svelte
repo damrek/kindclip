@@ -42,14 +42,14 @@
     tabindex="-1"
     use:focusOnMount
     use:trapFocus
-    class="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900"
+    class="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-line bg-surface-raised"
   >
-    <header class="border-b border-neutral-100 px-5 py-4 dark:border-neutral-800">
-      <h2 class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+    <header class="border-b border-line-subtle px-5 py-4">
+      <h2 class="text-sm font-medium text-fg">
         {i18n.t("stats.title")}
       </h2>
       {#if stats && !loading && !error}
-        <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+        <p class="mt-1 text-sm text-fg-muted">
           {i18n.t("stats.summary", { clippings: stats.total, books: stats.bookCount })}
         </p>
       {/if}
@@ -57,16 +57,16 @@
 
     <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
       {#if loading}
-        <p class="text-sm text-neutral-500 dark:text-neutral-400" role="status">
+        <p class="text-sm text-fg-muted" role="status">
           {i18n.t("stats.loading")}
         </p>
       {:else if error}
-        <p class="text-sm text-red-700 dark:text-red-300" role="alert">{error}</p>
+        <p class="text-sm text-danger" role="alert">{error}</p>
       {:else if stats && stats.total > 0}
         <section aria-labelledby="stats-year">
           <h3
             id="stats-year"
-            class="text-xs font-medium tracking-wide text-neutral-500 uppercase dark:text-neutral-400"
+            class="text-xs font-medium tracking-wide text-fg-muted uppercase"
           >
             {i18n.t("stats.byYear")}
           </h3>
@@ -77,15 +77,15 @@
                   {row.year ?? i18n.t("stats.unknownYear")}
                 </span>
                 <span
-                  class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800"
+                  class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-hover"
                   aria-hidden="true"
                 >
                   <span
-                    class="block h-full rounded-full bg-amber-400 dark:bg-amber-500"
+                    class="block h-full rounded-full bg-accent"
                     style={`width: ${width(row.count, yearMax)}`}
                   ></span>
                 </span>
-                <span class="w-10 shrink-0 text-right tabular-nums text-neutral-500 dark:text-neutral-400">
+                <span class="w-10 shrink-0 text-right tabular-nums text-fg-muted">
                   {row.count}
                 </span>
               </li>
@@ -96,7 +96,7 @@
         <section class="mt-5" aria-labelledby="stats-kind">
           <h3
             id="stats-kind"
-            class="text-xs font-medium tracking-wide text-neutral-500 uppercase dark:text-neutral-400"
+            class="text-xs font-medium tracking-wide text-fg-muted uppercase"
           >
             {i18n.t("stats.byKind")}
           </h3>
@@ -105,15 +105,15 @@
               <li class="flex items-center gap-3 text-sm">
                 <span class="w-24 shrink-0 truncate">{i18n.t(`kind.${row.kind}`)}</span>
                 <span
-                  class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800"
+                  class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-hover"
                   aria-hidden="true"
                 >
                   <span
-                    class="block h-full rounded-full bg-neutral-400 dark:bg-neutral-500"
+                    class="block h-full rounded-full bg-fg-subtle"
                     style={`width: ${percent(row.count)}%`}
                   ></span>
                 </span>
-                <span class="w-16 shrink-0 text-right tabular-nums text-neutral-500 dark:text-neutral-400">
+                <span class="w-16 shrink-0 text-right tabular-nums text-fg-muted">
                   {row.count} · {percent(row.count)}%
                 </span>
               </li>
@@ -124,7 +124,7 @@
         <section class="mt-5" aria-labelledby="stats-book">
           <h3
             id="stats-book"
-            class="text-xs font-medium tracking-wide text-neutral-500 uppercase dark:text-neutral-400"
+            class="text-xs font-medium tracking-wide text-fg-muted uppercase"
           >
             {i18n.t("stats.byBook")}
           </h3>
@@ -135,21 +135,21 @@
                   <span class="min-w-0 flex-1 truncate font-medium" title={row.title}>
                     {row.title}
                   </span>
-                  <span class="shrink-0 tabular-nums text-neutral-500 dark:text-neutral-400">
+                  <span class="shrink-0 tabular-nums text-fg-muted">
                     {row.count}
                   </span>
                 </div>
                 {#if row.author}
-                  <p class="truncate text-xs text-neutral-500 dark:text-neutral-400">
+                  <p class="truncate text-xs text-fg-muted">
                     {row.author}
                   </p>
                 {/if}
                 <span
-                  class="mt-1 block h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800"
+                  class="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-hover"
                   aria-hidden="true"
                 >
                   <span
-                    class="block h-full rounded-full bg-neutral-300 dark:bg-neutral-600"
+                    class="block h-full rounded-full bg-fg-subtle/50"
                     style={`width: ${width(row.count, bookMax)}`}
                   ></span>
                 </span>
@@ -158,15 +158,15 @@
           </ul>
         </section>
       {:else}
-        <p class="text-sm text-neutral-500 dark:text-neutral-400">{i18n.t("stats.empty")}</p>
+        <p class="text-sm text-fg-muted">{i18n.t("stats.empty")}</p>
       {/if}
     </div>
 
-    <footer class="flex justify-end border-t border-neutral-100 px-5 py-3 dark:border-neutral-800">
+    <footer class="flex justify-end border-t border-line-subtle px-5 py-3">
       <button
         type="button"
         onclick={onClose}
-        class="rounded-full border border-neutral-200 px-3.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover"
       >
         {i18n.t("stats.dismiss")}
       </button>
