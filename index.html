@@ -8,11 +8,16 @@
     <script>
       // Apply the persisted theme before first paint (no FOUC).
       try {
-        var stored = localStorage.getItem("kindclip-theme");
+        var mode = localStorage.getItem("kindclip-theme");
         var dark =
-          stored === "dark" ||
-          (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-        if (dark) document.documentElement.classList.add("dark");
+          mode === "dark" ||
+          (mode !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        var palettes = ["atom-one-dark", "darcula", "nord", "solarized-dark"];
+        var storedPalette = localStorage.getItem("kindclip-dark-palette");
+        var palette =
+          palettes.indexOf(storedPalette) >= 0 ? storedPalette : "atom-one-dark";
+        document.documentElement.dataset.mode = dark ? "dark" : "light";
+        document.documentElement.dataset.palette = dark ? palette : "light";
         var fontScale = localStorage.getItem("kindclip-font-scale");
         if (fontScale === "small") document.documentElement.style.fontSize = "87.5%";
         else if (fontScale === "large") document.documentElement.style.fontSize = "112.5%";

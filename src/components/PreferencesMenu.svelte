@@ -11,20 +11,20 @@
     type I18nContext,
     type Locale,
   } from "../lib/i18n";
-  import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
+  import { THEME_MODES, type ThemeMode } from "../lib/theme";
   import { FONT_SCALES, type FontScale } from "../lib/font";
 
   interface Props {
     /** Controlled by App so Escape closes one layer in order. */
     open?: boolean;
     locale: Locale;
-    theme: ThemeChoice;
+    theme: ThemeMode;
     font: FontScale;
     dbBusy: boolean;
     backingUp: boolean;
     backupStatus: string | null;
     onLocale: (locale: Locale) => void;
-    onTheme: (choice: ThemeChoice) => void;
+    onTheme: (choice: ThemeMode) => void;
     onFont: (scale: FontScale) => void;
     onOpenDb: () => void;
     onBackup: () => void;
@@ -171,7 +171,7 @@
           role="group"
           aria-label={i18n.t("prefs.theme")}
         >
-          {#each THEME_CHOICES as choice (choice)}
+          {#each THEME_MODES as choice (choice)}
             <button
               type="button"
               onclick={() => onTheme(choice)}

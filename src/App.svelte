@@ -27,12 +27,14 @@
     type TranslateParams,
   } from "./lib/i18n";
   import {
-    applyThemeClass,
-    loadThemeChoice,
+    applyTheme,
+    loadDarkPalette,
+    loadThemeMode,
     resolveTheme,
-    saveThemeChoice,
+    saveThemeMode,
     systemPrefersDark,
-    type ThemeChoice,
+    type DarkPalette,
+    type ThemeMode,
   } from "./lib/theme";
   import {
     applyFontScale,
@@ -227,7 +229,8 @@
   /** Note pending reset confirmation (dialog rendered at app root). */
   let resetTarget = $state<ClippingRow | null>(null);
   let locale = $state<Locale>(loadLocale(readStoredLocale()));
-  let themeChoice = $state<ThemeChoice>(loadThemeChoice());
+  let themeMode = $state<ThemeMode>(loadThemeMode());
+  let darkPalette = $state<DarkPalette>(loadDarkPalette());
   let fontScale = $state<FontScale>(loadStoredFontScale());
 
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
@@ -286,10 +289,13 @@
     }
   }
 
-  function setTheme(next: ThemeChoice): void {
-    themeChoice = next;
-    saveThemeChoice(next); // fast cache for the pre-paint script
-    applyThemeClass(document.documentElement, resolveTheme(next, systemPrefersDark()));
+  function setTheme(next: ThemeMode): void {
+    themeMode = next;
+    saveThemeMode(next); // fast cache for the pre-paint script
+    applyTheme(
+      document.documentElement,
+      resolveTheme(next, systemPrefersDark(), darkPalette),
+    );
     void persistSetting(SETTINGS_KEYS.theme, next);
   }
 
@@ -302,10 +308,11 @@
 
   /** Live system preference: the theme follows macOS while the choice is "system". */
   $effect(() => {
-    const choice = themeChoice;
+    const mode = themeMode;
+    const palette = darkPalette;
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = (): void =>
-      applyThemeClass(document.documentElement, resolveTheme(choice, query.matches));
+      applyTheme(document.documentElement, resolveTheme(mode, query.matches, palette));
     apply();
     query.addEventListener("change", apply);
     return () => query.removeEventListener("change", apply);
@@ -407,14 +414,14 @@
         await setSetting(port, SETTINGS_KEYS.locale, locale);
       }
       if (dbTheme === "light" || dbTheme === "dark" || dbTheme === "system") {
-        themeChoice = dbTheme;
-        saveThemeChoice(dbTheme);
-        applyThemeClass(
+        themeMode = dbTheme;
+        saveThemeMode(dbTheme);
+        applyTheme(
           document.documentElement,
-          resolveTheme(dbTheme, systemPrefersDark()),
+          resolveTheme(dbTheme, systemPrefersDark(), darkPalette),
         );
       } else {
-        await setSetting(port, SETTINGS_KEYS.theme, themeChoice);
+        await setSetting(port, SETTINGS_KEYS.theme, themeMode);
       }
       if (dbFontScale === "small" || dbFontScale === "medium" || dbFontScale === "large") {
         fontScale = dbFontScale;
@@ -1730,7 +1737,7 @@
       <PreferencesMenu
         bind:open={prefsOpen}
         locale={locale}
-        theme={themeChoice}
+        theme={themeMode}
         font={fontScale}
         dbBusy={locatingDb}
         backingUp={backingUp}

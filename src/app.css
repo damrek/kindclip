@@ -1,12 +1,201 @@
 @import "tailwindcss";
 
-/* Manual `.dark` class toggle support (in addition to the OS preference).
-   Used by the theme switcher (T7). */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark mode is an attribute, not a class. `data-mode` answers "is it dark?"
+   and drives native controls plus the rare `dark:` tweak; `data-palette`
+   answers "which theme?" and drives the semantic tokens below. */
+@custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
 @theme {
   --font-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens.
+
+   Components use only these names (bg-surface, text-fg-muted, border-line,
+   ...). A theme is a block that redefines them, so adding a palette never
+   touches a component. The light block keeps the v1.14 rendering; the four
+   dark blocks follow their upstream palettes with WCAG-AA-adjusted text
+   colors (see theme.test.ts).
+   --------------------------------------------------------------------------- */
+
+:root,
+[data-palette="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f5f5f5;
+  --inverse: #171717;
+  --inverse-fg: #ffffff;
+
+  /* Text */
+  --fg: #171717;
+  --fg-muted: #737373;
+  --fg-subtle: #a1a1a1;
+
+  /* Borders */
+  --line: #e5e5e5;
+  --line-subtle: #f5f5f5;
+  --line-strong: #d4d4d4;
+
+  /* Accent */
+  --accent: #d97706;
+  --accent-text: #b45309;
+  --accent-soft: #fef3c7;
+  --mark-bg: rgb(253 230 138 / 0.8);
+  --selection: rgb(252 211 77 / 0.4);
+  --focus-ring: rgb(245 158 11 / 0.7);
+
+  /* Danger */
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-border: #fecaca;
+}
+
+[data-palette="atom-one-dark"] {
+  color-scheme: dark;
+
+  --surface: #282c34;
+  --surface-raised: #2f343d;
+  --surface-hover: #3a4049;
+  --inverse: #d7dae0;
+  --inverse-fg: #282c34;
+
+  --fg: #abb2bf;
+  --fg-muted: #8f98a5;
+  --fg-subtle: #6b7480;
+
+  --line: #3e4451;
+  --line-subtle: #353b45;
+  --line-strong: #4b5263;
+
+  --accent: #61afef;
+  --accent-text: #61afef;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+
+  --danger: #e58f96;
+  --danger-soft: #3a2b2f;
+  --danger-border: #5c3a3f;
+}
+
+[data-palette="darcula"] {
+  color-scheme: dark;
+
+  --surface: #2b2b2b;
+  --surface-raised: #3c3f41;
+  --surface-hover: #45494a;
+  --inverse: #d4d4d4;
+  --inverse-fg: #2b2b2b;
+
+  --fg: #a9b7c6;
+  --fg-muted: #9aa5b1;
+  --fg-subtle: #757f8a;
+
+  --line: #4b4b4b;
+  --line-subtle: #3a3d3f;
+  --line-strong: #5c6164;
+
+  --accent: #6897bb;
+  --accent-text: #6897bb;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+
+  --danger: #ff6b68;
+  --danger-soft: #3d2b2b;
+  --danger-border: #6a3a39;
+}
+
+[data-palette="nord"] {
+  color-scheme: dark;
+
+  --surface: #2e3440;
+  --surface-raised: #3b4252;
+  --surface-hover: #434c5e;
+  --inverse: #eceff4;
+  --inverse-fg: #2e3440;
+
+  --fg: #d8dee9;
+  --fg-muted: #a3aec2;
+  --fg-subtle: #7b88a1;
+
+  --line: #434c5e;
+  --line-subtle: #3b4252;
+  --line-strong: #4c566a;
+
+  --accent: #88c0d0;
+  --accent-text: #88c0d0;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+
+  --danger: #d38a92;
+  --danger-soft: #3b2f33;
+  --danger-border: #5c4148;
+}
+
+[data-palette="solarized-dark"] {
+  color-scheme: dark;
+
+  --surface: #002b36;
+  --surface-raised: #073642;
+  --surface-hover: #0d4453;
+  --inverse: #eee8d5;
+  --inverse-fg: #002b36;
+
+  --fg: #93a1a1;
+  --fg-muted: #8a9899;
+  --fg-subtle: #657b83;
+
+  --line: #1d5a68;
+  --line-subtle: #073642;
+  --line-strong: #586e75;
+
+  --accent: #268bd2;
+  --accent-text: #4aa8e8;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
+
+  --danger: #e8695f;
+  --danger-soft: #3a2222;
+  --danger-border: #6b3330;
+}
+
+/* `inline` is required: utilities must emit `var(--surface)` so a nested
+   `data-palette` block (the picker previews) can re-scope the whole theme. */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-inverse: var(--inverse);
+  --color-inverse-fg: var(--inverse-fg);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-mark: var(--mark-bg);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
 }
 
 html,
@@ -15,24 +204,16 @@ body,
   height: 100%;
 }
 
-:root {
-  color-scheme: light;
-}
-
-:root.dark {
-  color-scheme: dark;
-}
-
 body {
-  @apply bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  @apply bg-surface text-fg antialiased;
 }
 
 ::selection {
-  background-color: rgb(252 211 77 / 0.4);
+  background-color: var(--selection);
 }
 
 :focus-visible {
-  outline: 2px solid rgb(245 158 11 / 0.7);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
