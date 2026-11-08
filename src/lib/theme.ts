@@ -28,6 +28,14 @@ export const DARK_PALETTES: DarkPalette[] = [
 ];
 export const DEFAULT_DARK_PALETTE: DarkPalette = "atom-one-dark";
 
+/** Display names. Palette names are proper nouns, so they stay untranslated. */
+export const DARK_PALETTE_NAMES: Record<DarkPalette, string> = {
+  "atom-one-dark": "Atom One Dark",
+  darcula: "Darcula",
+  nord: "Nord",
+  "solarized-dark": "Solarized Dark",
+};
+
 const MODE_STORAGE_KEY = "kindclip-theme";
 const PALETTE_STORAGE_KEY = "kindclip-dark-palette";
 

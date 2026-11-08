@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyTheme,
   DARK_PALETTES,
+  DARK_PALETTE_NAMES,
   DEFAULT_DARK_PALETTE,
   isDarkPalette,
   isThemeMode,
@@ -129,6 +130,18 @@ describe("isDarkPalette", () => {
   it("defaults to Atom One Dark", () => {
     expect(DEFAULT_DARK_PALETTE).toBe("atom-one-dark");
     expect(DARK_PALETTES).toHaveLength(4);
+  });
+});
+
+describe("DARK_PALETTE_NAMES", () => {
+  it("names every palette with its proper noun", () => {
+    expect(Object.keys(DARK_PALETTE_NAMES).sort()).toEqual([...DARK_PALETTES].sort());
+    expect(DARK_PALETTE_NAMES).toEqual({
+      "atom-one-dark": "Atom One Dark",
+      darcula: "Darcula",
+      nord: "Nord",
+      "solarized-dark": "Solarized Dark",
+    });
   });
 });
 

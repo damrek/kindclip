@@ -796,6 +796,13 @@ describe("settings", () => {
     await expect(getSetting(port, "theme")).resolves.toBe("light");
   });
 
+  it("roundtrips the dark palette under its own key", async () => {
+    const port = new FakePort();
+    await setSetting(port, SETTINGS_KEYS.darkPalette, "nord");
+    await expect(getSetting(port, SETTINGS_KEYS.darkPalette)).resolves.toBe("nord");
+    expect(SETTINGS_KEYS.darkPalette).toBe("darkPalette");
+  });
+
   it("saves and loads filter state", async () => {
     const port = new FakePort();
     const state: StoredFilterState = {

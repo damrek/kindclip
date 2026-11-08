@@ -11,7 +11,13 @@
     type I18nContext,
     type Locale,
   } from "../lib/i18n";
-  import { THEME_MODES, type ThemeMode } from "../lib/theme";
+  import {
+    DARK_PALETTES,
+    DARK_PALETTE_NAMES,
+    THEME_MODES,
+    type DarkPalette,
+    type ThemeMode,
+  } from "../lib/theme";
   import { FONT_SCALES, type FontScale } from "../lib/font";
 
   interface Props {
@@ -19,12 +25,14 @@
     open?: boolean;
     locale: Locale;
     theme: ThemeMode;
+    palette: DarkPalette;
     font: FontScale;
     dbBusy: boolean;
     backingUp: boolean;
     backupStatus: string | null;
     onLocale: (locale: Locale) => void;
     onTheme: (choice: ThemeMode) => void;
+    onPalette: (palette: DarkPalette) => void;
     onFont: (scale: FontScale) => void;
     onOpenDb: () => void;
     onBackup: () => void;
@@ -36,12 +44,14 @@
     open = $bindable(false),
     locale,
     theme,
+    palette,
     font,
     dbBusy,
     backingUp,
     backupStatus,
     onLocale,
     onTheme,
+    onPalette,
     onFont,
     onOpenDb,
     onBackup,
@@ -144,7 +154,7 @@
       aria-label={i18n.t("prefs.title")}
       tabindex="-1"
       bind:this={panel}
-      class="absolute right-0 z-20 mt-1 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-line bg-surface-raised p-3 shadow-lg outline-none"
+      class="absolute right-0 z-20 mt-1 max-h-[calc(100vh-5rem)] w-80 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-line bg-surface-raised p-3 shadow-lg outline-none"
     >
       <p class="pb-1 text-xs font-medium text-fg-muted">
         {i18n.t("prefs.appearance")}
@@ -181,6 +191,50 @@
                 : 'text-fg-muted hover:bg-surface-hover'}"
             >
               {i18n.t(`theme.${choice}`)}
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      <div class="pb-1">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="text-xs text-fg-muted">{i18n.t("prefs.darkPalette")}</span>
+          <span class="text-[10px] text-fg-muted">{i18n.t("prefs.paletteHint")}</span>
+        </div>
+        <div
+          class="mt-1 grid grid-cols-2 gap-2"
+          role="group"
+          aria-label={i18n.t("prefs.darkPalette")}
+        >
+          {#each DARK_PALETTES as option (option)}
+            <button
+              type="button"
+              onclick={() => onPalette(option)}
+              aria-pressed={palette === option}
+              class="rounded-lg border p-1.5 text-left transition {palette === option
+                ? 'border-accent ring-2 ring-accent/40'
+                : 'border-line hover:border-line-strong'}"
+            >
+              <!-- A nested `data-palette` re-scopes the tokens, so the card
+                   previews the real theme instead of a copy of its colors. -->
+              <div data-palette={option} aria-hidden="true" class="rounded-md bg-surface p-1">
+                <div class="flex items-center gap-1 rounded bg-surface-raised px-1.5 py-1">
+                  <span class="h-2 w-2 shrink-0 rounded-full bg-accent"></span>
+                  <span class="text-[10px] font-medium leading-none text-fg">Aa</span>
+                  <span class="text-[10px] leading-none text-fg-muted">Aa</span>
+                  <span class="ml-auto flex items-center gap-1">
+                    <span class="h-1 w-1 rounded-full bg-danger"></span>
+                    <span class="h-1 w-1 rounded-full bg-success"></span>
+                  </span>
+                </div>
+              </div>
+              <span
+                class="mt-1 block truncate text-[11px] {palette === option
+                  ? 'font-medium text-fg'
+                  : 'text-fg-muted'}"
+              >
+                {DARK_PALETTE_NAMES[option]}
+              </span>
             </button>
           {/each}
         </div>

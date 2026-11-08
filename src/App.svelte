@@ -28,9 +28,11 @@
   } from "./lib/i18n";
   import {
     applyTheme,
+    isDarkPalette,
     loadDarkPalette,
     loadThemeMode,
     resolveTheme,
+    saveDarkPalette,
     saveThemeMode,
     systemPrefersDark,
     type DarkPalette,
@@ -299,6 +301,16 @@
     void persistSetting(SETTINGS_KEYS.theme, next);
   }
 
+  function setDarkPalette(next: DarkPalette): void {
+    darkPalette = next;
+    saveDarkPalette(next); // fast cache for the pre-paint script
+    applyTheme(
+      document.documentElement,
+      resolveTheme(themeMode, systemPrefersDark(), next),
+    );
+    void persistSetting(SETTINGS_KEYS.darkPalette, next);
+  }
+
   function setFontScale(next: FontScale): void {
     fontScale = next;
     saveFontScale(next); // fast cache for the pre-paint script
@@ -400,9 +412,10 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbFontScale, dbFilter, dbTags] = await Promise.all([
+      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbFilter, dbTags] = await Promise.all([
         getSetting(port, SETTINGS_KEYS.locale),
         getSetting(port, SETTINGS_KEYS.theme),
+        getSetting(port, SETTINGS_KEYS.darkPalette),
         getSetting(port, SETTINGS_KEYS.fontScale),
         loadFilterState(port),
         listTags(port),
@@ -412,6 +425,16 @@
         locale = dbLocale;
       } else {
         await setSetting(port, SETTINGS_KEYS.locale, locale);
+      }
+      if (isDarkPalette(dbPalette)) {
+        darkPalette = dbPalette;
+        saveDarkPalette(dbPalette);
+        applyTheme(
+          document.documentElement,
+          resolveTheme(themeMode, systemPrefersDark(), dbPalette),
+        );
+      } else {
+        await setSetting(port, SETTINGS_KEYS.darkPalette, darkPalette);
       }
       if (dbTheme === "light" || dbTheme === "dark" || dbTheme === "system") {
         themeMode = dbTheme;
@@ -1738,12 +1761,14 @@
         bind:open={prefsOpen}
         locale={locale}
         theme={themeMode}
+        palette={darkPalette}
         font={fontScale}
         dbBusy={locatingDb}
         backingUp={backingUp}
         backupStatus={backupStatus}
         onLocale={setLocale}
         onTheme={setTheme}
+        onPalette={setDarkPalette}
         onFont={setFontScale}
         onOpenDb={onOpenDbLocation}
         onBackup={onBackup}
