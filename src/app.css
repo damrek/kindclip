@@ -20,6 +20,29 @@
    colors (see theme.test.ts).
    --------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+   Palette definitions.
+
+   Every block defines the same token names; a theme never touches a component.
+   The light block keeps the v1.14 rendering (only `accent-text` moved from
+   amber-700 to amber-800 so tag/merge text on the amber tint clears AA).
+
+   The dark blocks start from their upstream palettes, then adjust the text
+   colors that upstream ships below WCAG AA. Adjustments are the smallest
+   change that passes, keeping the hue:
+     - hover/active surfaces stay a small step above `surface-raised`, because
+       muted text sits on both and a brighter hover would push it toward `fg`;
+     - `fg-muted`, `accent-text`, `danger` and `success` are lightened as little
+       as possible while clearing 4.5:1 on every surface they actually land on;
+     - `accent` doubles as a button background, so it must also keep
+       `inverse-fg` readable (4.5:1), not just 3:1 as a UI color;
+     - `accent-hover` is *lighter* than `accent` in dark themes: it is both a
+       hovered button background (dark text) and a hovered text color.
+   `fg-subtle` and `fg-faint` stay at their upstream values; they are the
+   placeholder/decorative levels and are not part of the AA guarantee.
+   theme.test.ts pins every pairing listed here.
+   --------------------------------------------------------------------------- */
+
 :root,
 [data-palette="light"] {
   color-scheme: light;
@@ -28,13 +51,16 @@
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-hover: #f5f5f5;
+  --surface-active: #e5e5e5;
+  --surface-inset: #fafafa;
   --inverse: #171717;
   --inverse-fg: #ffffff;
 
   /* Text */
   --fg: #171717;
-  --fg-muted: #737373;
+  --fg-muted: #5f5f5f;
   --fg-subtle: #a1a1a1;
+  --fg-faint: #d4d4d4;
 
   /* Borders */
   --line: #e5e5e5;
@@ -43,16 +69,23 @@
 
   /* Accent */
   --accent: #d97706;
-  --accent-text: #b45309;
-  --accent-soft: #fef3c7;
-  --mark-bg: rgb(253 230 138 / 0.8);
+  --accent-hover: #b45309;
+  --accent-text: #92400e;
+  --accent-soft: #fffbeb;
+  --accent-soft-strong: #fef3c7;
+  --mark-bg: rgb(254 230 132 / 0.8);
   --selection: rgb(252 211 77 / 0.4);
   --focus-ring: rgb(245 158 11 / 0.7);
 
   /* Danger */
   --danger: #b91c1c;
+  --danger-solid: #dc2626;
+  --danger-solid-hover: #b91c1c;
   --danger-soft: #fef2f2;
   --danger-border: #fecaca;
+
+  /* Success */
+  --success: #047857;
 }
 
 [data-palette="atom-one-dark"] {
@@ -60,28 +93,39 @@
 
   --surface: #282c34;
   --surface-raised: #2f343d;
-  --surface-hover: #3a4049;
+  --surface-hover: #333944;
+  --surface-active: #3b4250;
+  --surface-inset: #21252b;
   --inverse: #d7dae0;
   --inverse-fg: #282c34;
 
   --fg: #abb2bf;
-  --fg-muted: #8f98a5;
+  --fg-muted: #9ba3ae;
   --fg-subtle: #6b7480;
+  --fg-faint: #565d68;
 
   --line: #3e4451;
   --line-subtle: #353b45;
   --line-strong: #4b5263;
 
   --accent: #61afef;
-  --accent-text: #61afef;
-  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-hover: #74b9f1;
+  --accent-text: #86c2f3;
+  /* Solid tints pre-composited over `surface-raised` (where chips live) so the
+     contrast of the text on top is deterministic. */
+  --accent-soft: #354352;
+  --accent-soft-strong: #394d61;
   --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --selection: color-mix(in srgb, var(--accent) 25%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
 
-  --danger: #e58f96;
+  --danger: #e48088;
+  --danger-solid: #e48088;
+  --danger-solid-hover: #e8939a;
   --danger-soft: #3a2b2f;
   --danger-border: #5c3a3f;
+
+  --success: #98c379;
 }
 
 [data-palette="darcula"] {
@@ -89,28 +133,37 @@
 
   --surface: #2b2b2b;
   --surface-raised: #3c3f41;
-  --surface-hover: #45494a;
+  --surface-hover: #404448;
+  --surface-active: #484c4f;
+  --surface-inset: #313335;
   --inverse: #d4d4d4;
   --inverse-fg: #2b2b2b;
 
-  --fg: #a9b7c6;
-  --fg-muted: #9aa5b1;
+  --fg: #b0bdca;
+  --fg-muted: #a8b2bc;
   --fg-subtle: #757f8a;
+  --fg-faint: #5f6771;
 
   --line: #4b4b4b;
   --line-subtle: #3a3d3f;
   --line-strong: #5c6164;
 
-  --accent: #6897bb;
-  --accent-text: #6897bb;
-  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent: #6f9cbe;
+  --accent-hover: #80a8c6;
+  --accent-text: #adc7da;
+  --accent-soft: #424a50;
+  --accent-soft-strong: #46525a;
   --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --selection: color-mix(in srgb, var(--accent) 25%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
 
-  --danger: #ff6b68;
+  --danger: #ff8885;
+  --danger-solid: #ff8885;
+  --danger-solid-hover: #ff9a97;
   --danger-soft: #3d2b2b;
   --danger-border: #6a3a39;
+
+  --success: #97b485;
 }
 
 [data-palette="nord"] {
@@ -118,28 +171,37 @@
 
   --surface: #2e3440;
   --surface-raised: #3b4252;
-  --surface-hover: #434c5e;
+  --surface-hover: #404857;
+  --surface-active: #4c566a;
+  --surface-inset: #272c36;
   --inverse: #eceff4;
   --inverse-fg: #2e3440;
 
   --fg: #d8dee9;
-  --fg-muted: #a3aec2;
+  --fg-muted: #adb7c9;
   --fg-subtle: #7b88a1;
+  --fg-faint: #616e88;
 
   --line: #434c5e;
   --line-subtle: #3b4252;
   --line-strong: #4c566a;
 
   --accent: #88c0d0;
-  --accent-text: #88c0d0;
-  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-hover: #96c8d6;
+  --accent-text: #b3d7e1;
+  --accent-soft: #445161;
+  --accent-soft-strong: #4a5b6b;
   --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --selection: color-mix(in srgb, var(--accent) 25%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
 
-  --danger: #d38a92;
+  --danger: #dba1a7;
+  --danger-solid: #dba1a7;
+  --danger-solid-hover: #e0afb4;
   --danger-soft: #3b2f33;
   --danger-border: #5c4148;
+
+  --success: #a3be8c;
 }
 
 [data-palette="solarized-dark"] {
@@ -147,28 +209,37 @@
 
   --surface: #002b36;
   --surface-raised: #073642;
-  --surface-hover: #0d4453;
+  --surface-hover: #0a3b48;
+  --surface-active: #0f4a59;
+  --surface-inset: #00252e;
   --inverse: #eee8d5;
   --inverse-fg: #002b36;
 
-  --fg: #93a1a1;
-  --fg-muted: #8a9899;
+  --fg: #a2aeae;
+  --fg-muted: #95a1a2;
   --fg-subtle: #657b83;
+  --fg-faint: #586e75;
 
   --line: #1d5a68;
   --line-subtle: #073642;
   --line-strong: #586e75;
 
-  --accent: #268bd2;
-  --accent-text: #4aa8e8;
-  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent: #3895d6;
+  --accent-hover: #50a2db;
+  --accent-text: #6cb9ec;
+  --accent-soft: #0d4154;
+  --accent-soft-strong: #114960;
   --mark-bg: color-mix(in srgb, var(--accent) 30%, transparent);
   --selection: color-mix(in srgb, var(--accent) 25%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 75%, transparent);
 
-  --danger: #e8695f;
+  --danger: #ea7970;
+  --danger-solid: #ea7970;
+  --danger-solid-hover: #ed8d85;
   --danger-soft: #3a2222;
   --danger-border: #6b3330;
+
+  --success: #91a318;
 }
 
 /* `inline` is required: utilities must emit `var(--surface)` so a nested
@@ -177,25 +248,34 @@
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-surface-inset: var(--surface-inset);
   --color-inverse: var(--inverse);
   --color-inverse-fg: var(--inverse-fg);
 
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
   --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
 
   --color-line: var(--line);
   --color-line-subtle: var(--line-subtle);
   --color-line-strong: var(--line-strong);
 
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-strong: var(--accent-soft-strong);
   --color-mark: var(--mark-bg);
 
   --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-solid-hover: var(--danger-solid-hover);
   --color-danger-soft: var(--danger-soft);
   --color-danger-border: var(--danger-border);
+
+  --color-success: var(--success);
 }
 
 html,
