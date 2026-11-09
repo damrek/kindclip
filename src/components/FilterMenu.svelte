@@ -80,6 +80,7 @@
     onclick={toggleMenu}
     aria-expanded={open}
     aria-haspopup="dialog"
+    aria-keyshortcuts="f"
     title={i18n.t("filters.button")}
     class="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition {activeCount >
     0

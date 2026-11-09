@@ -6,7 +6,7 @@
   import Icon from "./components/Icon.svelte";
   import LibraryDialog from "./components/LibraryDialog.svelte";
   import Pagination from "./components/Pagination.svelte";
-  import PreferencesMenu from "./components/PreferencesMenu.svelte";
+  import PreferencesDialog from "./components/PreferencesDialog.svelte";
   import ReadingView from "./components/ReadingView.svelte";
   import RestoreDialog from "./components/RestoreDialog.svelte";
   import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
@@ -243,6 +243,7 @@
       libraryOpen ||
       statsOpen ||
       restoreOpen ||
+      prefsOpen ||
       shortcutsOpen,
   );
   const pages = $derived(Math.max(1, Math.ceil((result?.total ?? 0) / pageSize)));
@@ -849,8 +850,11 @@
     target?.focus();
   }
 
-  /** Remember where focus was before a modal opened. */
+  /** Remember where focus was before a modal opened. A dialog opened from
+   * another one keeps the original opener, so focus never lands on a panel
+   * that unmounted with the chain. */
   function rememberOpener(): void {
+    if (modalOpener !== null && modalOpener.isConnected) return;
     modalOpener =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
   }
@@ -931,6 +935,31 @@
     restoreOpener();
   }
 
+  function openPreferences(): void {
+    if (prefsOpen) return;
+    rememberOpener();
+    prefsOpen = true;
+  }
+
+  /** `restoreFocus: false` when another dialog takes over the screen. */
+  function closePreferences(restoreFocus = true): void {
+    if (!prefsOpen) return;
+    prefsOpen = false;
+    if (restoreFocus) restoreOpener();
+  }
+
+  /** Settings actions that own the screen: the dialog steps aside first. */
+  function handOffFromPreferences(action: () => void): void {
+    closePreferences(false);
+    action();
+  }
+
+  /** No dialog follows the reveal, so the gear takes focus back. */
+  function openDbFromPreferences(): void {
+    closePreferences();
+    onOpenDbLocation();
+  }
+
   /** Focus a visible card so it becomes the j/k, Enter, * and c target. */
   async function moveSelection(direction: SelectionDirection): Promise<void> {
     const next = stepSelection(result?.items ?? [], selectedId, direction);
@@ -964,7 +993,7 @@
         filtersOpen = true;
         break;
       case "open-preferences":
-        prefsOpen = true;
+        openPreferences();
         break;
       case "next-clipping":
         void moveSelection("next");
@@ -1027,14 +1056,14 @@
         if (!restoreBusy) closeRestore();
         return;
       }
+      if (prefsOpen) {
+        event.preventDefault();
+        closePreferences();
+        return;
+      }
       if (filtersOpen) {
         event.preventDefault();
         filtersOpen = false;
-        return;
-      }
-      if (prefsOpen) {
-        event.preventDefault();
-        prefsOpen = false;
         return;
       }
       if (query !== "") {
@@ -1066,7 +1095,7 @@
     const action = resolveShortcut(event, {
       typing: isTypingTarget(target),
       interactive: isInteractiveTarget(target),
-      overlay: modalOpen || filtersOpen || prefsOpen,
+      overlay: modalOpen || filtersOpen,
       hasLibrary,
       hasResults: (result?.items.length ?? 0) > 0,
       hasSelection: selectedId !== null,
@@ -1631,6 +1660,10 @@
     books.find((book) => book.id === bookId)?.title ??
       (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
   );
+  /** Tooltip for the toolbar export button: what the next export would hold. */
+  const exportSummary = $derived(
+    t("export.summary", { count: result?.total ?? 0, scope: exportScope }),
+  );
   /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading ? readingCurrent(reading) : null);
 
@@ -1697,8 +1730,9 @@
           aria-label={t("sidebar.toggle")}
           aria-expanded={sidebarOpen}
           aria-controls="book-sidebar"
+          aria-keyshortcuts="s"
           title={t("sidebar.toggle")}
-          class="rounded-lg p-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg"
+          class="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-hover hover:text-fg"
         >
           <Icon name="sidebar" />
         </button>
@@ -1708,73 +1742,18 @@
         kindclip
       </h1>
     </div>
-    <div class="flex min-w-0 items-center gap-1">
-      {#if importStatus}
-        <p class="truncate text-sm text-fg-muted" role="status">
-          {importStatus}
-        </p>
-      {/if}
-      {#if exportStatus}
-        <p class="truncate text-sm text-fg-muted" role="status">
-          {exportStatus}
-        </p>
-      {/if}
+    <div class="flex items-center gap-1">
       <button
         type="button"
-        onclick={openStats}
-        disabled={!hasLibrary}
-        title={t("stats.open")}
-        aria-label={t("stats.open")}
-        class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+        onclick={openPreferences}
+        title={t("prefs.open")}
+        aria-label={t("prefs.open")}
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Meta+, Control+,"
+        class="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-hover hover:text-fg"
       >
-        <Icon name="stats" />
+        <Icon name="settings" />
       </button>
-      <button
-        type="button"
-        onclick={openLibrary}
-        disabled={!hasLibrary}
-        title={t("library.open")}
-        aria-label={t("library.open")}
-        class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
-      >
-        <Icon name="library" />
-      </button>
-      <button
-        type="button"
-        onclick={openExport}
-        disabled={!result || result.total === 0}
-        title={t("export.button")}
-        aria-label={t("export.button")}
-        class="rounded-full px-2.5 py-1.5 text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
-      >
-        <Icon name="export" />
-      </button>
-      <button
-        type="button"
-        onclick={onImport}
-        disabled={importing}
-        class="rounded-full bg-inverse px-4 py-1.5 text-sm font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
-      >
-        {importing ? t("header.importing") : t("header.import")}
-      </button>
-      <PreferencesMenu
-        bind:open={prefsOpen}
-        locale={locale}
-        theme={themeMode}
-        palette={darkPalette}
-        font={fontScale}
-        dbBusy={locatingDb}
-        backingUp={backingUp}
-        backupStatus={backupStatus}
-        onLocale={setLocale}
-        onTheme={setTheme}
-        onPalette={setDarkPalette}
-        onFont={setFontScale}
-        onOpenDb={onOpenDbLocation}
-        onBackup={onBackup}
-        onRestore={onRestoreRequest}
-        onShortcuts={openShortcuts}
-      />
     </div>
   </header>
 
@@ -1833,6 +1812,11 @@
           sortDir={bookSortDir}
           onSortBy={setBookSortBy}
           onSortDirToggle={toggleBookSortDir}
+          onImport={onImport}
+          importing={importing}
+          onOpenLibrary={openLibrary}
+          onOpenStats={openStats}
+          libraryActionsDisabled={!hasLibrary}
         />
       </aside>
 
@@ -1876,7 +1860,8 @@
                 onclick={openSearch}
                 title={t("search.open")}
                 aria-label={t("search.open")}
-                class="rounded-full px-2.5 py-2 text-fg-muted transition hover:bg-surface-hover hover:text-fg"
+                aria-keyshortcuts="/"
+                class="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-hover hover:text-fg"
               >
                 <Icon name="search" />
               </button>
@@ -1897,23 +1882,49 @@
             onClear={clearFilters}
           />
 
-          <label class="ml-auto">
-            <span class="sr-only">{t("clippingSort.label")}</span>
-            <select
-              value={`${sortBy}:${sortDir}`}
-              onchange={(event) => setClippingSort(event.currentTarget.value)}
-              aria-label={t("clippingSort.label")}
-              class="cursor-pointer rounded-full border border-line bg-surface-raised px-3 py-2 text-sm text-fg outline-none focus:border-line-strong"
+          <div class="ml-auto flex items-center gap-2">
+            <label>
+              <span class="sr-only">{t("clippingSort.label")}</span>
+              <select
+                value={`${sortBy}:${sortDir}`}
+                onchange={(event) => setClippingSort(event.currentTarget.value)}
+                aria-label={t("clippingSort.label")}
+                class="cursor-pointer rounded-full border border-line bg-surface-raised px-3 py-2 text-sm text-fg outline-none focus:border-line-strong"
+              >
+                <option value="date:desc">{t("clippingSort.dateDesc")}</option>
+                <option value="date:asc">{t("clippingSort.dateAsc")}</option>
+                <option value="title:asc">{t("clippingSort.titleAsc")}</option>
+                <option value="title:desc">{t("clippingSort.titleDesc")}</option>
+                <option value="page:asc">{t("clippingSort.pageAsc")}</option>
+                <option value="page:desc">{t("clippingSort.pageDesc")}</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              onclick={openExport}
+              disabled={!result || result.total === 0}
+              title={exportSummary}
+              aria-label={exportSummary}
+              class="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
             >
-              <option value="date:desc">{t("clippingSort.dateDesc")}</option>
-              <option value="date:asc">{t("clippingSort.dateAsc")}</option>
-              <option value="title:asc">{t("clippingSort.titleAsc")}</option>
-              <option value="title:desc">{t("clippingSort.titleDesc")}</option>
-              <option value="page:asc">{t("clippingSort.pageAsc")}</option>
-              <option value="page:desc">{t("clippingSort.pageDesc")}</option>
-            </select>
-          </label>
+              <Icon name="export" />
+            </button>
+          </div>
         </div>
+
+        {#if importStatus || exportStatus}
+          <div
+            class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-6 py-2 text-sm text-fg-muted"
+            role="status"
+          >
+            {#if importStatus}
+              <p class="min-w-0 truncate">{importStatus}</p>
+            {/if}
+            {#if exportStatus}
+              <p class="min-w-0 truncate">{exportStatus}</p>
+            {/if}
+          </div>
+        {/if}
 
         {#if activeChips.length > 0}
           <div
@@ -2140,6 +2151,27 @@
     error={restoreError}
     onClose={closeRestore}
     onConfirm={confirmRestore}
+  />
+{/if}
+
+{#if prefsOpen}
+  <PreferencesDialog
+    locale={locale}
+    theme={themeMode}
+    palette={darkPalette}
+    font={fontScale}
+    dbBusy={locatingDb}
+    backingUp={backingUp}
+    backupStatus={backupStatus}
+    onLocale={setLocale}
+    onTheme={setTheme}
+    onPalette={setDarkPalette}
+    onFont={setFontScale}
+    onOpenDb={openDbFromPreferences}
+    onBackup={onBackup}
+    onRestore={() => handOffFromPreferences(onRestoreRequest)}
+    onShortcuts={() => handOffFromPreferences(openShortcuts)}
+    onClose={() => closePreferences()}
   />
 {/if}
 
