@@ -14,11 +14,11 @@ binaries, on Windows, Linux and macOS.
 ![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 
 <p>
-  <img src="docs/screenshot.png" width="80%" alt="kindclip — light theme">
+  <img src="docs/screenshot.png" width="80%" alt="kindclip — library view in a dark theme">
 </p>
-*Library view (light theme): book sidebar, full-text search with highlighted
-matches, Filters menu with active chips, and stats, library and export in the
-header.*
+*Library view (dark theme): the sidebar holds the book list with its own sort
+and the import/library/stats footer; the list toolbar holds search, Filters with
+a count badge, sort and export; active filters show as removable chips.*
 
 ## Usage
 
@@ -29,7 +29,7 @@ header.*
    time: duplicates are skipped by content hash, and new highlights are added.
 4. Search, filter and read: `?` shows every shortcut and `⤢` opens a clipping
    full-window.
-5. Export the current view, or back up the database from **⋯ → Data**.
+5. Export the current view, or back up the database from **Preferences → Data**.
 
 ## Features
 
@@ -53,7 +53,7 @@ header.*
   books, delete a book with its clippings, and undo one import. Destructive
   actions confirm; re-importing restores the clippings, but not favorites, tags
   or edited notes.
-- **Reading stats** (header chart icon): library-wide totals plus clippings per
+- **Reading stats** (sidebar footer): library-wide totals plus clippings per
   year, kind and top book, with undated clippings grouped as “no date”.
 
 ### Search & Filter
@@ -70,10 +70,10 @@ header.*
   book, with favorites and tags marked. Markdown labels follow the app language;
   JSON/CSV keep stable English fields (original and edited notes, tags) for
   scripting.
-- **Backup & restore** (⋯ → Data): save a consistent snapshot of `kindclip.db`
-  (default `kindclip-backup-YYYY-MM-DD.db`). Restores verify the file is real
-  SQLite with the kindclip tables and no failed migrations, preview its
-  contents, then keep the replaced database as `kindclip.db.before-restore`.
+- **Backup & restore** (Preferences → Data): save a consistent snapshot of
+  `kindclip.db` (default `kindclip-backup-YYYY-MM-DD.db`). Restores verify the
+  file is real SQLite with the kindclip tables and no failed migrations, preview
+  its contents, then keep the replaced database as `kindclip.db.before-restore`.
   Older snapshots migrate on launch; newer ones are refused, and the app
   restarts.
 - **Open database location** reveals `kindclip.db` in your file manager.
@@ -81,10 +81,12 @@ header.*
 ### UI & Accessibility
 - **Collapsible shell**: sidebar toggle (remembered); search collapses to an
   icon until clicked or filled.
-- **Grouped header**: stats, library, export, Import, and ⋯ preferences
-  (language, system/light/dark theme with four dark palettes — Atom One Dark,
-  Darcula, Nord and Solarized Dark — text size S/M/L, DB location, logs
-  folder, shortcuts).
+- **Grouped chrome**: the top bar keeps only the sidebar toggle and the
+  settings gear; search, filters, sort and export sit above the list they act
+  on; the sidebar footer carries import, library management and statistics.
+- **Preferences dialog**: language, system/light/dark theme with four dark
+  palettes — Atom One Dark, Darcula, Nord and Solarized Dark — text size S/M/L,
+  DB location, logs folder and shortcuts.
 - **WCAG AA palettes**: body, muted, accent and status text clear 4.5:1 on
   every surface they land on, in all five themes; search marks and text
   selection are tuned the same way.
@@ -97,9 +99,9 @@ header.*
   custom icons, and a minimal macOS-style UI over the native frame.
 - **Remembered window**: size, position and maximized state are restored on
   launch, and the window only appears once that state is applied.
-- **Diagnostic logs** (⋯ → Diagnostics): rotating local files record startup,
-  import, export, backup and restore outcomes — paths, counts, sizes and errors
-  only, never clipping text or notes. Nothing is uploaded.
+- **Diagnostic logs** (Preferences → Diagnostics): rotating local files record
+  startup, import, export, backup and restore outcomes — paths, counts, sizes
+  and errors only, never clipping text or notes. Nothing is uploaded.
 
 ## Development
 
@@ -169,8 +171,9 @@ Diagnostic logs live in the standard per-OS log dir — `~/.local/share/app.kind
 (Linux), `%LOCALAPPDATA%\app.kindclip\logs` (Windows), `~/Library/Logs/app.kindclip`
 (macOS). Installed builds write `kindclip.log` and `tauri dev` writes
 `kindclip-dev.log`, rotated at 1 MB over three files. Open the folder from
-**⋯ → Diagnostics → Open logs folder**. They hold paths, counts, sizes and error
-messages only — never clipping text, notes, search queries, tags or book titles.
+**Preferences → Diagnostics → Open logs folder**. They hold paths, counts, sizes
+and error messages only — never clipping text, notes, search queries, tags or
+book titles.
 
 ## Roadmap
 
