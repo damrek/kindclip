@@ -1,12 +1,289 @@
 @import "tailwindcss";
 
-/* Manual `.dark` class toggle support (in addition to the OS preference).
-   Used by the theme switcher (T7). */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Dark mode is an attribute, not a class. `data-mode` answers "is it dark?"
+   and drives native controls plus the rare `dark:` tweak; `data-palette`
+   answers "which theme?" and drives the semantic tokens below. */
+@custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
 @theme {
   --font-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens.
+
+   Components use only these names (bg-surface, text-fg-muted, border-line,
+   ...). A theme is a block that redefines them, so adding a palette never
+   touches a component. The light block keeps the v1.14 rendering; the four
+   dark blocks follow their upstream palettes with WCAG-AA-adjusted text
+   colors (see theme.test.ts).
+   --------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   Palette definitions.
+
+   Every block defines the same token names; a theme never touches a component.
+   The light block keeps the v1.14 rendering (only `accent-text` moved from
+   amber-700 to amber-800 so tag/merge text on the amber tint clears AA).
+
+   The dark blocks start from their upstream palettes, then adjust the text
+   colors that upstream ships below WCAG AA. Adjustments are the smallest
+   change that passes, keeping the hue:
+     - hover/active surfaces stay a small step above `surface-raised`, because
+       muted text sits on both and a brighter hover would push it toward `fg`;
+     - `fg-muted`, `accent-text`, `danger` and `success` are lightened as little
+       as possible while clearing 4.5:1 on every surface they actually land on;
+     - `accent` doubles as a button background, so it must also keep
+       `inverse-fg` readable (4.5:1), not just 3:1 as a UI color;
+     - `accent-hover` is *lighter* than `accent` in dark themes: it is both a
+       hovered button background (dark text) and a hovered text color;
+     - `mark-bg` and `selection` are the strongest accent tint that keeps `fg`
+       at 4.6:1 on the tint (a 30% tint put highlighted text at 3.4-4.3:1),
+       and both `::selection` and search marks force `fg` as the text color;
+     - `focus-ring` is the solid accent, at least 3.19:1 on every surface.
+   `fg-subtle` and `fg-faint` stay at their upstream values; they are the
+   placeholder/decorative levels and are not part of the AA guarantee.
+   theme.test.ts pins every pairing listed here.
+   --------------------------------------------------------------------------- */
+
+:root,
+[data-palette="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f5f5f5;
+  --surface-active: #e5e5e5;
+  --surface-inset: #fafafa;
+  --inverse: #171717;
+  --inverse-fg: #ffffff;
+
+  /* Text */
+  --fg: #171717;
+  --fg-muted: #5f5f5f;
+  --fg-subtle: #a1a1a1;
+  --fg-faint: #d4d4d4;
+
+  /* Borders */
+  --line: #e5e5e5;
+  --line-subtle: #f5f5f5;
+  --line-strong: #d4d4d4;
+
+  /* Accent */
+  --accent: #d97706;
+  --accent-hover: #b45309;
+  --accent-text: #92400e;
+  --accent-soft: #fffbeb;
+  --accent-soft-strong: #fef3c7;
+  /* Solid pre-composited values: the same pixels as the v1.14 translucent
+     mark and selection on white, but deterministic and testable. The focus
+     ring is solid amber-600 (3.19:1 on white); amber-500 at 70% was 2.15:1,
+     below the 3:1 non-text contrast minimum. */
+  --mark-bg: #feeb9d;
+  --selection: #feedb8;
+  --focus-ring: #d97706;
+
+  /* Danger */
+  --danger: #b91c1c;
+  --danger-solid: #dc2626;
+  --danger-solid-hover: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-border: #fecaca;
+
+  /* Success */
+  --success: #047857;
+}
+
+[data-palette="atom-one-dark"] {
+  color-scheme: dark;
+
+  --surface: #282c34;
+  --surface-raised: #2f343d;
+  --surface-hover: #333944;
+  --surface-active: #3b4250;
+  --surface-inset: #21252b;
+  --inverse: #d7dae0;
+  --inverse-fg: #282c34;
+
+  --fg: #abb2bf;
+  --fg-muted: #9ba3ae;
+  --fg-subtle: #6b7480;
+  --fg-faint: #565d68;
+
+  --line: #3e4451;
+  --line-subtle: #353b45;
+  --line-strong: #4b5263;
+
+  --accent: #61afef;
+  --accent-hover: #74b9f1;
+  --accent-text: #86c2f3;
+  /* Solid tints pre-composited over `surface-raised` (where chips live) so the
+     contrast of the text on top is deterministic. */
+  --accent-soft: #354352;
+  --accent-soft-strong: #394d61;
+  --mark-bg: #354454;
+  --selection: #354454;
+  --focus-ring: var(--accent);
+
+  --danger: #e48088;
+  --danger-solid: #e48088;
+  --danger-solid-hover: #e8939a;
+  --danger-soft: #3a2b2f;
+  --danger-border: #5c3a3f;
+
+  --success: #98c379;
+}
+
+[data-palette="darcula"] {
+  color-scheme: dark;
+
+  --surface: #2b2b2b;
+  --surface-raised: #3c3f41;
+  --surface-hover: #404448;
+  --surface-active: #484c4f;
+  --surface-inset: #313335;
+  --inverse: #d4d4d4;
+  --inverse-fg: #2b2b2b;
+
+  --fg: #b0bdca;
+  --fg-muted: #a8b2bc;
+  --fg-subtle: #757f8a;
+  --fg-faint: #5f6771;
+
+  --line: #4b4b4b;
+  --line-subtle: #3a3d3f;
+  --line-strong: #5c6164;
+
+  --accent: #6f9cbe;
+  --accent-hover: #80a8c6;
+  --accent-text: #adc7da;
+  --accent-soft: #424a50;
+  --accent-soft-strong: #46525a;
+  --mark-bg: #434b51;
+  --selection: #434b51;
+  --focus-ring: var(--accent);
+
+  --danger: #ff8885;
+  --danger-solid: #ff8885;
+  --danger-solid-hover: #ff9a97;
+  --danger-soft: #3d2b2b;
+  --danger-border: #6a3a39;
+
+  --success: #97b485;
+}
+
+[data-palette="nord"] {
+  color-scheme: dark;
+
+  --surface: #2e3440;
+  --surface-raised: #3b4252;
+  --surface-hover: #404857;
+  --surface-active: #4c566a;
+  --surface-inset: #272c36;
+  --inverse: #eceff4;
+  --inverse-fg: #2e3440;
+
+  --fg: #d8dee9;
+  --fg-muted: #adb7c9;
+  --fg-subtle: #7b88a1;
+  --fg-faint: #616e88;
+
+  --line: #434c5e;
+  --line-subtle: #3b4252;
+  --line-strong: #4c566a;
+
+  --accent: #88c0d0;
+  --accent-hover: #96c8d6;
+  --accent-text: #b3d7e1;
+  --accent-soft: #445161;
+  --accent-soft-strong: #4a5b6b;
+  --mark-bg: #4f6373;
+  --selection: #4f6373;
+  --focus-ring: var(--accent);
+
+  --danger: #dba1a7;
+  --danger-solid: #dba1a7;
+  --danger-solid-hover: #e0afb4;
+  --danger-soft: #3b2f33;
+  --danger-border: #5c4148;
+
+  --success: #a3be8c;
+}
+
+[data-palette="solarized-dark"] {
+  color-scheme: dark;
+
+  --surface: #002b36;
+  --surface-raised: #073642;
+  --surface-hover: #0a3b48;
+  --surface-active: #0f4a59;
+  --surface-inset: #00252e;
+  --inverse: #eee8d5;
+  --inverse-fg: #002b36;
+
+  --fg: #a2aeae;
+  --fg-muted: #95a1a2;
+  --fg-subtle: #657b83;
+  --fg-faint: #586e75;
+
+  --line: #1d5a68;
+  --line-subtle: #073642;
+  --line-strong: #586e75;
+
+  --accent: #3895d6;
+  --accent-hover: #50a2db;
+  --accent-text: #6cb9ec;
+  --accent-soft: #0d4154;
+  --accent-soft-strong: #114960;
+  --mark-bg: #0e4458;
+  --selection: #0e4458;
+  --focus-ring: var(--accent);
+
+  --danger: #ea7970;
+  --danger-solid: #ea7970;
+  --danger-solid-hover: #ed8d85;
+  --danger-soft: #3a2222;
+  --danger-border: #6b3330;
+
+  --success: #91a318;
+}
+
+/* `inline` is required: utilities must emit `var(--surface)` so a nested
+   `data-palette` block (the picker previews) can re-scope the whole theme. */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-surface-inset: var(--surface-inset);
+  --color-inverse: var(--inverse);
+  --color-inverse-fg: var(--inverse-fg);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-faint: var(--fg-faint);
+
+  --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-strong: var(--accent-soft-strong);
+  --color-mark: var(--mark-bg);
+
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-solid-hover: var(--danger-solid-hover);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+
+  --color-success: var(--success);
 }
 
 html,
@@ -15,24 +292,17 @@ body,
   height: 100%;
 }
 
-:root {
-  color-scheme: light;
-}
-
-:root.dark {
-  color-scheme: dark;
-}
-
 body {
-  @apply bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  @apply bg-surface text-fg antialiased;
 }
 
 ::selection {
-  background-color: rgb(252 211 77 / 0.4);
+  background-color: var(--selection);
+  color: var(--fg);
 }
 
 :focus-visible {
-  outline: 2px solid rgb(245 158 11 / 0.7);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 

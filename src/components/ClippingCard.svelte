@@ -144,20 +144,20 @@
   data-clipping-id={clipping.id}
   tabindex="-1"
   use:selectOnInteraction={() => onSelect(clipping.id)}
-  class="clipping-card rounded-2xl border border-neutral-200 bg-white p-5 transition-colors hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700"
+  class="clipping-card rounded-2xl border border-line bg-surface-raised p-5 transition-colors hover:border-line-strong"
 >
   {#if editing}
     <textarea
       bind:value={draft}
       rows="4"
-      class="w-full resize-y rounded-xl border border-amber-400 bg-amber-50/50 p-3 text-[15px] leading-relaxed text-neutral-800 outline-none focus:border-amber-500 dark:border-amber-600 dark:bg-neutral-800 dark:text-neutral-200"
+      class="w-full resize-y rounded-xl border border-accent bg-accent-soft/50 p-3 text-[15px] leading-relaxed text-fg outline-none focus:border-accent"
     ></textarea>
     <div class="mt-2 flex items-center gap-2">
       <button
         type="button"
         onclick={save}
         disabled={saving}
-        class="rounded-full bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition hover:opacity-80 disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+        class="rounded-full bg-inverse px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:opacity-80 disabled:opacity-50"
       >
         {i18n.t("card.save")}
       </button>
@@ -165,31 +165,31 @@
         type="button"
         onclick={() => (editing = false)}
         disabled={saving}
-        class="rounded-full border border-neutral-200 px-3.5 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-50"
       >
         {i18n.t("card.cancel")}
       </button>
     </div>
   {:else if displayContent}
     <blockquote
-      class="border-l-2 border-amber-400 pl-4 text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200"
+      class="border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
     >
       <HighlightedText text={displayContent} {query} />
     </blockquote>
   {:else}
-    <p class="text-sm text-neutral-400 italic dark:text-neutral-500">
+    <p class="text-sm text-fg-subtle italic">
       {i18n.t("card.noText", { kind: kindLabel })}
     </p>
   {/if}
 
   <div class="mt-4 text-sm">
-    <span class="block font-medium text-neutral-900 dark:text-neutral-100"><HighlightedText text={clipping.title} {query} /></span>
+    <span class="block font-medium text-fg"><HighlightedText text={clipping.title} {query} /></span>
     {#if clipping.author}
-      <span class="block text-neutral-500 dark:text-neutral-400"><HighlightedText text={clipping.author} {query} /></span>
+      <span class="block text-fg-muted"><HighlightedText text={clipping.author} {query} /></span>
     {/if}
   </div>
 
-  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
     <button
       type="button"
       onclick={(event) => {
@@ -198,13 +198,13 @@
       }}
       aria-label={i18n.t("card.filterByKind", { kind: kindLabel })}
       title={i18n.t("card.filterByKind", { kind: kindLabel })}
-      class="rounded-full bg-neutral-100 px-2.5 py-0.5 font-medium text-neutral-600 transition hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900"
+      class="rounded-full bg-surface-hover px-2.5 py-0.5 font-medium text-fg-muted transition hover:bg-surface-active focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
     >
       {kindLabel}
     </button>
     {#each visibleTags as tag (tag.id)}
       <span
-        class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+        class="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-text"
       >
         <button
           type="button"
@@ -214,7 +214,7 @@
           }}
           aria-label={i18n.t("card.filterByTag", { name: tag.name })}
           title={i18n.t("card.filterByTag", { name: tag.name })}
-          class="focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900"
+          class="focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
         >
           <span>#{tag.name}</span>
         </button>
@@ -226,7 +226,7 @@
           }}
           aria-label={i18n.t("card.removeTag", { name: tag.name })}
           title={i18n.t("card.removeTag", { name: tag.name })}
-          class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-amber-500 transition hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+          class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-accent-text transition hover:text-danger"
         >
           ×
         </button>
@@ -243,7 +243,7 @@
         title={tagsExpanded
           ? i18n.t("card.showFewerTags")
           : i18n.t("card.showMoreTags", { count: chips.hidden })}
-        class="rounded-full border border-dashed border-neutral-300 px-2 py-0.5 font-medium text-neutral-500 transition hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        class="rounded-full border border-dashed border-line-strong px-2 py-0.5 font-medium text-fg-muted transition hover:bg-surface-hover"
       >
         {tagsExpanded ? "−" : `+${chips.hidden}`}
       </button>
@@ -259,7 +259,7 @@
         title={editedOnLabel === ""
           ? i18n.t("card.filterEdited")
           : `${i18n.t("card.filterEdited")} · ${editedOnLabel}`}
-        class="rounded-full bg-amber-100 px-2.5 py-0.5 font-medium text-amber-700 transition hover:bg-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 dark:bg-amber-950 dark:text-amber-300 dark:hover:bg-amber-900 dark:focus-visible:ring-offset-neutral-900"
+        class="rounded-full bg-accent-soft-strong px-2.5 py-0.5 font-medium text-accent-text transition hover:bg-accent/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
       >
         {i18n.t("card.edited")}
       </button>
@@ -275,7 +275,7 @@
         onclick={() => onOpen(clipping.id)}
         aria-label={i18n.t("reading.open")}
         title={i18n.t("reading.open")}
-        class="rounded-full p-1.5 text-neutral-300 transition hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-300"
+        class="rounded-full p-1.5 text-fg-faint transition hover:text-fg-muted"
       >
         <Icon name="expand" class="h-4 w-4" />
       </button>
@@ -285,7 +285,7 @@
           onclick={startEditing}
           aria-label={i18n.t("card.edit")}
           title={i18n.t("card.edit")}
-          class="rounded-full p-1.5 text-base leading-none transition text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-300"
+          class="rounded-full p-1.5 text-base leading-none transition text-fg-faint hover:text-fg-muted"
         >
           ✎
         </button>
@@ -296,7 +296,7 @@
           onclick={() => onRequestReset(clipping.id)}
           aria-label={i18n.t("card.reset")}
           title={i18n.t("card.reset")}
-          class="rounded-full p-1.5 text-base leading-none transition text-neutral-300 hover:text-amber-500 dark:text-neutral-600 dark:hover:text-amber-400"
+          class="rounded-full p-1.5 text-base leading-none transition text-fg-faint hover:text-accent"
         >
           ↺
         </button>
@@ -308,8 +308,8 @@
           aria-label={i18n.t("card.copy")}
           title={copied ? i18n.t("card.copied") : i18n.t("card.copy")}
           class="rounded-full p-1.5 text-base leading-none transition {copied
-            ? 'text-green-600 dark:text-green-400'
-            : 'text-neutral-300 hover:text-neutral-500 dark:text-neutral-600 dark:hover:text-neutral-300'}"
+            ? 'text-success'
+            : 'text-fg-faint hover:text-fg-muted'}"
         >
           {copied ? "✓" : "⧉"}
         </button>
@@ -322,8 +322,8 @@
       aria-expanded={tagFormOpen}
       title={i18n.t("card.addTag")}
       class="rounded-full p-1.5 text-base leading-none transition {tagFormOpen
-        ? 'text-amber-500'
-        : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600 dark:hover:text-amber-400'}"
+        ? 'text-accent'
+        : 'text-fg-faint hover:text-accent'}"
     >
       #
     </button>
@@ -334,8 +334,8 @@
       aria-pressed={clipping.favorite}
       title={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
       class="rounded-full p-1.5 text-lg leading-none transition {clipping.favorite
-        ? 'text-amber-500 hover:text-amber-600'
-        : 'text-neutral-300 hover:text-amber-400 dark:text-neutral-600 dark:hover:text-amber-400'}"
+        ? 'text-accent hover:text-accent-hover'
+        : 'text-fg-faint hover:text-accent'}"
     >
       {clipping.favorite ? "★" : "☆"}
     </button>
@@ -356,7 +356,7 @@
         placeholder={i18n.t("card.tagPlaceholder")}
         aria-label={i18n.t("card.tagPlaceholder")}
         disabled={tagSaving}
-        class="w-full rounded-xl border border-amber-300 bg-amber-50/40 px-3 py-1.5 text-sm text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-amber-500 disabled:opacity-60 dark:border-amber-700 dark:bg-neutral-800 dark:text-neutral-200"
+        class="w-full rounded-xl border border-accent/40 bg-accent-soft/40 px-3 py-1.5 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent disabled:opacity-60"
       />
       {#if suggestions.length > 0}
         <div class="mt-1.5 flex flex-wrap gap-1.5">
@@ -365,7 +365,7 @@
               type="button"
               onclick={() => submitTag(suggestion.name)}
               disabled={tagSaving}
-              class="rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-neutral-600 transition hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              class="rounded-full border border-line px-2 py-0.5 text-xs text-fg-muted transition hover:bg-surface-hover disabled:opacity-50"
             >
               #{suggestion.name}
             </button>

@@ -83,13 +83,13 @@
     title={i18n.t("filters.button")}
     class="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition {activeCount >
     0
-      ? 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900'
-      : 'border-neutral-200 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800'}"
+      ? 'border-inverse bg-inverse text-inverse-fg'
+      : 'border-line text-fg-muted hover:bg-surface-hover'}"
   >
     <Icon name="filter" />
     <span>{i18n.t("filters.button")}</span>
     {#if activeCount > 0}
-      <span class="rounded-full bg-white/20 px-1.5 text-xs leading-4 dark:bg-neutral-900/10">
+      <span class="rounded-full bg-inverse-fg/20 px-1.5 text-xs leading-4">
         {activeCount}
       </span>
     {/if}
@@ -108,85 +108,85 @@
       aria-label={i18n.t("filters.title")}
       tabindex="-1"
       bind:this={panel}
-      class="absolute right-0 z-20 mt-1 max-h-[70vh] w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 shadow-lg outline-none dark:border-neutral-700 dark:bg-neutral-900"
+      class="absolute right-0 z-20 mt-1 max-h-[70vh] w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-line bg-surface-raised p-2 shadow-lg outline-none"
     >
-      <p class="px-2 pt-1 pb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+      <p class="px-2 pt-1 pb-1 text-xs font-medium text-fg-muted">
         {i18n.t("filters.kind")}
       </p>
       {#each KIND_OPTIONS as option (option)}
         <label
-          class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
         >
           <input
             type="checkbox"
             checked={kinds.includes(option)}
             onchange={() => onToggleKind(option)}
-            class="accent-amber-500"
+            class="accent-[var(--accent)]"
           />
           <span class="min-w-0 flex-1 truncate">{i18n.t(`kind.${option}`)}</span>
         </label>
       {/each}
 
       <p
-        class="mt-1 border-t border-neutral-100 px-2 pt-2 pb-1 text-xs font-medium text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"
+        class="mt-1 border-t border-line-subtle px-2 pt-2 pb-1 text-xs font-medium text-fg-muted"
       >
         {i18n.t("filters.status")}
       </p>
       <label
-        class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
       >
         <input
           type="checkbox"
           checked={favoritesOnly}
           onchange={onToggleFavorites}
-          class="accent-amber-500"
+          class="accent-[var(--accent)]"
         />
         <span class="min-w-0 flex-1 truncate">{i18n.t("fav.toggle")}</span>
       </label>
       <label
-        class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
       >
         <input
           type="checkbox"
           checked={editedOnly}
           onchange={onToggleEdited}
-          class="accent-amber-500"
+          class="accent-[var(--accent)]"
         />
         <span class="min-w-0 flex-1 truncate">{i18n.t("edit.toggle")}</span>
       </label>
 
       <p
-        class="mt-1 border-t border-neutral-100 px-2 pt-2 pb-1 text-xs font-medium text-neutral-500 dark:border-neutral-800 dark:text-neutral-400"
+        class="mt-1 border-t border-line-subtle px-2 pt-2 pb-1 text-xs font-medium text-fg-muted"
       >
         {i18n.t("filters.tags")}
       </p>
       {#if tags.length === 0}
-        <p class="px-2 py-2 text-sm text-neutral-500 dark:text-neutral-400">
+        <p class="px-2 py-2 text-sm text-fg-muted">
           {i18n.t("tags.empty")}
         </p>
       {:else}
         {#each tags as tag (tag.id)}
           <label
-            class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
           >
             <input
               type="checkbox"
               checked={tagIds.includes(tag.id)}
               onchange={() => onToggleTag(tag.id)}
-              class="accent-amber-500"
+              class="accent-[var(--accent)]"
             />
             <span class="min-w-0 flex-1 truncate">#{tag.name}</span>
-            <span class="text-xs text-neutral-400 dark:text-neutral-500">{tag.clipping_count}</span>
+            <span class="text-xs text-fg-subtle">{tag.clipping_count}</span>
           </label>
         {/each}
       {/if}
 
       {#if activeCount > 0}
-        <div class="mt-1 border-t border-neutral-100 pt-1 dark:border-neutral-800">
+        <div class="mt-1 border-t border-line-subtle pt-1">
           <button
             type="button"
             onclick={clear}
-            class="w-full rounded-lg px-2 py-1.5 text-left text-sm font-medium text-neutral-600 transition hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            class="w-full rounded-lg px-2 py-1.5 text-left text-sm font-medium text-fg-muted transition hover:bg-surface-hover"
           >
             {i18n.t("results.clear")}
           </button>

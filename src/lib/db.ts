@@ -883,6 +883,7 @@ export async function removeImportedFile(
 export const SETTINGS_KEYS = {
   locale: "locale",
   theme: "theme",
+  darkPalette: "darkPalette",
   fontScale: "fontScale",
   filter: "filter",
   searchFolding: "searchFolding",
