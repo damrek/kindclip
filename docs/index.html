@@ -1,0 +1,1818 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kindclip — your Kindle highlights, finally in one place</title>
+    <meta
+      name="description"
+      content="A local, keyboard-first desktop viewer for your Kindle highlights. Import My Clippings.txt, search everything, tag, edit notes, export to Markdown, JSON or CSV. Windows, Linux and macOS."
+    />
+    <link rel="canonical" href="https://damrek.github.io/kindclip/" />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="apple-touch-icon" href="icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://damrek.github.io/kindclip/" />
+    <meta property="og:title" content="kindclip — your Kindle highlights, finally in one place" />
+    <meta
+      property="og:description"
+      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, exports and reading stats. Local-first and native on Windows, Linux and macOS."
+    />
+    <meta property="og:image" content="https://damrek.github.io/kindclip/screen_1.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1f26" />
+
+    <style>
+      /* ------------------------------------------------------------------
+         Self-hosted Inter, the same family the app bundles.
+         Latin subset covers the accents the UI copy uses.
+         ------------------------------------------------------------------ */
+      @font-face {
+        font-family: "Inter Variable";
+        src: url("fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      /* ------------------------------------------------------------------
+         Tokens. Light mirrors the app's light theme; dark mirrors its
+         default Atom One Dark palette. The brand amber comes from the
+         app icon and never changes between modes.
+         ------------------------------------------------------------------ */
+      :root {
+        color-scheme: light;
+
+        --page: #ffffff;
+        --page-alt: #fafafa;
+        --surface: #ffffff;
+        --raised: #ffffff;
+        --inset: #fafafa;
+        --hover: #f5f5f5;
+        --line: #e5e5e5;
+        --line-subtle: #f0f0f0;
+        --line-strong: #d4d4d4;
+
+        --fg: #171717;
+        --heading: #171717;
+        --muted: #5f5f5f;
+        --subtle: #737373;
+
+        --accent: #d97706;
+        --accent-text: #92400e;
+        --accent-soft: #fffbeb;
+        --accent-soft-strong: #fef3c7;
+
+        --inverse: #171717;
+        --inverse-fg: #ffffff;
+        --brand: #fcd34d;
+        --ring: #d97706;
+
+        --glow: rgba(217, 119, 6, 0.1);
+        --shadow-window: 0 40px 80px -36px rgba(23, 23, 23, 0.32),
+          0 8px 20px -12px rgba(23, 23, 23, 0.14);
+        --shadow-card: 0 1px 2px rgba(23, 23, 23, 0.04);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+
+          --page: #1c1f26;
+          --page-alt: #21252b;
+          --surface: #282c34;
+          --raised: #2f343d;
+          --inset: #21252b;
+          --hover: #333944;
+          --line: #3e4451;
+          --line-subtle: #30353f;
+          --line-strong: #4b5263;
+
+          --fg: #abb2bf;
+          --heading: #d7dae0;
+          --muted: #9ba3ae;
+          --subtle: #8a93a0;
+
+          --accent: #61afef;
+          --accent-text: #86c2f3;
+          --accent-soft: #354352;
+          --accent-soft-strong: #394d61;
+
+          --inverse: #d7dae0;
+          --inverse-fg: #282c34;
+          --ring: #61afef;
+
+          --glow: rgba(252, 211, 77, 0.1);
+          --shadow-window: 0 48px 90px -40px rgba(0, 0, 0, 0.75),
+            0 10px 26px -14px rgba(0, 0, 0, 0.5);
+          --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+      }
+
+      /* ------------------------------------------------------------------
+         Base
+         ------------------------------------------------------------------ */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--fg);
+        font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      ::selection {
+        background: var(--accent-soft-strong);
+        color: var(--fg);
+      }
+
+      a {
+        color: var(--accent-text);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      img {
+        max-width: 100%;
+        height: auto;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        color: var(--heading);
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1.15;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          monospace;
+        font-size: 0.875em;
+        background: var(--inset);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 5px;
+        white-space: nowrap;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+
+      .wrap {
+        width: min(1120px, 100% - 48px);
+        margin-inline: auto;
+      }
+
+      .skip-link {
+        position: absolute;
+        left: 16px;
+        top: -48px;
+        z-index: 100;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: var(--inverse);
+        color: var(--inverse-fg);
+        font-size: 14px;
+        transition: top 120ms ease;
+      }
+
+      .skip-link:focus {
+        top: 12px;
+        text-decoration: none;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* ------------------------------------------------------------------
+         Header
+         ------------------------------------------------------------------ */
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: var(--page);
+        background: color-mix(in srgb, var(--page) 84%, transparent);
+        -webkit-backdrop-filter: saturate(180%) blur(14px);
+        backdrop-filter: saturate(180%) blur(14px);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .header-inner {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        height: 64px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--heading);
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+
+      .brand:hover {
+        text-decoration: none;
+      }
+
+      .brand img {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: 8px;
+      }
+
+      .nav a {
+        padding: 7px 12px;
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 140ms ease, color 140ms ease;
+      }
+
+      .nav a:hover {
+        background: var(--hover);
+        color: var(--fg);
+        text-decoration: none;
+      }
+
+      .nav-github {
+        margin-left: auto;
+      }
+
+      /* ------------------------------------------------------------------
+         Buttons
+         ------------------------------------------------------------------ */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 12px 22px;
+        font-family: inherit;
+        font-size: 14.5px;
+        font-weight: 550;
+        line-height: 1;
+        letter-spacing: -0.01em;
+        cursor: pointer;
+        transition: transform 140ms ease, background-color 140ms ease,
+          border-color 140ms ease, box-shadow 140ms ease;
+      }
+
+      .btn:hover {
+        text-decoration: none;
+        transform: translateY(-1px);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn-primary {
+        background: var(--inverse);
+        color: var(--inverse-fg);
+        box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.6);
+      }
+
+      .btn-primary:hover {
+        background: var(--inverse);
+        box-shadow: 0 10px 22px -12px rgba(0, 0, 0, 0.65);
+      }
+
+      .btn-ghost {
+        border-color: var(--line-strong);
+        background: transparent;
+        color: var(--fg);
+      }
+
+      .btn-ghost:hover {
+        background: var(--hover);
+        border-color: var(--line-strong);
+      }
+
+      .btn-sm {
+        padding: 8px 16px;
+        font-size: 13.5px;
+      }
+
+      .btn-block {
+        width: 100%;
+      }
+
+      /* ------------------------------------------------------------------
+         Hero
+         ------------------------------------------------------------------ */
+      .hero {
+        padding: clamp(56px, 8vw, 96px) 0 clamp(64px, 8vw, 88px);
+        text-align: center;
+        overflow: hidden;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 14px 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--page-alt);
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 500;
+        letter-spacing: -0.005em;
+      }
+
+      .eyebrow-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--brand);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+
+      .hero h1 {
+        margin: 26px auto 0;
+        max-width: 20ch;
+        font-size: clamp(2.5rem, 5.6vw, 4.1rem);
+        font-weight: 640;
+        line-height: 1.02;
+        letter-spacing: -0.038em;
+        text-wrap: balance;
+      }
+
+      .hero .lede {
+        margin: 22px auto 0;
+        max-width: 60ch;
+        color: var(--muted);
+        font-size: clamp(1rem, 1.6vw, 1.125rem);
+        line-height: 1.65;
+        text-wrap: pretty;
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 32px;
+      }
+
+      .micro {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: center;
+        margin-top: 18px;
+        color: var(--subtle);
+        font-size: 13px;
+        letter-spacing: -0.005em;
+      }
+
+      .micro .sep {
+        margin: 0 7px;
+        color: var(--line-strong);
+      }
+
+      .micro .nowrap {
+        white-space: nowrap;
+      }
+
+      .hero-shot {
+        position: relative;
+        margin: clamp(44px, 6vw, 64px) auto 0;
+        max-width: 1040px;
+      }
+
+      .hero-shot::before {
+        content: "";
+        position: absolute;
+        inset: -14% -8% 22%;
+        z-index: -1;
+        background: radial-gradient(
+          closest-side,
+          var(--glow),
+          transparent 72%
+        );
+        pointer-events: none;
+      }
+
+      .hero-shot img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow-window);
+      }
+
+      .hero-shot figcaption {
+        margin-top: 18px;
+        color: var(--subtle);
+        font-size: 12.5px;
+        line-height: 1.5;
+      }
+
+      /* ------------------------------------------------------------------
+         Stat strip
+         ------------------------------------------------------------------ */
+      .stats {
+        border-block: 1px solid var(--line);
+        background: var(--page-alt);
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+      }
+
+      .stat {
+        padding: 26px 8px 26px 24px;
+        border-left: 1px solid var(--line);
+        text-align: left;
+      }
+
+      .stat:first-child {
+        border-left: 0;
+        padding-left: 0;
+      }
+
+      .stat b {
+        display: block;
+        color: var(--heading);
+        font-size: 26px;
+        font-weight: 620;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+
+      .stat span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      /* ------------------------------------------------------------------
+         Sections
+         ------------------------------------------------------------------ */
+      .section {
+        padding: clamp(64px, 8vw, 96px) 0;
+        scroll-margin-top: 88px;
+      }
+
+      .section + .section {
+        border-top: 1px solid var(--line);
+      }
+
+      .section-head {
+        max-width: 680px;
+        margin-bottom: clamp(32px, 5vw, 48px);
+      }
+
+      .section-label {
+        display: block;
+        margin-bottom: 12px;
+        color: var(--accent-text);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .section-head h2 {
+        font-size: clamp(1.65rem, 3.2vw, 2.35rem);
+        font-weight: 620;
+        letter-spacing: -0.03em;
+        line-height: 1.12;
+        text-wrap: balance;
+      }
+
+      .section-head p {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 15.5px;
+        line-height: 1.65;
+        text-wrap: pretty;
+      }
+
+      /* ------------------------------------------------------------------
+         Features
+         ------------------------------------------------------------------ */
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      .feature {
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface);
+        box-shadow: var(--shadow-card);
+        transition: transform 180ms ease, border-color 180ms ease;
+      }
+
+      .feature:hover {
+        transform: translateY(-2px);
+        border-color: var(--line-strong);
+      }
+
+      .feature-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        background: var(--accent-soft);
+        color: var(--accent-text);
+      }
+
+      .feature-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .feature h3 {
+        margin-top: 18px;
+        font-size: 15.5px;
+        font-weight: 600;
+        letter-spacing: -0.018em;
+      }
+
+      .feature p {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+
+      /* ------------------------------------------------------------------
+         Themes
+         ------------------------------------------------------------------ */
+      .palettes {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .palette {
+        display: flex;
+        flex-direction: column;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--page-alt);
+        transition: border-color 180ms ease, transform 180ms ease;
+      }
+
+      .palette:hover {
+        transform: translateY(-2px);
+        border-color: var(--line-strong);
+      }
+
+      .palette-frame {
+        flex: 1;
+        display: flex;
+        padding: 12px;
+        border-radius: 10px;
+        background: var(--p-surface);
+      }
+
+      .mini-card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+        border: 1px solid var(--p-line);
+        border-radius: 8px;
+        background: var(--p-raised);
+      }
+
+      .mini-quote {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 5;
+        overflow: hidden;
+        padding-left: 9px;
+        border-left: 2px solid var(--p-accent);
+        color: var(--p-fg);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .mini-title {
+        margin-top: 10px;
+        color: var(--p-fg);
+        font-size: 11.5px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+
+      .mini-meta {
+        margin-top: 1px;
+        color: var(--p-muted);
+        font-size: 10.5px;
+        line-height: 1.4;
+      }
+
+      .mini-kind {
+        display: inline-block;
+        align-self: flex-start;
+        margin-top: auto;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: var(--p-soft);
+        color: var(--p-accent-text);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+
+      .palette-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 4px 4px;
+      }
+
+      .swatches {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .swatches i {
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 1px var(--p-line);
+      }
+
+      .palette-name {
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 550;
+        letter-spacing: -0.005em;
+      }
+
+      /* Palette token blocks: the app's real values. */
+      .p-light {
+        --p-surface: #ffffff;
+        --p-raised: #ffffff;
+        --p-line: #e5e5e5;
+        --p-fg: #171717;
+        --p-muted: #5f5f5f;
+        --p-accent: #d97706;
+        --p-accent-text: #92400e;
+        --p-soft: #fffbeb;
+      }
+
+      .p-atom {
+        --p-surface: #282c34;
+        --p-raised: #2f343d;
+        --p-line: #3e4451;
+        --p-fg: #abb2bf;
+        --p-muted: #9ba3ae;
+        --p-accent: #61afef;
+        --p-accent-text: #86c2f3;
+        --p-soft: #354352;
+      }
+
+      .p-darcula {
+        --p-surface: #2b2b2b;
+        --p-raised: #3c3f41;
+        --p-line: #4b4b4b;
+        --p-fg: #b0bdca;
+        --p-muted: #a8b2bc;
+        --p-accent: #6f9cbe;
+        --p-accent-text: #adc7da;
+        --p-soft: #424a50;
+      }
+
+      .p-nord {
+        --p-surface: #2e3440;
+        --p-raised: #3b4252;
+        --p-line: #434c5e;
+        --p-fg: #d8dee9;
+        --p-muted: #adb7c9;
+        --p-accent: #88c0d0;
+        --p-accent-text: #b3d7e1;
+        --p-soft: #445161;
+      }
+
+      .p-solarized {
+        --p-surface: #002b36;
+        --p-raised: #073642;
+        --p-line: #1d5a68;
+        --p-fg: #a2aeae;
+        --p-muted: #95a1a2;
+        --p-accent: #3895d6;
+        --p-accent-text: #6cb9ec;
+        --p-soft: #0d4154;
+      }
+
+      /* ------------------------------------------------------------------
+         Shortcuts split
+         ------------------------------------------------------------------ */
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1.05fr;
+        gap: clamp(32px, 5vw, 64px);
+        align-items: center;
+      }
+
+      .split-copy h2 {
+        font-size: clamp(1.65rem, 3.2vw, 2.35rem);
+        font-weight: 620;
+        letter-spacing: -0.03em;
+        line-height: 1.12;
+        text-wrap: balance;
+      }
+
+      .split-copy p {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 15.5px;
+        line-height: 1.65;
+      }
+
+      .keys {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 24px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .keys li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+
+      .keys .label {
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.3;
+      }
+
+      .keys .combo {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: none;
+      }
+
+      kbd {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        border: 1px solid var(--line-strong);
+        border-bottom-width: 2px;
+        border-radius: 6px;
+        background: var(--inset);
+        color: var(--fg);
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          monospace;
+        font-size: 11px;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      kbd span {
+        color: var(--muted);
+        font-family: inherit;
+      }
+
+      .shot-card {
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow-window);
+      }
+
+      .shot-card img {
+        display: block;
+        width: 100%;
+        border-radius: 10px;
+      }
+
+      /* ------------------------------------------------------------------
+         Install
+         ------------------------------------------------------------------ */
+      .install {
+        display: grid;
+        grid-template-columns: 1fr 0.95fr;
+        gap: clamp(32px, 5vw, 64px);
+        align-items: start;
+      }
+
+      .steps {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        counter-reset: step;
+      }
+
+      .steps li {
+        position: relative;
+        padding: 0 0 22px 48px;
+        counter-increment: step;
+      }
+
+      .steps li::before {
+        content: counter(step);
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+        color: var(--accent-text);
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .steps li::after {
+        content: "";
+        position: absolute;
+        left: 15px;
+        top: 40px;
+        bottom: 6px;
+        width: 1px;
+        background: var(--line);
+      }
+
+      .steps li:last-child::after {
+        display: none;
+      }
+
+      .steps h3 {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        padding-top: 4px;
+      }
+
+      .steps p {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .note {
+        margin-top: 6px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-left: 2px solid var(--accent);
+        border-radius: 10px;
+        background: var(--accent-soft);
+        color: var(--fg);
+        font-size: 13.5px;
+        line-height: 1.6;
+      }
+
+      .note strong {
+        color: var(--heading);
+        font-weight: 600;
+      }
+
+      .panel {
+        padding: 6px 22px 22px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--surface);
+        box-shadow: var(--shadow-card);
+      }
+
+      .panel h3 {
+        padding: 16px 0 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        width: 38%;
+        color: var(--heading);
+        font-weight: 550;
+      }
+
+      td {
+        color: var(--muted);
+      }
+
+      tr:last-child th,
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .panel .btn {
+        margin-top: 18px;
+      }
+
+      .panel-foot {
+        margin-top: 10px;
+        color: var(--subtle);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      /* ------------------------------------------------------------------
+         FAQ
+         ------------------------------------------------------------------ */
+      .faq {
+        display: grid;
+        gap: 10px;
+        max-width: 820px;
+      }
+
+      details {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 20px;
+        color: var(--heading);
+        font-size: 15px;
+        font-weight: 550;
+        letter-spacing: -0.012em;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      summary::after {
+        content: "+";
+        flex: none;
+        color: var(--muted);
+        font-size: 18px;
+        font-weight: 400;
+        line-height: 1;
+        transition: transform 160ms ease;
+      }
+
+      details[open] summary::after {
+        content: "−";
+      }
+
+      details > p {
+        padding: 0 20px 20px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 14.5px;
+        line-height: 1.65;
+      }
+
+      details > p code {
+        white-space: normal;
+      }
+
+      /* ------------------------------------------------------------------
+         Footer
+         ------------------------------------------------------------------ */
+      .site-footer {
+        border-top: 1px solid var(--line);
+        background: var(--page-alt);
+        padding: 40px 0 48px;
+      }
+
+      .footer-inner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 28px;
+      }
+
+      .footer-brand {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        max-width: 380px;
+      }
+
+      .footer-brand img {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        margin-top: 2px;
+      }
+
+      .footer-brand strong {
+        display: block;
+        color: var(--heading);
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+      }
+
+      .footer-brand p {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 22px;
+        font-size: 13.5px;
+      }
+
+      .footer-links a {
+        color: var(--muted);
+      }
+
+      .footer-links a:hover {
+        color: var(--fg);
+      }
+
+      .footer-base {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 32px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        color: var(--subtle);
+        font-size: 12.5px;
+      }
+
+      /* ------------------------------------------------------------------
+         Responsive
+         ------------------------------------------------------------------ */
+      @media (min-width: 560px) {
+        .palettes {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (min-width: 760px) {
+        .palettes {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      @media (min-width: 1080px) {
+        .palettes {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 920px) {
+        .split,
+        .install {
+          grid-template-columns: 1fr;
+        }
+
+        .stats-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .stat:nth-child(3) {
+          border-left: 0;
+          padding-left: 0;
+        }
+
+        .stat:nth-child(n + 3) {
+          border-top: 1px solid var(--line);
+        }
+      }
+
+      @media (max-width: 720px) {
+        .wrap {
+          width: min(1120px, 100% - 32px);
+        }
+
+        .nav {
+          display: none;
+        }
+
+        .header-inner {
+          gap: 12px;
+        }
+
+        .hero h1 {
+          letter-spacing: -0.032em;
+        }
+
+        .hero-shot figcaption {
+          max-width: 46ch;
+          margin-inline: auto;
+        }
+
+        .stat {
+          padding-block: 20px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .cta-row .btn {
+          width: 100%;
+        }
+
+        .keys {
+          grid-template-columns: 1fr;
+        }
+
+        .micro {
+          gap: 2px 14px;
+        }
+
+        .micro .sep {
+          display: none;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .stat {
+          border-left: 0;
+          padding-left: 0;
+          padding-block: 18px;
+        }
+
+        .stat + .stat {
+          border-top: 1px solid var(--line);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+
+        .btn:hover,
+        .feature:hover,
+        .palette:hover {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="#top" aria-label="kindclip, back to top">
+          <img src="icon.png" alt="" width="26" height="26" />
+          <span>kindclip</span>
+        </a>
+
+        <nav class="nav" aria-label="Main">
+          <a href="#features">Features</a>
+          <a href="#themes">Themes</a>
+          <a href="#install">Install</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+
+        <a
+          class="btn btn-ghost btn-sm nav-github"
+          href="https://github.com/damrek/kindclip"
+          >GitHub ↗</a
+        >
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="wrap">
+          <p class="eyebrow">
+            <span class="eyebrow-dot" aria-hidden="true"></span>
+            Desktop app for Kindle highlights · Tauri v2 · MIT
+          </p>
+
+          <h1>Your Kindle highlights, finally in one place.</h1>
+
+          <p class="lede">
+            kindclip reads <code>My Clippings.txt</code> once and turns years of
+            highlights, notes and bookmarks into a fast, searchable library.
+            Local-first, keyboard-first, and native on Windows, Linux and macOS.
+          </p>
+
+          <div class="cta-row">
+            <a
+              class="btn btn-primary"
+              href="https://github.com/damrek/kindclip/releases/latest"
+              >Download latest release</a
+            >
+            <a class="btn btn-ghost" href="https://github.com/damrek/kindclip"
+              >View on GitHub</a
+            >
+          </div>
+
+          <p class="micro">
+            <span class="nowrap">Linux</span><span class="sep">·</span
+            ><span class="nowrap">Windows</span><span class="sep">·</span
+            ><span class="nowrap">macOS</span><span class="sep">·</span
+            ><span class="nowrap">No account</span>
+          </p>
+
+          <figure class="hero-shot">
+            <img
+              src="screen_1.png"
+              width="1190"
+              height="981"
+              alt="kindclip library view in the Atom One Dark palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
+            />
+            <figcaption>
+              Library view in Atom One Dark: book sidebar, clipping cards with
+              page and date, and the active filters as removable chips.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="stats" aria-label="kindclip at a glance">
+        <div class="wrap stats-grid">
+          <div class="stat">
+            <b>1 file</b>
+            <span>the only thing you import</span>
+          </div>
+          <div class="stat">
+            <b>0</b>
+            <span>accounts, servers or sync</span>
+          </div>
+          <div class="stat">
+            <b>5</b>
+            <span>themes, each checked for WCAG AA</span>
+          </div>
+          <div class="stat">
+            <b>6</b>
+            <span>Kindle date locales parsed</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="section-label">Features</span>
+            <h2>Everything you actually do with highlights</h2>
+            <p>
+              No dashboards, no feeds, no subscriptions. A small tool that
+              handles the whole loop: import once, find anything, keep what
+              matters, take it with you.
+            </p>
+          </div>
+
+          <div class="features">
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 3v5h5" />
+                  <path d="M9 13h6M9 17h4" />
+                </svg>
+              </span>
+              <h3>A parser that doesn't flinch</h3>
+              <p>
+                UTF-8 or UTF-16, BOM or mid-file, six Kindle date locales,
+                highlights, notes and bookmarks — including modern Spanish
+                firmware. Duplicates are skipped by content hash on every
+                import.
+              </p>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20.5 20.5-4-4" />
+                </svg>
+              </span>
+              <h3>Search that covers everything</h3>
+              <p>
+                Full-text across content, title and author, accent- and
+                case-insensitive: every word must match, and hits are
+                highlighted in the list and the reading view. Or press
+                <code>Ctrl/Cmd+P</code> to search every clipping at once.
+              </p>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12V6a3 3 0 0 1 3-3h6l9 9-9 9-9-9Z" />
+                  <circle cx="8" cy="8" r="1.4" />
+                </svg>
+              </span>
+              <h3>Organization without a cloud</h3>
+              <p>
+                Favorites, free-form tags with inline suggestions, an
+                edited-notes filter, and library tools to rename or merge books,
+                delete a book, or undo one import. Everything lives in one
+                SQLite file.
+              </p>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 6c-2-1.4-4.6-2-8-2v14c3.4 0 6 .6 8 2 2-1.4 4.6-2 8-2V4c-3.4 0-6 .6-8 2Z" />
+                  <path d="M12 6v14" />
+                </svg>
+              </span>
+              <h3>Read, edit, keep the original</h3>
+              <p>
+                Any clipping opens full-window, with ←/→ through the filtered
+                list and Esc to get back. Notes are editable inline with an
+                <em>Edited</em> badge, a reset to the original, and the promise
+                that <code>My Clippings.txt</code> is never modified.
+              </p>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 15V3" />
+                  <path d="m7 8 5-5 5 5" />
+                  <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+                </svg>
+              </span>
+              <h3>Export, back up, move on</h3>
+              <p>
+                Export the filtered view to Markdown, JSON or CSV with favorites
+                and tags marked. Backups are verified SQLite snapshots, previewed
+                before restore, and the replaced file is kept aside. The old one
+                is always recoverable.
+              </p>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="4" width="18" height="12" rx="2" />
+                  <path d="M8 20h8M12 16v4" />
+                </svg>
+              </span>
+              <h3>Native where it counts</h3>
+              <p>
+                A small Tauri binary that starts fast and remembers its window.
+                System light/dark plus four dark palettes, five UI languages,
+                bundled Inter and a keyboard-first interface. Nothing leaves your
+                machine.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="themes">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="section-label">Themes</span>
+            <h2>Five themes, one design system</h2>
+            <p>
+              A light theme and four dark palettes — Atom One Dark, Darcula,
+              Nord and Solarized Dark — ported token by token. Every text pair
+              is tuned to clear WCAG AA on the surfaces it lands on.
+            </p>
+          </div>
+
+          <div class="palettes">
+            <article class="palette p-light">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    A comfortable life is a fine thing, but it rarely produces a
+                    good story.
+                  </p>
+                  <p class="mini-title">The Hobbit</p>
+                  <p class="mini-meta">J. R. R. Tolkien · p. 13</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Light</span>
+              </div>
+            </article>
+
+            <article class="palette p-atom">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    Even the smallest person can change the course of the future,
+                    if he keeps walking.
+                  </p>
+                  <p class="mini-title">The Lord of the Rings</p>
+                  <p class="mini-meta">J. R. R. Tolkien · p. 42</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Atom One Dark</span>
+              </div>
+            </article>
+
+            <article class="palette p-darcula">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    Books are dangerous because they let one person think
+                    another person's thoughts twice.
+                  </p>
+                  <p class="mini-title">Fahrenheit 451</p>
+                  <p class="mini-meta">Ray Bradbury · p. 20</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Darcula</span>
+              </div>
+            </article>
+
+            <article class="palette p-nord">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    Knowledge without mercy becomes a kind of monster long before
+                    any creature walks.
+                  </p>
+                  <p class="mini-title">Frankenstein</p>
+                  <p class="mini-meta">Mary Shelley · p. 19</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Nord</span>
+              </div>
+            </article>
+
+            <article class="palette p-solarized">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    A society that removes pain also removes the strength that
+                    pain can create.
+                  </p>
+                  <p class="mini-title">Brave New World</p>
+                  <p class="mini-meta">Aldous Huxley · p. 9</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Solarized Dark</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="shortcuts">
+        <div class="wrap split">
+          <div class="split-copy">
+            <span class="section-label">Keyboard</span>
+            <h2>Every clipping, one shortcut away</h2>
+            <p>
+              <code>Ctrl/Cmd+P</code> searches the whole library — across books
+              and active filters, newest first. Move with ↑/↓, press Enter to
+              read, Esc to get back. The footer counts the matches; your current
+              filters stay exactly where they were.
+            </p>
+            <ul class="keys" aria-label="Keyboard shortcuts">
+              <li>
+                <span class="label">All shortcuts</span>
+                <span class="combo"><kbd>?</kbd></span>
+              </li>
+              <li>
+                <span class="label">Focus search</span>
+                <span class="combo"><kbd>Ctrl/Cmd</kbd><kbd>K</kbd></span>
+              </li>
+              <li>
+                <span class="label">Every clipping</span>
+                <span class="combo"><kbd>Ctrl/Cmd</kbd><kbd>P</kbd></span>
+              </li>
+              <li>
+                <span class="label">Move selection</span>
+                <span class="combo"><kbd>j</kbd><kbd>k</kbd></span>
+              </li>
+              <li>
+                <span class="label">Favorite</span>
+                <span class="combo"><kbd>*</kbd></span>
+              </li>
+              <li>
+                <span class="label">Copy</span>
+                <span class="combo"><kbd>c</kbd></span>
+              </li>
+            </ul>
+          </div>
+
+          <figure class="shot-card">
+            <img
+              src="screen_2.png"
+              width="1190"
+              height="981"
+              loading="lazy"
+              alt="The global search palette over the library, listing two matching clippings from different books with their match counts."
+            />
+            <figcaption class="sr-only">
+              The global palette searches every clipping regardless of the active
+              filters.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section" id="install">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="section-label">Install</span>
+            <h2>Three steps, one file</h2>
+            <p>
+              Download the build for your platform, copy one file from the
+              Kindle, and import. Re-import any time: duplicates are skipped and
+              new highlights are added.
+            </p>
+          </div>
+
+          <div class="install">
+            <div>
+              <ol class="steps">
+                <li>
+                  <h3>Download the build for your OS</h3>
+                  <p>
+                    Linux <code>.AppImage</code>/<code>.deb</code>/<code>.rpm</code>,
+                    Windows <code>.exe</code>/<code>.msi</code>, or macOS
+                    <code>.dmg</code> for Apple Silicon and Intel.
+                  </p>
+                </li>
+                <li>
+                  <h3>Copy the clippings file</h3>
+                  <p>
+                    Connect the Kindle and copy
+                    <code>documents/My Clippings.txt</code> to your computer.
+                  </p>
+                </li>
+                <li>
+                  <h3>Import, then read</h3>
+                  <p>
+                    Press <strong>Import</strong> or drop the <code>.txt</code>
+                    anywhere on the window. Search, tag and star; export the
+                    filtered view whenever you want it elsewhere.
+                  </p>
+                </li>
+              </ol>
+
+              <p class="note">
+                <strong>Heads-up:</strong> macOS and Windows builds are
+                unsigned, so Gatekeeper or SmartScreen will warn on first launch.
+                The source is public — build it yourself if you prefer.
+              </p>
+            </div>
+
+            <div class="panel">
+              <h3>Artifacts in every release</h3>
+              <table>
+                <tbody>
+                  <tr>
+                    <th scope="row">Linux</th>
+                    <td>.AppImage · .deb · .rpm</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Windows</th>
+                    <td>.exe · .msi</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">macOS</th>
+                    <td>.dmg, ARM + Intel</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">License</th>
+                    <td>MIT, forever</td>
+                  </tr>
+                </tbody>
+              </table>
+              <a
+                class="btn btn-primary btn-block"
+                href="https://github.com/damrek/kindclip/releases/latest"
+                >Go to the latest release</a
+              >
+              <p class="panel-foot">Built on every tag by GitHub Actions.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="section-label">Questions</span>
+            <h2>Before you ask</h2>
+          </div>
+
+          <div class="faq">
+            <details>
+              <summary>Does kindclip modify My Clippings.txt?</summary>
+              <p>
+                Never. The file is read on import; your original content stays
+                untouched. Note edits live in <code>kindclip.db</code> next to
+                the original text, and you can reset any note to what the Kindle
+                wrote.
+              </p>
+            </details>
+
+            <details>
+              <summary>Where does my data live?</summary>
+              <p>
+                In one SQLite file in the standard per-OS config directory:
+                <code>~/.config/app.kindclip/kindclip.db</code> on Linux,
+                <code>%APPDATA%\app.kindclip\kindclip.db</code> on Windows, and
+                <code>~/Library/Application Support/app.kindclip/kindclip.db</code>
+                on macOS. Nothing is uploaded, ever. Delete the file to wipe the
+                library and re-import from scratch.
+              </p>
+            </details>
+
+            <details>
+              <summary>How do I move or back up a library?</summary>
+              <p>
+                Preferences → Data saves a consistent snapshot of the database
+                with a date in the name. A restore verifies the file is real
+                SQLite with the kindclip tables, previews its contents, and keeps
+                the replaced file as <code>kindclip.db.before-restore</code>.
+                Re-importing restores clippings, but not favorites, tags or
+                edited notes — the backup covers those.
+              </p>
+            </details>
+
+            <details>
+              <summary>Is there a web or mobile version?</summary>
+              <p>
+                No. kindclip is a desktop app built with Tauri: a Rust backend, a
+                Svelte 5 frontend and SQLite, shipped as small native binaries.
+                The reading happens on your machine.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <div class="footer-brand">
+          <img src="icon.png" alt="" width="30" height="30" />
+          <div>
+            <strong>kindclip</strong>
+            <p>An MIT-licensed desktop viewer for Kindle highlights.</p>
+          </div>
+        </div>
+
+        <nav class="footer-links" aria-label="Footer">
+          <a href="https://github.com/damrek/kindclip">GitHub</a>
+          <a href="https://github.com/damrek/kindclip/releases">Releases</a>
+          <a href="https://github.com/damrek/kindclip/issues">Issues</a>
+          <a href="https://github.com/damrek/kindclip#readme">README</a>
+          <a href="https://github.com/damrek/kindclip/blob/main/LICENSE">License</a>
+        </nav>
+      </div>
+
+      <div class="wrap footer-base">
+        <p>
+          Built with Tauri, Svelte 5 and Rust. Your clipping text never leaves
+          your machine.
+        </p>
+        <a href="#top">Back to top ↑</a>
+      </div>
+    </footer>
+  </body>
+</html>
