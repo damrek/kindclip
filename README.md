@@ -5,6 +5,9 @@ across text, books and authors, filter, star favorites, tag, edit notes, export
 to Markdown, JSON or CSV, and track your reading stats. Native look, tiny
 binaries, on Windows, Linux and macOS.
 
+**[Landing page](https://damrek.github.io/kindclip/)** · screenshots, palettes
+and downloads.
+
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)
 ![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
