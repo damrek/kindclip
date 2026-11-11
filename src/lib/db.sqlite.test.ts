@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { importParsedClippings, buildListQuery, buildSearchQuery, type DbPort } from "./db";
+import { importParsedClippings, buildCountQuery, buildListQuery, buildSearchQuery, type DbPort } from "./db";
+import { emptyFilter } from "./library";
 import { loadReadingStats, TOP_BOOKS } from "./stats";
 import type { ClippingDto } from "./types";
 
@@ -311,6 +312,23 @@ describe("global palette search against real SQLite", () => {
     const rows = await port.select<{ content_hash: string }>(sql, params);
 
     expect(rows.map((row) => row.content_hash)).toEqual(["palette-5", "palette-3"]);
+  });
+
+  it("counts every match behind the capped rows", async () => {
+    const port = new SqlitePort();
+    await seed(port);
+
+    const count = async (query: string): Promise<number> => {
+      const built = buildCountQuery({ ...emptyFilter(), query });
+      const rows = await port.select<{ total: number }>(built.sql, built.params);
+      return rows[0].total;
+    };
+
+    // All five rows for the empty query, three for the folded two-term one,
+    // and the accent-folded one, exactly like the shown rows.
+    expect(await count("")).toBe(5);
+    expect(await count("aurora  STOIC")).toBe(3);
+    expect(await count("creme BRULEE")).toBe(1);
   });
 });
 

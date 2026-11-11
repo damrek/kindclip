@@ -2,8 +2,9 @@
   import { getContext, onMount } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { debounce, formatReference } from "../lib/library";
-  import { searchClippings } from "../lib/db";
+  import { searchClippings, countClippings } from "../lib/db";
   import { stepSelection } from "../lib/shortcuts";
+  import { hasMoreBelow } from "../lib/scroll";
   import { focusOnMount, selectOnInteraction, trapFocus } from "../lib/focus";
   import type { ClippingRow } from "../lib/types";
   import HighlightedText from "./HighlightedText.svelte";
@@ -27,9 +28,14 @@
   let selectedId = $state<number | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let more = $state(false);
+  /** Every row the current query matches, not just the rows on screen. */
+  let total = $state(0);
   /** Query that produced `results`; Enter waits for a newer one. */
   let resultsQuery = $state("");
+  /** Scroller the bottom fade is measured against. */
+  let listEl = $state<HTMLUListElement | null>(null);
+  /** More rows below the fold, so the fade is only drawn then. */
+  let moreBelow = $state(false);
   let pendingOpen = false;
   let destroyed = false;
   let request = 0;
@@ -44,10 +50,13 @@
     loading = true;
     error = null;
     try {
-      const rows = await searchClippings(value, limit + 1);
+      const [rows, count] = await Promise.all([
+        searchClippings(value, limit + 1),
+        countClippings(value),
+      ]);
       if (current !== request || destroyed) return;
-      more = value.trim() !== "" && rows.length > limit;
       results = rows.slice(0, limit);
+      total = count;
       resultsQuery = value;
       selectedId = results[0]?.id ?? null;
       if (pendingOpen) {
@@ -60,9 +69,9 @@
     } catch (cause) {
       if (current !== request || destroyed) return;
       results = [];
+      total = 0;
       resultsQuery = value;
       selectedId = null;
-      more = false;
       pendingOpen = false;
       error = i18n.t("palette.error", {
         message: cause instanceof Error ? cause.message : String(cause),
@@ -74,12 +83,34 @@
     }
   }
 
+  /** True while the list has rows below the fold, which is when it gets a fade. */
+  function measureFade(): void {
+    const element = listEl;
+    moreBelow = element !== null && hasMoreBelow(element);
+  }
+
   onMount(() => {
     void load("");
     return () => {
       destroyed = true;
       schedule.cancel();
     };
+  });
+
+  // Re-measure whenever the scroller is (re)sized: the dialog is viewport-relative.
+  $effect(() => {
+    const element = listEl;
+    if (element === null) return;
+    const observer = new ResizeObserver(measureFade);
+    observer.observe(element);
+    return () => observer.disconnect();
+  });
+
+  // Re-measure after every result set, once the new rows are in the DOM.
+  $effect(() => {
+    void results;
+    void listEl;
+    measureFade();
   });
 
   // Keep the keyboard selection visible while the list scrolls.
@@ -199,6 +230,8 @@
         role="listbox"
         aria-label={i18n.t("palette.placeholder")}
         aria-busy={loading}
+        bind:this={listEl}
+        onscroll={measureFade}
         class="max-h-[58vh] space-y-0.5 overflow-y-auto p-2"
       >
         {#each results as item (item.id)}
@@ -251,12 +284,18 @@
     {/if}
 
     <div
-      class="flex items-center justify-between gap-4 border-t border-line px-4 py-2 text-xs text-fg-subtle"
+      class="relative flex items-center justify-between gap-4 border-t border-line px-4 py-2 text-xs text-fg-subtle"
     >
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-0 -top-16 h-16 bg-linear-to-t from-surface-raised via-surface-raised/80 to-transparent transition-opacity duration-150 {moreBelow
+          ? 'opacity-100'
+          : 'opacity-0'}"
+      ></div>
       <span class="min-w-0 truncate">{i18n.t("palette.hint")}</span>
-      {#if more}
-        <span class="shrink-0">
-          {i18n.t("palette.more", { count: RESULT_LIMIT })}
+      {#if total > 0}
+        <span class="shrink-0 tabular-nums">
+          {i18n.t("palette.count", { shown: results.length, total })}
         </span>
       {/if}
     </div>

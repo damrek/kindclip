@@ -5,6 +5,7 @@ import {
   buildCountQuery,
   buildListQuery,
   buildSearchQuery,
+  countClippings,
   deleteBook,
   deleteTag,
   ensureTag,
@@ -88,11 +89,14 @@ class FakePort implements DbPort {
   tagRows: unknown[] = [];
   tagCalls: Array<{ sql: string; params: unknown[] }> = [];
   selectCalls: Array<{ sql: string; params: unknown[] }> = [];
+  /** Every COUNT query, so tests can check the WHERE the count was built from. */
+  countCalls: Array<{ sql: string; params: unknown[] }> = [];
   lastId = 100;
   fileId = 7;
 
   async select<T>(sql: string, params?: unknown[]): Promise<T[]> {
     if (sql.includes("COUNT(*) AS total")) {
+      this.countCalls.push({ sql, params: params ?? [] });
       return [{ total: this.total }] as T[];
     }
     if (sql.includes("FROM clipping_tags ct")) {
@@ -584,6 +588,37 @@ describe("listClippings", () => {
 
     expect(page.items).toEqual([]);
     expect(port.tagCalls).toHaveLength(0);
+  });
+});
+
+describe("countClippings", () => {
+  it("counts the palette query with no list filters", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.total = 1284;
+
+    await expect(countClippings("stoic  Aurora")).resolves.toBe(1284);
+
+    const call = port.countCalls.at(-1);
+    expect(call?.sql).not.toContain("b.id = $");
+    expect(call?.sql).not.toContain("c.kind IN");
+    expect(call?.sql).not.toContain("clipping_tags");
+    expect(call?.params).toEqual([
+      "%stoic%",
+      "%stoic%",
+      "%stoic%",
+      "%aurora%",
+      "%aurora%",
+      "%aurora%",
+    ]);
+  });
+
+  it("reports zero when the store returns no row", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.total = 0;
+
+    await expect(countClippings("nothing")).resolves.toBe(0);
   });
 });
 

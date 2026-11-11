@@ -286,6 +286,15 @@ export async function searchClippings(
   return rows.map(mapClippingRow);
 }
 
+/** How many clippings the palette query matches in total, so the dialog can
+ * say "20 of 1,284" instead of implying the shown rows are everything. */
+export async function countClippings(query: string): Promise<number> {
+  const port = await getDb();
+  const { sql, params } = buildCountQuery({ ...emptyFilter(), query });
+  const rows = await port.select<{ total: number }>(sql, params);
+  return rows[0]?.total ?? 0;
+}
+
 /** Every row matching the filter (the whole filtered view, S2), unpaginated
  * for export: same SELECT as the list, ordered by book and then chronology. */
 export async function exportClippings(filter: ClippingFilter): Promise<ClippingRow[]> {
