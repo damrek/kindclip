@@ -11,6 +11,7 @@
     clipping: ClippingRow;
     allTags: Tag[];
     copied: boolean;
+    quoted: boolean;
     /** Search query that produced the visible list, for highlight marks. */
     query: string;
     /** Click or focus inside the card makes it the keyboard selection. */
@@ -18,6 +19,7 @@
     onOpen: (id: number) => void;
     onToggleFavorite: (id: number) => void;
     onCopy: (id: number) => void;
+    onCopyQuote: (id: number) => void;
     onEdit: (id: number, content: string) => Promise<boolean>;
     onRequestReset: (id: number) => void;
     onAddTag: (id: number, name: string) => Promise<boolean>;
@@ -31,11 +33,13 @@
     clipping,
     allTags,
     copied,
+    quoted,
     query,
     onSelect,
     onOpen,
     onToggleFavorite,
     onCopy,
+    onCopyQuote,
     onEdit,
     onRequestReset,
     onAddTag,
@@ -312,6 +316,17 @@
             : 'text-fg-faint hover:text-fg-muted'}"
         >
           {copied ? "✓" : "⧉"}
+        </button>
+        <button
+          type="button"
+          onclick={() => onCopyQuote(clipping.id)}
+          aria-label={i18n.t("card.copyQuote")}
+          title={quoted ? i18n.t("card.quoteCopied") : i18n.t("card.copyQuote")}
+          class="rounded-full p-1.5 text-base leading-none transition {quoted
+            ? 'text-success'
+            : 'text-fg-faint hover:text-fg-muted'}"
+        >
+          {quoted ? "✓" : "❝"}
         </button>
       {/if}
     {/if}

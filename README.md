@@ -59,6 +59,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 
 ### Library & Organization
 - **Favorites** stored in SQLite, with a copy button on every highlight and note.
+- **Copy as quote**: any highlight or note goes to the clipboard as a Markdown
+  blockquote citing author, book title and page (or position when the page is
+  unknown). Same action from the reading view.
 - **Tags**: free-form per clipping, inline add/remove with suggestions, click a
   tag to filter (AND logic). Rename, merge or delete in **Library → Tags**;
   orphan tags stay listed for cleanup but are hidden from filters.
@@ -106,9 +109,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
   `Ctrl/Cmd+F` focus search; `Ctrl/Cmd+P` searches every clipping across all
   books and filters; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the reading view,
-  `*` favorites, `c` copies, `s`/`f` toggle sidebar and filters, `n`/`p` or
-  PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences. `Esc` closes one layer
-  at a time and typing fields are never hijacked.
+  `*` favorites, `c` copies, `q` copies as a quote, `s`/`f` toggle sidebar and
+  filters, `n`/`p` or PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences.
+  `Esc` closes one layer at a time and typing fields are never hijacked.
 - **5 languages** (es/en/fr/de/it, Spanish default), bundled **Inter** font,
   custom icons, and a minimal macOS-style UI over the native frame.
 - **Remembered window**: size, position and maximized state are restored on
@@ -195,7 +198,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
-- **Copy as quote**: a Markdown citation with book, author and page.
 - **Note ↔ highlight pairing** and **bulk actions** (tag, favorite or export a
   selection).
 - **Desktop polish**: signed auto-update.

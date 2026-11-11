@@ -17,6 +17,8 @@
     canNext: boolean;
     loading: boolean;
     error: string | null;
+    quoted: boolean;
+    onCopyQuote: () => void;
     onPrev: () => void;
     onNext: () => void;
     onClose: () => void;
@@ -31,6 +33,8 @@
     canNext,
     loading,
     error,
+    quoted,
+    onCopyQuote,
     onPrev,
     onNext,
     onClose,
@@ -107,6 +111,19 @@
       {i18n.t("reading.position", { current: position, total })}
     </p>
     <div class="flex items-center gap-1">
+      {#if displayContent}
+        <button
+          type="button"
+          onclick={onCopyQuote}
+          aria-label={i18n.t("card.copyQuote")}
+          title={quoted ? i18n.t("card.quoteCopied") : i18n.t("card.copyQuote")}
+          class="rounded-lg px-2.5 py-1.5 text-base leading-none transition {quoted
+            ? 'text-success'
+            : 'text-fg-muted hover:bg-surface-hover hover:text-fg'}"
+        >
+          {quoted ? "✓" : "❝"}
+        </button>
+      {/if}
       <button
         type="button"
         onclick={onPrev}

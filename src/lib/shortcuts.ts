@@ -13,6 +13,7 @@ export type ShortcutAction =
   | "open-clipping"
   | "toggle-favorite"
   | "copy-clipping"
+  | "copy-quote"
   | "next-page"
   | "prev-page";
 
@@ -151,6 +152,8 @@ export function resolveShortcut(
       return context.hasSelection ? "toggle-favorite" : null;
     case "c":
       return context.hasSelection ? "copy-clipping" : null;
+    case "q":
+      return context.hasSelection ? "copy-quote" : null;
     case "n":
     case "PageDown":
       return context.canNextPage ? "next-page" : null;

@@ -106,6 +106,7 @@
     clampPage,
     copyClippingContent,
     debounce,
+    formatQuoteCitation,
     sortBooks,
     totalClippings,
     withTag,
@@ -209,7 +210,8 @@
   let statsError = $state<string | null>(null);
   /** Invalidates an in-flight stats load when the dialog closes or reopens. */
   let statsRequest = 0;
-  let copiedId = $state<number | null>(null);
+  /** Which copy action just succeeded, for its 1.5 s check mark. */
+  let copyFlash = $state<{ id: number; kind: "content" | "quote" } | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Full-window reading session; null when closed. */
   let reading = $state<ReadingSession | null>(null);
@@ -654,6 +656,17 @@
     page = 1;
   }
 
+  function flashCopied(id: number, kind: "content" | "quote"): void {
+    copyFlash = { id, kind };
+    if (copyTimer !== null) {
+      clearTimeout(copyTimer);
+    }
+    copyTimer = setTimeout(() => {
+      copyFlash = null;
+      copyTimer = null;
+    }, 1500);
+  }
+
   async function copyContent(id: number): Promise<void> {
     const target = result?.items.find((item) => item.id === id);
     const text = target ? (target.content_edited ?? target.content) : null;
@@ -661,14 +674,28 @@
     const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
     const ok = await copyClippingContent(writeText, text);
     if (ok) {
-      copiedId = id;
-      if (copyTimer !== null) {
-        clearTimeout(copyTimer);
-      }
-      copyTimer = setTimeout(() => {
-        copiedId = null;
-        copyTimer = null;
-      }, 1500);
+      flashCopied(id, "content");
+    }
+  }
+
+  /** Markdown quote with author, book and page, for the clipboard. */
+  async function copyQuote(id: number): Promise<void> {
+    const target =
+      result?.items.find((item) => item.id === id) ??
+      (readingClipping?.id === id ? readingClipping : null);
+    if (!target) return;
+    const text = formatQuoteCitation(target);
+    if (text === null) return;
+    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+    const ok = await copyClippingContent(writeText, text);
+    if (ok) {
+      flashCopied(id, "quote");
+    }
+  }
+
+  function copyReadingQuote(): void {
+    if (readingClipping) {
+      void copyQuote(readingClipping.id);
     }
   }
 
@@ -1059,6 +1086,9 @@
         break;
       case "copy-clipping":
         if (selectedId !== null) void copyContent(selectedId);
+        break;
+      case "copy-quote":
+        if (selectedId !== null) void copyQuote(selectedId);
         break;
       case "next-page":
         stepPage("next");
@@ -2030,12 +2060,14 @@
               <ClippingCard
                 {clipping}
                 {allTags}
-                copied={clipping.id === copiedId}
+                copied={copyFlash?.id === clipping.id && copyFlash.kind === "content"}
+                quoted={copyFlash?.id === clipping.id && copyFlash.kind === "quote"}
                 query={resultFilter.query}
                 onSelect={(id) => (selectedId = id)}
                 onOpen={startReading}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
+                onCopyQuote={copyQuote}
                 onEdit={editNote}
                 onRequestReset={requestReset}
                 onAddTag={addTagToClipping}
@@ -2112,6 +2144,8 @@
     canNext={canStep(reading, "next")}
     loading={readingLoading}
     error={readingError}
+    quoted={copyFlash?.id === readingClipping.id && copyFlash.kind === "quote"}
+    onCopyQuote={copyReadingQuote}
     onPrev={() => void stepReading("prev")}
     onNext={() => void stepReading("next")}
     onClose={closeReading}

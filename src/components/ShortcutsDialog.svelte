@@ -62,6 +62,7 @@
       rows: [
         { combos: [["*"]], label: i18n.t("shortcuts.favorite") },
         { combos: [["c"]], label: i18n.t("shortcuts.copy") },
+        { combos: [["q"]], label: i18n.t("shortcuts.copyQuote") },
         { combos: [[mod, ","]], label: i18n.t("shortcuts.preferences") },
       ],
     },
