@@ -150,9 +150,8 @@ cargo fmt --all -- --check
 
 CI (`.github/workflows/ci.yml`) runs on every pull request and again on every
 commit that lands on `main`: the PR run validates a synthetic merge preview, the
-`main` run validates the exact commit a release tags. Select all three matrix
-jobs as required status checks in branch protection, otherwise a red run cannot
-block the merge.
+`main` run validates the exact commit a release tags. All three matrix jobs are
+required status checks on `main`, so a red run blocks the merge.
 
 Releases (`.github/workflows/release.yml`) run from a `workflow_dispatch` or a
 `v*` tag. Before anything is built, the workflow refuses a commit that is not on
