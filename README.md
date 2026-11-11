@@ -36,7 +36,7 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 ## Usage
 
 1. Install from [Releases](https://github.com/damrek/kindclip/releases/latest):
-   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe`/`.msi` (Windows), `.dmg` (macOS).
+   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS).
 2. Copy `documents/My Clippings.txt` from your Kindle.
 3. **Import** → pick the file, or drag a `.txt` onto the window. Re-import any
    time: duplicates are skipped by content hash, and new highlights are added.
@@ -147,8 +147,19 @@ cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
 ```
 
-Releases run on every `v*` tag push (`.github/workflows/release.yml`): version
-sync, checks, tests, then bundles for macOS (ARM + Intel), Linux and Windows.
+CI (`.github/workflows/ci.yml`) runs on every pull request and again on every
+commit that lands on `main`: the PR run validates a synthetic merge preview, the
+`main` run validates the exact commit a release tags. Select all three matrix
+jobs as required status checks in branch protection, otherwise a red run cannot
+block the merge.
+
+Releases (`.github/workflows/release.yml`) run from a `workflow_dispatch` or a
+`v*` tag. Before anything is built, the workflow refuses a commit that is not on
+`main` or whose version files disagree with the resolved version. It then syncs
+the version, runs the checks and tests, and bundles for macOS (ARM + Intel),
+Linux and Windows. Windows ships the NSIS `.exe` only — the WiX `.msi` is
+deliberately not built, since it exists for enterprise `msiexec`/GPO deployment
+and this app has no such channel.
 *macOS/Windows artifacts are unsigned, so Gatekeeper/SmartScreen will warn.*
 
 ## Structure

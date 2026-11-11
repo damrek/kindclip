@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import ciWorkflowRaw from "../../.github/workflows/ci.yml?raw";
 import releaseWorkflowRaw from "../../.github/workflows/release.yml?raw";
+import tauriConfigRaw from "../../src-tauri/tauri.conf.json?raw";
 
 // A Windows checkout converts these files to CRLF and ?raw hands the bytes over
 // unchanged, so normalize once and keep every guard below written for plain LF.
 const ciWorkflow = ciWorkflowRaw.replace(/\r\n/g, "\n");
 const releaseWorkflow = releaseWorkflowRaw.replace(/\r\n/g, "\n");
+const tauriConfig = tauriConfigRaw.replace(/\r\n/g, "\n");
 
 // Textual guards for invariants that fail SILENTLY: a wrong release profile, a
 // per-arch macOS split, or a re-added tag-scoped cache all leave CI green while
@@ -17,11 +19,14 @@ describe("release and CI workflow invariants", () => {
     expect(releaseWorkflow).toContain("aarch64-apple-darwin,x86_64-apple-darwin");
   });
 
-  it("compiles the Rust workspace once, in release mode", () => {
-    // Release profile so the test build and the tauri-action build share the
-    // same artifacts. A debug `cargo test` would compile the whole graph twice.
-    expect(releaseWorkflow).toContain("cargo test --release --workspace");
-    expect(releaseWorkflow).not.toContain("cargo test --workspace");
+  it("tests in release mode only where tauri-action reads the same target/", () => {
+    // Linux and Windows build into target/release, so the release test compile
+    // feeds tauri-action. macOS builds --target universal-apple-darwin into
+    // target/<triple>/release, which never reads target/release: release mode
+    // there is a duplicate compile nothing reuses.
+    const rustTests = releaseWorkflow.slice(releaseWorkflow.indexOf("Test Rust workspace"));
+    expect(rustTests).toMatch(/= "macos-latest"[\s\S]{0,200}cargo test --workspace/);
+    expect(rustTests).toMatch(/else[\s\S]{0,200}cargo test --release --workspace/);
   });
 
   it("does not reintroduce a Rust cache a tag run could never reuse", () => {
@@ -32,9 +37,15 @@ describe("release and CI workflow invariants", () => {
     expect(ciWorkflow).not.toContain("rust-cache");
   });
 
-  it("keeps CI as a pre-merge gate, with no main trigger and no release build", () => {
-    expect(ciWorkflow).toMatch(/on:\s*\n\s*pull_request:/);
-    expect(ciWorkflow).not.toMatch(/branches: \[main\]/);
+  it("gates pull requests and also validates the commit that lands on main", () => {
+    // pull_request only tests a synthetic merge preview (refs/pull/N/merge), a
+    // commit that never lands. The commit main receives — the one a release
+    // tags — is a different SHA that nothing else builds.
+    expect(ciWorkflow).toMatch(/pull_request:/);
+    expect(ciWorkflow).toMatch(/push:\s*\n\s*branches: \[main\]/);
+    expect(ciWorkflow).toContain(
+      "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+    );
     expect(ciWorkflow).not.toContain("tauri build");
   });
 
@@ -84,5 +95,44 @@ describe("release workflow: one release object per tag", () => {
     expect(releaseWorkflow).toContain("--generate-notes");
     expect(releaseWorkflow).not.toMatch(/generateReleaseNotes:/);
     expect(releaseWorkflow).not.toMatch(/releaseDraft:/);
+  });
+});
+
+// workflow_dispatch runs from any branch, and a tag can be pushed on an
+// unmerged commit. Both used to publish bytes that never reached main, so the
+// guards below fail loudly in `prepare`, before any artifact is built.
+describe("release workflow: refuses unreleasable commits", () => {
+  it("requires the released commit to be an ancestor of main", () => {
+    expect(releaseWorkflow).toContain(
+      "if: steps.version.outputs.should_release == 'true'",
+    );
+    expect(releaseWorkflow).toContain(
+      "git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main",
+    );
+    expect(releaseWorkflow).toContain(
+      'git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main',
+    );
+    expect(releaseWorkflow).toContain("is not on main");
+  });
+
+  it("requires every committed version file to match the resolved version", () => {
+    // The runner rewrites the version files for the build only; the tag still
+    // points at the commit, so a forgotten bump would ship disagreeing sources.
+    expect(releaseWorkflow).toContain("expect_version package.json");
+    expect(releaseWorkflow).toContain("src-tauri/tauri.conf.json");
+    expect(releaseWorkflow).toContain("src-tauri/Cargo.toml");
+    expect(releaseWorkflow).toContain("crates/clippings-parser/Cargo.toml");
+    expect(releaseWorkflow).toContain("Commit the bump");
+  });
+});
+
+// "all" silently bundles every target the OS supports. Windows' default set is
+// [msi, nsis], so the WiX installer comes back without anyone asking for it.
+describe("bundle targets", () => {
+  it("bundles exactly the six supported targets and no WiX/Msi", () => {
+    const targets: string[] = JSON.parse(tauriConfig).bundle.targets;
+    // Order-independent and exact: an extra or duplicated target fails too.
+    expect([...targets].sort()).toEqual(["app", "appimage", "deb", "dmg", "nsis", "rpm"]);
+    expect(tauriConfig).not.toContain('"msi"');
   });
 });

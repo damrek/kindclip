@@ -29,7 +29,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg", "deb", "rpm", "appimage", "nsis"],
     "category": "Utility",
     "shortDescription": "Kindle clippings viewer",
     "longDescription": "Importa tu My Clippings.txt de Kindle, filtra por texto y libro, y guarda favoritos.",

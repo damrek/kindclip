@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g. 1.2.3). Leave empty to auto-bump from commits since the last tag.'
+        description: 'Version to release (e.g. 1.2.3). Leave empty to auto-bump from commits since the last tag. The version files must already be committed at that version.'
         required: false
         type: string
 
@@ -110,6 +110,45 @@ jobs:
           echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "Auto-bumped ($BUMP) to $VERSION from ${LAST_TAG:-initial}"
 
+      - name: Verify the commit is releasable
+        if: steps.version.outputs.should_release == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          # workflow_dispatch can run from any branch, and a tag can be pushed on
+          # an unmerged commit. Either would publish bytes that never reached main.
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "::error::$GITHUB_SHA is not on main; release from a merged commit."
+            exit 1
+          fi
+
+          # Every version file is bumped by a commit before the release runs; the
+          # runner only rewrites them for the build. This drift once shipped
+          # v0.1.0 locals against a v0.1.2 tag, so the tag must agree with its
+          # own sources before anything is built.
+          expect_version() {
+            if [ "$2" != "$VERSION" ]; then
+              echo "::error::$1 says $2 but the release resolves $VERSION. Commit the bump, or dispatch with an explicit version that matches it."
+              exit 1
+            fi
+          }
+
+          expect_version package.json "$(jq -r .version package.json)"
+
+          TAURI_VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          if [ "$TAURI_VERSION" != "null" ]; then
+            expect_version src-tauri/tauri.conf.json "$TAURI_VERSION"
+          fi
+
+          expect_version src-tauri/Cargo.toml \
+            "$(awk '/^version = "/{sub(/^version = "/,""); sub(/"$/,""); print; exit}' src-tauri/Cargo.toml)"
+          expect_version crates/clippings-parser/Cargo.toml \
+            "$(awk '/^version = "/{sub(/^version = "/,""); sub(/"$/,""); print; exit}' crates/clippings-parser/Cargo.toml)"
+
   create-release:
     needs: prepare
     if: needs.prepare.outputs.should_release == 'true'
@@ -161,6 +200,9 @@ jobs:
           - platform: 'windows-latest'
             args: ''
     runs-on: ${{ matrix.platform }}
+    # macOS cold universal build measured at ~14 min; 45 bounds a hang well
+    # under GitHub's 6h default.
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v7
@@ -206,10 +248,18 @@ jobs:
 
       - run: npm run test
 
-      # Release profile on purpose: the same dependency artifacts feed the
-      # tauri-action build below (same profile, same target/), so the graph is
-      # compiled ONCE instead of twice (debug for tests, then release for the app).
-      - run: cargo test --release --workspace
+      # tauri-action reads target/release on Linux and Windows, so the release
+      # test compile there is reused by the build below. The macOS leg builds a
+      # universal binary into target/<triple>/release, which never reads
+      # target/release, so release mode there is a duplicate compile.
+      - name: Test Rust workspace
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
+            cargo test --workspace
+          else
+            cargo test --release --workspace
+          fi
 
       - uses: tauri-apps/tauri-action@v0
         env:
