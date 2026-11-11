@@ -4,6 +4,7 @@ import {
   appendPage,
   canStep,
   openReadingSession,
+  openWindowSession,
   pageToLoad,
   prependPage,
   readingPage,
@@ -78,6 +79,34 @@ describe("openReadingSession", () => {
 
   it("returns null when the row is not on the page", () => {
     expect(openReadingSession(page(21, 20, 2, 20, 137), 999)).toBeNull();
+  });
+});
+
+describe("openWindowSession", () => {
+  it("treats the whole result list as the window", () => {
+    const items = [row(10), row(20), row(30)];
+    const session = openWindowSession(items, 20);
+    expect(session).not.toBeNull();
+    expect(session?.start).toBe(0);
+    expect(session?.index).toBe(1);
+    expect(session?.total).toBe(3);
+    expect(session?.pageSize).toBe(3);
+    expect(session && readingPosition(session)).toBe(2);
+    expect(session && readingPage(session)).toBe(1);
+  });
+
+  it("returns null when the row is not in the results", () => {
+    expect(openWindowSession([row(1), row(2)], 3)).toBeNull();
+  });
+
+  it("never fetches a page at either end", async () => {
+    const load = vi.fn();
+    const atStart = openWindowSession([row(1), row(2)], 1)!;
+    const atEnd = openWindowSession([row(1), row(2)], 2)!;
+
+    expect(await advanceReading(atStart, "prev", load)).toBe(atStart);
+    expect(await advanceReading(atEnd, "next", load)).toBe(atEnd);
+    expect(load).not.toHaveBeenCalled();
   });
 });
 

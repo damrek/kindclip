@@ -3,6 +3,7 @@
 
 export type ShortcutAction =
   | "focus-search"
+  | "open-palette"
   | "open-help"
   | "toggle-sidebar"
   | "open-filters"
@@ -76,6 +77,21 @@ export function isInteractiveTarget(target: TargetLike | null | undefined): bool
 }
 
 /**
+ * Ctrl/Cmd+P, the global palette combo. Shift is irrelevant, Alt is not: the
+ * combo belongs to the app in every focus state, so the platform print action
+ * must never fire on it.
+ */
+export function isPaletteCombo(event: KeyEventLike): boolean {
+  if (!event.metaKey && !event.ctrlKey) {
+    return false;
+  }
+  if (event.altKey) {
+    return false;
+  }
+  return event.key.length === 1 && event.key.toLowerCase() === "p";
+}
+
+/**
  * Map one key event to an app action, or null when the key belongs to the
  * focused control, the open overlay or the browser. Escape is deliberately
  * absent: App closes one overlay layer per press, in its own order.
@@ -97,6 +113,9 @@ export function resolveShortcut(
     }
     if (pressed === "k" || pressed === "f") {
       return "focus-search";
+    }
+    if (isPaletteCombo(event)) {
+      return "open-palette";
     }
     if (pressed === ",") {
       return "open-preferences";

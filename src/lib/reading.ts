@@ -35,6 +35,27 @@ export function openReadingSession(
   };
 }
 
+/**
+ * A session over an in-memory list with no adjacent pages (global palette
+ * results): stepping stays inside `items` and no page is ever fetched.
+ */
+export function openWindowSession(
+  items: ClippingRow[],
+  id: number,
+): ReadingSession | null {
+  const index = items.findIndex((item) => item.id === id);
+  if (index === -1) {
+    return null;
+  }
+  return {
+    items,
+    start: 0,
+    index,
+    total: items.length,
+    pageSize: Math.max(1, items.length),
+  };
+}
+
 /** Row being read; null only if the window is empty. */
 export function readingCurrent(session: ReadingSession): ClippingRow | null {
   return session.items[session.index] ?? null;

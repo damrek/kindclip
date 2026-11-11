@@ -28,6 +28,10 @@
       title: i18n.t("shortcuts.group.search"),
       rows: [
         {
+          combos: [[mod, "P"]],
+          label: i18n.t("shortcuts.commandPalette"),
+        },
+        {
           combos: [["/"], [mod, "K"], [mod, "F"]],
           label: i18n.t("shortcuts.focusSearch"),
         },

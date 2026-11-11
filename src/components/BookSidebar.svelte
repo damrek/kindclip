@@ -3,6 +3,7 @@
   import Icon from "./Icon.svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import type { Book } from "../lib/types";
+  import { hasMoreBelow } from "../lib/scroll";
 
   interface Props {
     books: Book[];
@@ -37,10 +38,36 @@
     libraryActionsDisabled = false,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
+
+  /** Book list scroller, measured for the bottom fade. */
+  let listEl = $state<HTMLDivElement | null>(null);
+  /** More books below the fold, so the fade is only drawn then. */
+  let moreBelow = $state(false);
+
+  function measureFade(): void {
+    const element = listEl;
+    moreBelow = element !== null && hasMoreBelow(element);
+  }
+
+  // Re-measure whenever the scroller is resized or the sidebar is toggled in.
+  $effect(() => {
+    const element = listEl;
+    if (element === null) return;
+    const observer = new ResizeObserver(measureFade);
+    observer.observe(element);
+    return () => observer.disconnect();
+  });
+
+  // Re-measure after the book list changes, once the new rows are in the DOM.
+  $effect(() => {
+    void books;
+    void listEl;
+    measureFade();
+  });
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
-  <nav class="flex min-h-0 flex-1 flex-col" aria-label={i18n.t("sidebar.nav")}>
+  <nav class="relative flex min-h-0 flex-1 flex-col" aria-label={i18n.t("sidebar.nav")}>
     <div class="mb-2 flex items-center gap-1.5" role="group" aria-label={i18n.t("sort.toggle")}>
       <button
         type="button"
@@ -89,7 +116,11 @@
       </span>
     </button>
 
-    <div class="mt-1 flex-1 space-y-0.5 overflow-y-auto">
+    <div
+      class="mt-1 flex-1 space-y-0.5 overflow-y-auto"
+      bind:this={listEl}
+      onscroll={measureFade}
+    >
       {#each books as book (book.id)}
         <button
           type="button"
@@ -122,6 +153,12 @@
         </button>
       {/each}
     </div>
+    <div
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-surface via-surface/80 to-transparent transition-opacity duration-150 {moreBelow
+        ? 'opacity-100'
+        : 'opacity-0'}"
+    ></div>
   </nav>
 
   <div class="mt-2 shrink-0 space-y-0.5 border-t border-line-subtle pt-2">
