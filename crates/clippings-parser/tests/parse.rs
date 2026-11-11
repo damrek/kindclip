@@ -172,10 +172,8 @@ fn skips_malformed_entries() {
         1
     );
     assert_eq!(
-        parse_clippings_with_stats(
-            "Title (Author)\nno meta line here\n\nContent\n==========\n"
-        )
-        .skipped,
+        parse_clippings_with_stats("Title (Author)\nno meta line here\n\nContent\n==========\n")
+            .skipped,
         1
     );
     assert_eq!(
