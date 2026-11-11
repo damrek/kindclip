@@ -36,7 +36,8 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 ## Usage
 
 1. Install from [Releases](https://github.com/damrek/kindclip/releases/latest):
-   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS).
+   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS). What
+   changed in each version is in [CHANGELOG.md](CHANGELOG.md).
 2. Copy `documents/My Clippings.txt` from your Kindle.
 3. **Import** → pick the file, or drag a `.txt` onto the window. Re-import any
    time: duplicates are skipped by content hash, and new highlights are added.
