@@ -14,11 +14,21 @@ binaries, on Windows, Linux and macOS.
 ![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 
 <p>
-  <img src="docs/screenshot.png" width="80%" alt="kindclip — library view in a dark theme">
+  <img src="docs/screen_1.png" width="80%" alt="kindclip library view in a dark theme: book sidebar with clipping counts, removable filter chips and clipping cards">
 </p>
-*Library view (dark theme): the sidebar holds the book list with its own sort
-and the import/library/stats footer; the list toolbar holds search, Filters with
-a count badge, sort and export; active filters show as removable chips.*
+*Library view in a dark theme: book sidebar, clipping cards with page and date,
+and the active filters as removable chips.*
+
+<details>
+<summary>Global search (<code>Ctrl/Cmd+P</code>)</summary>
+
+<p>
+  <img src="docs/screen_2.png" width="80%" alt="kindclip global search palette open over the library, listing matching clippings from different books">
+</p>
+<p><em>Every clipping in the library, across all books and filters, newest first;
+the footer counts the matches, and Enter opens the selected one.</em></p>
+
+</details>
 
 ## Usage
 
