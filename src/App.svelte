@@ -1,6 +1,7 @@
 <script lang="ts">
   import BookSidebar from "./components/BookSidebar.svelte";
   import ClippingCard from "./components/ClippingCard.svelte";
+  import CommandPalette from "./components/CommandPalette.svelte";
   import ExportDialog from "./components/ExportDialog.svelte";
   import FilterMenu from "./components/FilterMenu.svelte";
   import Icon from "./components/Icon.svelte";
@@ -118,6 +119,7 @@
     advanceReading,
     canStep,
     openReadingSession,
+    openWindowSession,
     pageToLoad,
     readingCurrent,
     readingPage,
@@ -128,6 +130,7 @@
   } from "./lib/reading";
   import {
     isInteractiveTarget,
+    isPaletteCombo,
     isTypingTarget,
     resolveShortcut,
     stepSelection,
@@ -216,6 +219,8 @@
   let readingRequest = 0;
   /** Filter/sort snapshot the reading window fetches adjacent pages with. */
   let readingSource = $state<{ filter: ClippingFilter; sort: ClippingSort } | null>(null);
+  /** Search text the reading view highlights; from the list or the palette. */
+  let readingQuery = $state("");
   /** Element that opened the reading view; focus returns to it on close. */
   let readingOpener: HTMLElement | null = null;
   /** Scroller holding the cards; the focus fallback when the opener is gone. */
@@ -223,6 +228,8 @@
   /** Card selected with j/k; the target of Enter, * and c. */
   let selectedId = $state<number | null>(null);
   let shortcutsOpen = $state(false);
+  /** Global clipping search overlay (Ctrl/Cmd+P). */
+  let paletteOpen = $state(false);
   /** Controlled so App can close one overlay per Escape. */
   let filtersOpen = $state(false);
   let prefsOpen = $state(false);
@@ -238,6 +245,7 @@
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
     reading !== null ||
+      paletteOpen ||
       resetTarget !== null ||
       exportOpen ||
       libraryOpen ||
@@ -809,33 +817,60 @@
     }
   }
 
+  /** Mount a reading session and remember the source its arrows may fetch from. */
+  function mountReading(
+    session: ReadingSession,
+    source: { filter: ClippingFilter; sort: ClippingSort } | null,
+    opener: HTMLElement | null,
+    query: string,
+  ): void {
+    readingRequest += 1;
+    readingError = null;
+    readingLoading = false;
+    readingSource = source;
+    readingQuery = query;
+    readingOpener = opener;
+    reading = session;
+  }
+
   /** Open the full-window reading view on one visible row. */
   function startReading(id: number): void {
     if (!result) return;
     const session = openReadingSession(result, id);
     if (!session) return;
-    readingRequest += 1;
-    readingError = null;
-    readingLoading = false;
-    // The window holds rows from the filter on screen; keep that exact filter
-    // for the adjacent pages, not the live one, which may already differ while
-    // a search or page load is in flight.
-    readingSource = { filter: resultFilter, sort: resultSort };
-    readingOpener =
+    const opener =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    reading = session;
+    mountReading(
+      session,
+      { filter: resultFilter, sort: resultSort },
+      opener,
+      resultFilter.query,
+    );
+  }
+
+  /** Global palette result: the matches become the reading window. */
+  function openPaletteResult(items: ClippingRow[], id: number, query: string): void {
+    const session = openWindowSession(items, id);
+    if (!session) return;
+    const opener = modalOpener;
+    paletteOpen = false;
+    modalOpener = null;
+    mountReading(session, null, opener, query);
   }
 
   /** Close and leave the list on the page where reading stopped. */
   async function closeReading(): Promise<void> {
     if (!reading) return;
-    const targetPage = readingPage(reading);
+    // Palette windows are not part of the list, so they never move its page.
+    const fromList = readingSource !== null;
+    const targetPage = fromList ? readingPage(reading) : page;
     const opener = readingOpener;
     readingRequest += 1;
     reading = null;
     readingLoading = false;
     readingError = null;
     readingSource = null;
+    readingQuery = "";
     readingOpener = null;
     const pageChanged = targetPage !== page;
     if (pageChanged) {
@@ -873,6 +908,18 @@
     if (shortcutsOpen) return;
     rememberOpener();
     shortcutsOpen = true;
+  }
+
+  function openPalette(): void {
+    if (paletteOpen || modalOpen) return;
+    rememberOpener();
+    paletteOpen = true;
+  }
+
+  function closePalette(): void {
+    if (!paletteOpen) return;
+    paletteOpen = false;
+    restoreOpener();
   }
 
   function closeShortcuts(): void {
@@ -983,6 +1030,9 @@
       case "focus-search":
         void openSearch();
         break;
+      case "open-palette":
+        openPalette();
+        break;
       case "open-help":
         openShortcuts();
         break;
@@ -1026,6 +1076,11 @@
     if (event.key === "Escape") {
       // The reading view owns its own Escape and arrows.
       if (reading !== null) return;
+      if (paletteOpen) {
+        event.preventDefault();
+        closePalette();
+        return;
+      }
       if (shortcutsOpen) {
         event.preventDefault();
         closeShortcuts();
@@ -1102,7 +1157,15 @@
       canPrevPage: page > 1,
       canNextPage: page < pages,
     });
-    if (action === null) return;
+    if (action === null) {
+      // The palette combo belongs to the app in every focus state, so the
+      // platform print action never fires on it, even when an overlay owns
+      // the keyboard and the palette itself stays closed.
+      if (isPaletteCombo(event)) {
+        event.preventDefault();
+      }
+      return;
+    }
     event.preventDefault();
     runShortcut(action);
   }
@@ -1110,8 +1173,7 @@
   /** Step one row; fetch the adjacent page only when the window runs out. */
   async function stepReading(dir: ReadingDirection): Promise<void> {
     const session = reading;
-    const source = readingSource;
-    if (!session || !source || readingLoading) return;
+    if (!session || readingLoading) return;
     const moved = stepWithinWindow(session, dir);
     if (moved) {
       // A successful step dismisses a banner left over from a failed fetch.
@@ -1119,7 +1181,9 @@
       reading = moved;
       return;
     }
-    if (pageToLoad(session, dir) === null) return;
+    // A window-only session (palette results) has no adjacent pages.
+    const source = readingSource;
+    if (!source || pageToLoad(session, dir) === null) return;
     const request = ++readingRequest;
     readingLoading = true;
     readingError = null;
@@ -2034,10 +2098,14 @@
   </div>
 {/if}
 
+{#if paletteOpen}
+  <CommandPalette onClose={closePalette} onOpen={openPaletteResult} />
+{/if}
+
 {#if reading && readingClipping}
   <ReadingView
     clipping={readingClipping}
-    query={readingSource?.filter.query ?? ""}
+    query={readingQuery}
     position={readingPosition(reading)}
     total={reading.total}
     canPrev={canStep(reading, "prev")}

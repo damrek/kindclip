@@ -91,10 +91,11 @@ a count badge, sort and export; active filters show as removable chips.*
   every surface they land on, in all five themes; search marks and text
   selection are tuned the same way.
 - **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
-  `Ctrl/Cmd+F` focus search; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the
-  reading view, `*` favorites, `c` copies, `s`/`f` toggle sidebar and filters,
-  `n`/`p` or PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences. `Esc` closes
-  one layer at a time and typing fields are never hijacked.
+  `Ctrl/Cmd+F` focus search; `Ctrl/Cmd+P` searches every clipping across all
+  books and filters; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the reading view,
+  `*` favorites, `c` copies, `s`/`f` toggle sidebar and filters, `n`/`p` or
+  PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences. `Esc` closes one layer
+  at a time and typing fields are never hijacked.
 - **5 languages** (es/en/fr/de/it, Spanish default), bundled **Inter** font,
   custom icons, and a minimal macOS-style UI over the native frame.
 - **Remembered window**: size, position and maximized state are restored on

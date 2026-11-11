@@ -4,6 +4,7 @@ import {
   backfillSearchFolding,
   buildCountQuery,
   buildListQuery,
+  buildSearchQuery,
   deleteBook,
   deleteTag,
   ensureTag,
@@ -24,6 +25,7 @@ import {
   renameTag,
   resetNote,
   saveFilterState,
+  searchClippings,
   SETTINGS_KEYS,
   setSetting,
   toggleFavorite,
@@ -581,6 +583,59 @@ describe("listClippings", () => {
     const page = await listClippings(filter(), { page: 1, pageSize: 20 });
 
     expect(page.items).toEqual([]);
+    expect(port.tagCalls).toHaveLength(0);
+  });
+});
+
+describe("buildSearchQuery", () => {
+  it("ignores every list filter and keeps the folded all-terms query", () => {
+    const { sql, params } = buildSearchQuery("stoic  Aurora", 25);
+
+    expect(sql).toContain(
+      "FROM clippings c JOIN books b ON b.id = c.book_id LEFT JOIN favorites f ON f.clipping_id = c.id",
+    );
+    expect(sql).not.toContain("b.id = $");
+    expect(sql).not.toContain("c.kind IN");
+    expect(sql).not.toContain("f.clipping_id IS NOT NULL");
+    expect(sql).not.toContain("c.content_edited IS NOT NULL");
+    expect(sql).not.toContain("clipping_tags");
+    expect(sql).toContain("ORDER BY COALESCE(c.added_on, '') DESC, c.id DESC LIMIT $7");
+    expect(params).toEqual([
+      "%stoic%",
+      "%stoic%",
+      "%stoic%",
+      "%aurora%",
+      "%aurora%",
+      "%aurora%",
+      25,
+    ]);
+  });
+
+  it("has no WHERE clause for the empty query", () => {
+    const { sql, params } = buildSearchQuery("", 20);
+
+    expect(sql).not.toContain("WHERE");
+    expect(params).toEqual([20]);
+  });
+});
+
+describe("searchClippings", () => {
+  it("maps palette rows without loading tags", async () => {
+    const port = new FakePort();
+    plugin.port = port;
+    port.clippingRows = [rawRow({ id: 2, favorite: 1 }), rawRow({ id: 1 })];
+
+    const rows = await searchClippings("stoic", 2);
+
+    expect(rows.map((row) => row.id)).toEqual([2, 1]);
+    expect(rows[0].favorite).toBe(true);
+    expect(rows[0].tags).toEqual([]);
+    expect(port.selectCalls.at(-1)?.params).toEqual([
+      "%stoic%",
+      "%stoic%",
+      "%stoic%",
+      2,
+    ]);
     expect(port.tagCalls).toHaveLength(0);
   });
 });

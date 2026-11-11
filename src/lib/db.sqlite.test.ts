@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { importParsedClippings, buildListQuery, type DbPort } from "./db";
+import { importParsedClippings, buildListQuery, buildSearchQuery, type DbPort } from "./db";
 import { loadReadingStats, TOP_BOOKS } from "./stats";
 import type { ClippingDto } from "./types";
 
@@ -220,6 +220,97 @@ describe("multi-word search against real SQLite", () => {
       "title-and-author",
       "title-and-content",
     ]);
+  });
+});
+
+describe("global palette search against real SQLite", () => {
+  async function seed(port: SqlitePort): Promise<void> {
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-palette",
+        skipped: 0,
+        clippings: [
+          clipping({
+            title: "Meditations",
+            author: "Marcus Aurelius",
+            content: "A stoic aurora",
+            added_on: "2021-01-01T10:00:00",
+            content_hash: "palette-1",
+          }),
+          clipping({
+            title: "Aurora",
+            author: "Someone",
+            content: "Just stoic",
+            added_on: "2020-01-01T10:00:00",
+            content_hash: "palette-2",
+          }),
+          clipping({
+            title: "Other",
+            author: "Nobody",
+            content: "Aurora only",
+            added_on: "2022-01-01T10:00:00",
+            content_hash: "palette-3",
+          }),
+          clipping({
+            title: "Stoic",
+            author: "Aurora",
+            kind: "bookmark",
+            content: null,
+            added_on: "2019-01-01T10:00:00",
+            content_hash: "palette-4",
+          }),
+          clipping({
+            title: "Café",
+            author: "Crème",
+            content: "Crème brûlée",
+            added_on: "2023-01-01T10:00:00",
+            content_hash: "palette-5",
+          }),
+        ],
+      },
+      () => {},
+    );
+  }
+
+  it("requires every term across content, title and author, newest first", async () => {
+    const port = new SqlitePort();
+    await seed(port);
+
+    const { sql, params } = buildSearchQuery("aurora  STOIC", 10);
+    const rows = await port.select<{ content_hash: string; content: string | null }>(
+      sql,
+      params,
+    );
+
+    expect(rows.map((row) => row.content_hash)).toEqual([
+      "palette-1",
+      "palette-2",
+      "palette-4",
+    ]);
+    // A bookmark with no text still matches through its title and author.
+    expect(rows[2].content).toBeNull();
+  });
+
+  it("folds accents and case like the list search", async () => {
+    const port = new SqlitePort();
+    await seed(port);
+
+    const { sql, params } = buildSearchQuery("creme BRULEE", 10);
+    const rows = await port.select<{ content_hash: string }>(sql, params);
+
+    expect(rows.map((row) => row.content_hash)).toEqual(["palette-5"]);
+  });
+
+  it("caps the result count and keeps the newest first for the empty query", async () => {
+    const port = new SqlitePort();
+    await seed(port);
+
+    const { sql, params } = buildSearchQuery("", 2);
+    const rows = await port.select<{ content_hash: string }>(sql, params);
+
+    expect(rows.map((row) => row.content_hash)).toEqual(["palette-5", "palette-3"]);
   });
 });
 

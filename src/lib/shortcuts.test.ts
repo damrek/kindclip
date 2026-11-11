@@ -3,6 +3,7 @@ import {
   commandKeyLabel,
   isInteractiveTarget,
   isMacPlatform,
+  isPaletteCombo,
   isTypingTarget,
   resolveShortcut,
   stepSelection,
@@ -91,6 +92,15 @@ describe("resolveShortcut — search", () => {
     expect(resolve("k", { ctrlKey: true }, { typing: true })).toBe("focus-search");
   });
 
+  it("opens the global palette with the command combo", () => {
+    expect(resolve("p", { ctrlKey: true })).toBe("open-palette");
+    expect(resolve("p", { metaKey: true })).toBe("open-palette");
+    expect(resolve("P", { ctrlKey: true, shiftKey: true })).toBe("open-palette");
+    expect(resolve("p", { ctrlKey: true }, { typing: true })).toBe("open-palette");
+    // Bare p stays the previous-page key.
+    expect(resolve("p")).toBe("prev-page");
+  });
+
   it("does nothing while typing a bare /", () => {
     expect(resolve("/", {}, { typing: true })).toBeNull();
   });
@@ -169,6 +179,7 @@ describe("resolveShortcut — guard rails", () => {
       expect(resolve(pressed, {}, { overlay: true })).toBeNull();
     }
     expect(resolve("k", { ctrlKey: true }, { overlay: true })).toBeNull();
+    expect(resolve("p", { ctrlKey: true }, { overlay: true })).toBeNull();
   });
 
   it("ignores typing for single keys", () => {
@@ -188,6 +199,21 @@ describe("resolveShortcut — guard rails", () => {
     expect(resolve("Escape")).toBeNull();
     expect(resolve("ArrowLeft")).toBeNull();
     expect(resolve("k", { ctrlKey: true, shiftKey: true })).toBe("focus-search");
+  });
+});
+
+describe("isPaletteCombo", () => {
+  it("matches the command combo on every platform spelling", () => {
+    expect(isPaletteCombo(key("p", { ctrlKey: true }))).toBe(true);
+    expect(isPaletteCombo(key("p", { metaKey: true }))).toBe(true);
+    expect(isPaletteCombo(key("P", { ctrlKey: true, shiftKey: true }))).toBe(true);
+  });
+
+  it("leaves bare p and other combos alone", () => {
+    expect(isPaletteCombo(key("p"))).toBe(false);
+    expect(isPaletteCombo(key("k", { ctrlKey: true }))).toBe(false);
+    expect(isPaletteCombo(key("p", { ctrlKey: true, altKey: true }))).toBe(false);
+    expect(isPaletteCombo(key("ArrowLeft", { ctrlKey: true }))).toBe(false);
   });
 });
 

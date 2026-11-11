@@ -306,6 +306,14 @@ body {
   outline-offset: 2px;
 }
 
+/* A field that owns its focus affordance instead of the global ring: an offset
+   outline around an edge-to-edge input is clipped by a rounded, overflow-hidden
+   shell. Kept unlayered and more specific on purpose, because the rule above
+   wins over Tailwind's layered `outline-none` utilities. */
+.palette-field:focus-visible {
+  outline: none;
+}
+
 /* Scroll performance: skip rendering offscreen cards entirely and reserve
    an estimated height so the scrollbar doesn't jump. The `auto` keyword
    lets the browser remember each card's real height after first paint. */

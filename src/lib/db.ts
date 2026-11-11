@@ -10,7 +10,7 @@ import type {
   PageRequest,
   Tag,
 } from "./types";
-import { PAGE_SIZES, foldText } from "./library";
+import { PAGE_SIZES, emptyFilter, foldText } from "./library";
 import { searchTerms } from "./search";
 
 /** Minimal SQL surface the store needs; real (plugin) or fake (tests). */
@@ -221,6 +221,21 @@ export function buildCountQuery(filter: ClippingFilter): { sql: string; params: 
   return { sql: `SELECT COUNT(*) AS total ${LIST_FROM} ${where}`, params };
 }
 
+/** SQL for the global palette: every clipping, no list filters, newest first.
+ * The query keeps the same folded, all-terms semantics as the list search. */
+export function buildSearchQuery(
+  query: string,
+  limit = 50,
+): { sql: string; params: unknown[] } {
+  const { sql: where, params } = buildWhere({ ...emptyFilter(), query });
+  const limitParam = `$${params.length + 1}`;
+  params.push(limit);
+  const sql =
+    `${LIST_SELECT}${LIST_FROM}${where === "" ? "" : ` ${where}`} ` +
+    `ORDER BY COALESCE(c.added_on, '') DESC, c.id DESC LIMIT ${limitParam}`;
+  return { sql, params };
+}
+
 /** Row shape as returned by SQLite (favorite is 0/1, tags are hydrated apart). */
 type ClippingRowRaw = Omit<ClippingRow, "favorite" | "tags"> & { favorite: number };
 
@@ -257,6 +272,18 @@ export async function listClippings(
     page: page.page,
     pageSize: page.pageSize,
   };
+}
+
+/** Global palette rows: every book, no list filters, newest first. Tags are
+ * left empty because the palette does not render them. */
+export async function searchClippings(
+  query: string,
+  limit = 50,
+): Promise<ClippingRow[]> {
+  const port = await getDb();
+  const { sql, params } = buildSearchQuery(query, limit);
+  const rows = await port.select<ClippingRowRaw>(sql, params);
+  return rows.map(mapClippingRow);
 }
 
 /** Every row matching the filter (the whole filtered view, S2), unpaginated
