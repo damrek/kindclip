@@ -168,14 +168,16 @@ describe("resolveShortcut — actions", () => {
   it("toggles favorite and copies the selection", () => {
     expect(resolve("*")).toBe("toggle-favorite");
     expect(resolve("c")).toBe("copy-clipping");
+    expect(resolve("q")).toBe("copy-quote");
     expect(resolve("*", {}, { hasSelection: false })).toBeNull();
     expect(resolve("c", {}, { hasSelection: false })).toBeNull();
+    expect(resolve("q", {}, { hasSelection: false })).toBeNull();
   });
 });
 
 describe("resolveShortcut — guard rails", () => {
   it("ignores every shortcut while a modal or the reading view is open", () => {
-    for (const pressed of ["/", "?", "j", "k", "n", "s", "f", "Enter", "c", "*"]) {
+    for (const pressed of ["/", "?", "j", "k", "n", "s", "f", "Enter", "c", "q", "*"]) {
       expect(resolve(pressed, {}, { overlay: true })).toBeNull();
     }
     expect(resolve("k", { ctrlKey: true }, { overlay: true })).toBeNull();
@@ -183,7 +185,7 @@ describe("resolveShortcut — guard rails", () => {
   });
 
   it("ignores typing for single keys", () => {
-    for (const pressed of ["?", "j", "k", "n", "p", "s", "f", "c", "*", "Enter"]) {
+    for (const pressed of ["?", "j", "k", "n", "p", "s", "f", "c", "q", "*", "Enter"]) {
       expect(resolve(pressed, {}, { typing: true })).toBeNull();
     }
   });

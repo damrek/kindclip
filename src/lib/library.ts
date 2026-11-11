@@ -193,6 +193,40 @@ export function formatReference(page: number | null, location: string | null): s
   return parts.join(" · ");
 }
 
+/** The clipping fields needed to build a cited quote. */
+export type QuotableClipping = Pick<
+  ClippingRow,
+  "title" | "author" | "page" | "location" | "content" | "content_edited"
+>;
+
+/** Markdown blockquote with a citation, for "copy as quote".
+ *
+ * Every line of the effective text is quoted; the attribution follows a blank
+ * quote line and cites author, book title and page (or the location when the
+ * clipping has no page). Returns null when there is no text to quote. */
+export function formatQuoteCitation(clipping: QuotableClipping): string | null {
+  const text = (clipping.content_edited ?? clipping.content ?? "").replace(/\r\n?/g, "\n");
+  if (text.trim() === "") {
+    return null;
+  }
+  const lines = text.split("\n");
+  while (lines.length > 0 && lines[lines.length - 1].trim() === "") {
+    lines.pop();
+  }
+  const quote = lines.map((line) => (line.trim() === "" ? ">" : `> ${line}`)).join("\n");
+  const author = clipping.author?.trim() ?? "";
+  const book = author === "" ? `*${clipping.title}*` : `${author}, *${clipping.title}*`;
+  const location = clipping.location?.trim() ?? "";
+  const reference =
+    clipping.page !== null
+      ? `p. ${clipping.page}`
+      : location === ""
+        ? ""
+        : `pos. ${location}`;
+  const citation = reference === "" ? `— ${book}` : `— ${book}, ${reference}`;
+  return `${quote}\n>\n> ${citation}`;
+}
+
 /** Optimistic favorite flip for the visible page (T6). */
 export function applyFavoriteToggle(
   items: ClippingRow[],

@@ -9,6 +9,7 @@ import {
   formatAddedOn,
   filterBooks,
   foldText,
+  formatQuoteCitation,
   formatReference,
   PAGE_SIZES,
   pageWindow,
@@ -330,5 +331,59 @@ describe("withoutTagId", () => {
 
   it("keeps the list unchanged for an unknown id", () => {
     expect(withoutTagId([1], 99)).toEqual([1]);
+  });
+});
+
+describe("formatQuoteCitation", () => {
+  const clipping = {
+    title: "Thinking, Fast and Slow",
+    author: "Daniel Kahneman",
+    page: 42,
+    location: "590-592",
+    content: "Nothing in life is as important as you think it is.",
+    content_edited: null,
+  };
+
+  it("quotes the text and cites author, book and page", () => {
+    expect(formatQuoteCitation(clipping)).toBe(
+      "> Nothing in life is as important as you think it is.\n" +
+        ">\n" +
+        "> — Daniel Kahneman, *Thinking, Fast and Slow*, p. 42",
+    );
+  });
+
+  it("keeps every line of a multi-line quote", () => {
+    expect(
+      formatQuoteCitation({ ...clipping, content: "First line\r\n\r\nSecond line\r\n" }),
+    ).toBe(
+      "> First line\n" +
+        ">\n" +
+        "> Second line\n" +
+        ">\n" +
+        "> — Daniel Kahneman, *Thinking, Fast and Slow*, p. 42",
+    );
+  });
+
+  it("prefers the edited note text", () => {
+    expect(
+      formatQuoteCitation({ ...clipping, content: "Original", content_edited: "Edited" }),
+    ).toContain("> Edited");
+  });
+
+  it("falls back to the location when there is no page", () => {
+    expect(formatQuoteCitation({ ...clipping, page: null })).toContain(
+      "> — Daniel Kahneman, *Thinking, Fast and Slow*, pos. 590-592",
+    );
+  });
+
+  it("omits the author and the reference when they are missing", () => {
+    expect(
+      formatQuoteCitation({ ...clipping, author: null, page: null, location: null }),
+    ).toContain("> — *Thinking, Fast and Slow*");
+  });
+
+  it("returns null when there is no text to quote", () => {
+    expect(formatQuoteCitation({ ...clipping, content: null })).toBeNull();
+    expect(formatQuoteCitation({ ...clipping, content: "  \n " })).toBeNull();
   });
 });

@@ -1,24 +1,34 @@
 name: CI
 
-# Pre-merge gate. A broken commit used to surface only once it was tagged,
-# burning a full release run (see v0.1.0 and v0.1.1). This runs the same checks
-# on the pull request instead, so main only ever receives validated commits.
+# Pre-merge gate plus post-merge truth.
 #
-# Deliberately NO Rust cache here: a tag-triggered release cannot read another
-# tag's cache, and there is no default-branch warm step to feed it, so a cache
-# in this file would only speed up repeat pushes to a single PR — a cost that
-# does not pay for the storage churn it adds. The release gets its speed from
-# compiling the workspace once, in release mode, not from caching.
+# A pull_request run validates a synthetic merge preview (refs/pull/N/merge), a
+# commit that never lands on main. The push:main run validates the commit main
+# actually receives — the same commit a release tags and ships.
+#
+# Deliberately NO Rust cache: CI builds debug while release.yml builds release,
+# so even a warmed default-branch cache could not feed the release build, and
+# 2-3 minute legs do not pay for the storage churn it would add.
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+# Superseded pushes to the same PR cancel their predecessor. main never cancels:
+# its green check is the signal a release depends on.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   check:
+    # A hung run would otherwise hold a runner for GitHub's 6h default.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

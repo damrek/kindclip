@@ -36,7 +36,8 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 ## Usage
 
 1. Install from [Releases](https://github.com/damrek/kindclip/releases/latest):
-   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe`/`.msi` (Windows), `.dmg` (macOS).
+   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS). What
+   changed in each version is in [CHANGELOG.md](CHANGELOG.md).
 2. Copy `documents/My Clippings.txt` from your Kindle.
 3. **Import** → pick the file, or drag a `.txt` onto the window. Re-import any
    time: duplicates are skipped by content hash, and new highlights are added.
@@ -59,6 +60,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 
 ### Library & Organization
 - **Favorites** stored in SQLite, with a copy button on every highlight and note.
+- **Copy as quote**: any highlight or note goes to the clipboard as a Markdown
+  blockquote citing author, book title and page (or position when the page is
+  unknown). Same action from the reading view.
 - **Tags**: free-form per clipping, inline add/remove with suggestions, click a
   tag to filter (AND logic). Rename, merge or delete in **Library → Tags**;
   orphan tags stay listed for cleanup but are hidden from filters.
@@ -106,9 +110,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
   `Ctrl/Cmd+F` focus search; `Ctrl/Cmd+P` searches every clipping across all
   books and filters; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the reading view,
-  `*` favorites, `c` copies, `s`/`f` toggle sidebar and filters, `n`/`p` or
-  PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences. `Esc` closes one layer
-  at a time and typing fields are never hijacked.
+  `*` favorites, `c` copies, `q` copies as a quote, `s`/`f` toggle sidebar and
+  filters, `n`/`p` or PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences.
+  `Esc` closes one layer at a time and typing fields are never hijacked.
 - **5 languages** (es/en/fr/de/it, Spanish default), bundled **Inter** font,
   custom icons, and a minimal macOS-style UI over the native frame.
 - **Remembered window**: size, position and maximized state are restored on
@@ -144,8 +148,18 @@ cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
 ```
 
-Releases run on every `v*` tag push (`.github/workflows/release.yml`): version
-sync, checks, tests, then bundles for macOS (ARM + Intel), Linux and Windows.
+CI (`.github/workflows/ci.yml`) runs on every pull request and again on every
+commit that lands on `main`: the PR run validates a synthetic merge preview, the
+`main` run validates the exact commit a release tags. All three matrix jobs are
+required status checks on `main`, so a red run blocks the merge.
+
+Releases (`.github/workflows/release.yml`) run from a `workflow_dispatch` or a
+`v*` tag. Before anything is built, the workflow refuses a commit that is not on
+`main` or whose version files disagree with the resolved version. It then syncs
+the version, runs the checks and tests, and bundles for macOS (ARM + Intel),
+Linux and Windows. Windows ships the NSIS `.exe` only — the WiX `.msi` is
+deliberately not built, since it exists for enterprise `msiexec`/GPO deployment
+and this app has no such channel.
 *macOS/Windows artifacts are unsigned, so Gatekeeper/SmartScreen will warn.*
 
 ## Structure
@@ -195,7 +209,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
-- **Copy as quote**: a Markdown citation with book, author and page.
 - **Note ↔ highlight pairing** and **bulk actions** (tag, favorite or export a
   selection).
 - **Desktop polish**: signed auto-update.
