@@ -10,6 +10,8 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-11
+
 ### Added
 
 - **Copy as quote**: any highlight or note copies to the clipboard as a Markdown
