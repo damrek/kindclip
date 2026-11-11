@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "kindclip",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "identifier": "app.kindclip",
   "build": {
     "devUrl": "http://localhost:1420",
@@ -29,7 +29,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "deb", "rpm", "appimage", "nsis"],
+    "targets": [
+      "app",
+      "dmg",
+      "deb",
+      "rpm",
+      "appimage",
+      "nsis"
+    ],
     "category": "Utility",
     "shortDescription": "Kindle clippings viewer",
     "longDescription": "Importa tu My Clippings.txt de Kindle, filtra por texto y libro, y guarda favoritos.",
