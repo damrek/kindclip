@@ -70,6 +70,14 @@
     collapsed = next;
   }
 
+  function expandAllGroups(): void {
+    collapsed = new Set();
+  }
+
+  function collapseAllGroups(): void {
+    collapsed = new Set(groups.map((group) => group.key));
+  }
+
   // Re-measure whenever the scroller is resized or the sidebar is toggled in.
   $effect(() => {
     const element = listEl;
@@ -147,6 +155,24 @@
         {i18n.t("sidebar.viewAuthors")}
       </button>
     </div>
+    {#if view === "authors" && groups.length > 0}
+      <div class="mb-2 flex items-center gap-3 px-1 text-xs">
+        <button
+          type="button"
+          onclick={expandAllGroups}
+          class="font-medium text-fg-muted underline-offset-2 transition hover:text-fg hover:underline"
+        >
+          {i18n.t("sidebar.expandAll")}
+        </button>
+        <button
+          type="button"
+          onclick={collapseAllGroups}
+          class="font-medium text-fg-muted underline-offset-2 transition hover:text-fg hover:underline"
+        >
+          {i18n.t("sidebar.collapseAll")}
+        </button>
+      </div>
+    {/if}
     <div class="mb-2 flex items-center gap-1.5" role="group" aria-label={i18n.t("sort.toggle")}>
       <button
         type="button"
