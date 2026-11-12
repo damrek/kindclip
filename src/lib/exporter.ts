@@ -121,7 +121,10 @@ const RESERVED_WINDOWS_STEMS = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
 const MAX_BOOK_FILE_STEM = 80;
 
 function bookBaseStem(title: string): string {
-  const slug = slugifyTitle(title).slice(0, MAX_BOOK_FILE_STEM).replace(/-+$/, "");
+  const slug = Array.from(slugifyTitle(title))
+    .slice(0, MAX_BOOK_FILE_STEM)
+    .join("")
+    .replace(/-+$/, "");
   return slug === "" ? "untitled" : slug;
 }
 

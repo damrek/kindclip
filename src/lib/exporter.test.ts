@@ -372,6 +372,12 @@ describe("planBookFileNames", () => {
       "a-b-c-d-e-f-g-h-i-j-k.md",
     ]);
   });
+
+  it("caps by code points without splitting a surrogate pair", () => {
+    const [name] = planBookFileNames([{ title: "a".repeat(79) + "\u{20000}", author: null }]);
+    expect(name).toBe(`${"a".repeat(79)}\u{20000}.md`);
+    expect(() => encodeURIComponent(name)).not.toThrow();
+  });
 });
 
 describe("serializeBookMarkdown", () => {

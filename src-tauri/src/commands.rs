@@ -205,6 +205,11 @@ fn write_export_file_atomic(
     })
 }
 
+/// Mid-run failure log line: counts only, never a generated file name (S9).
+fn per_book_failure_message(index: usize, total: usize) -> String {
+    format!("export: stopped after {index}/{total} per-book files")
+}
+
 /// Write the per-book files into a chosen folder and return the written count
 /// (S6). Writes are per-file atomic, not all-or-nothing; a mid-run failure
 /// reports how many files were written.
@@ -217,7 +222,7 @@ pub fn write_export_files(dir: String, files: Vec<ExportFile>) -> Result<usize, 
     }
     for (index, file) in files.iter().enumerate() {
         write_export_file_atomic(&path, &file.name, &file.contents, index).map_err(|err| {
-            log::warn!("export: stopped after {index}/{total} files: {err}");
+            log::warn!("{}", per_book_failure_message(index, total));
             format!("wrote {index} of {total} files before failing: {err}")
         })?;
     }
@@ -621,6 +626,14 @@ mod tests {
             .collect();
         assert_eq!(entries.len(), 2, "no temp files may remain: {entries:?}");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn per_book_failure_log_records_counts_only() {
+        assert_eq!(
+            per_book_failure_message(1, 3),
+            "export: stopped after 1/3 per-book files"
+        );
     }
 
     #[test]
