@@ -43,6 +43,9 @@ export interface ClippingFilter {
   /** Free text matched against content, title and author. */
   query: string;
   bookId: number | null;
+  /** Selected folded author keys; empty means all. The empty key is the
+   * unknown author. */
+  authors: string[];
   /** Selected kinds; empty means all. */
   kinds: ClippingKind[];
   favoritesOnly: boolean;

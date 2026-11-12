@@ -45,7 +45,13 @@
     saveFontScale,
     type FontScale,
   } from "./lib/font";
-  import { readSidebarOpen, saveSidebarOpen } from "./lib/sidebar";
+  import {
+    readSidebarOpen,
+    readSidebarView,
+    saveSidebarOpen,
+    saveSidebarView,
+    type SidebarView,
+  } from "./lib/sidebar";
   import {
     addClippingTag,
     closeDb,
@@ -107,9 +113,11 @@
     copyClippingContent,
     debounce,
     formatQuoteCitation,
+    groupBooksByAuthor,
     sortBooks,
     totalClippings,
     withTag,
+    pruneAuthors,
     withoutTag,
     withoutTagId,
     emptyFilter,
@@ -150,6 +158,8 @@
   import { loadReadingStats, type ReadingStats } from "./lib/stats";
 
   let books = $state<Book[]>([]);
+  /** Set after the first successful book load; gates author pruning. */
+  let booksLoaded = $state(false);
   let allTags = $state<TagCount[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
   /** True from boot: the stored filter is applied before the first list load. */
@@ -170,8 +180,10 @@
   let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let editedOnly = $state(false);
+  let authors = $state<string[]>([]);
   let tagIds = $state<number[]>([]);
   let sidebarOpen = $state(readSidebarOpen());
+  let sidebarView = $state<SidebarView>(readSidebarView());
   let searchExpanded = $state(false);
   let searchInput = $state<HTMLInputElement | null>(null);
   let bookSortBy = $state<BookSortKey>("title");
@@ -356,6 +368,7 @@
   const filter = $derived<ClippingFilter>({
     query: debouncedQuery,
     bookId,
+    authors,
     kinds,
     favoritesOnly,
     editedOnly,
@@ -389,7 +402,12 @@
       // Commit rows and the filter that produced them together: the reading
       // view must never fetch a page with a filter other than this one.
       result = next;
-      resultFilter = { ...f, kinds: [...f.kinds], tagIds: [...f.tagIds] };
+      resultFilter = {
+        ...f,
+        authors: [...f.authors],
+        kinds: [...f.kinds],
+        tagIds: [...f.tagIds],
+      };
       resultSort = sort;
       page = last;
     } catch (error) {
@@ -408,6 +426,7 @@
     try {
       await getDb();
       books = await listBooks();
+      booksLoaded = true;
       if (bookId !== null && !books.some((book) => book.id === bookId)) {
         // Persisted book gone (fresh DB, re-import, …): fall back to all.
         bookId = null;
@@ -468,6 +487,7 @@
         query = dbFilter.query;
         debouncedQuery = dbFilter.query;
         bookId = dbFilter.bookId;
+        authors = dbFilter.authors ?? [];
         kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
         editedOnly = dbFilter.editedOnly;
@@ -485,6 +505,7 @@
         await persistFilterState({
           query: debouncedQuery,
           bookId,
+          authors,
           kinds,
           favoritesOnly,
           editedOnly,
@@ -552,6 +573,7 @@
     saveFilters({
       query: debouncedQuery,
       bookId,
+      authors,
       kinds,
       favoritesOnly,
       editedOnly,
@@ -562,6 +584,18 @@
       sortBy,
       sortDir,
     });
+  });
+
+  // A renamed or deleted author must not keep hiding the library (S6). Wait
+  // for the stored filter and the first successful book load, so neither the
+  // empty default nor a cold-start race can silently clear the selection.
+  $effect(() => {
+    if (!prefsReady || !booksLoaded) return;
+    const next = pruneAuthors(authors, books);
+    if (next !== authors) {
+      authors = next;
+      page = 1;
+    }
   });
 
   $effect(() => {
@@ -592,6 +626,12 @@
   function toggleSidebar(): void {
     sidebarOpen = !sidebarOpen;
     saveSidebarOpen(sidebarOpen);
+  }
+
+  function setSidebarView(next: SidebarView): void {
+    if (next === sidebarView) return;
+    sidebarView = next;
+    saveSidebarView(next);
   }
 
   async function openSearch(): Promise<void> {
@@ -635,6 +675,14 @@
 
   function toggleEditedOnly(): void {
     editedOnly = !editedOnly;
+    page = 1;
+  }
+
+  /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
+  function toggleAuthor(key: string): void {
+    authors = authors.includes(key)
+      ? authors.filter((author) => author !== key)
+      : [...authors, key];
     page = 1;
   }
 
@@ -1240,6 +1288,7 @@
     debouncedQuery = "";
     favoritesOnly = false;
     editedOnly = false;
+    authors = [];
     kinds = [];
     tagIds = [];
     searchExpanded = false;
@@ -1741,9 +1790,12 @@
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
+  /** Author groups shared by the Filters menu, chips and the grouped sidebar. */
+  const authorGroups = $derived(groupBooksByAuthor(sortedBooks));
   const hasActiveFilters = $derived(
     debouncedQuery.trim() !== "" ||
       bookId !== null ||
+      authors.length > 0 ||
       kinds.length > 0 ||
       favoritesOnly ||
       editedOnly ||
@@ -1767,6 +1819,13 @@
     csv: "csv",
   };
 
+  /** Selected authors in selection order, for the removable chips under the bar. */
+  const selectedAuthors = $derived(
+    authors.flatMap((key) => {
+      const group = authorGroups.find((item) => item.key === key);
+      return group ? [group] : [];
+    }),
+  );
   /** Selected tags in selection order, for the removable chips under the bar. */
   const selectedTags = $derived(
     tagIds.flatMap((id) => {
@@ -1800,6 +1859,13 @@
     }
     if (editedOnly) {
       chips.push({ key: "edited", label: t("edit.toggle"), remove: toggleEditedOnly });
+    }
+    for (const group of selectedAuthors) {
+      chips.push({
+        key: `author:${group.key}`,
+        label: group.name ?? t("filters.unknownAuthor"),
+        remove: () => toggleAuthor(group.key),
+      });
     }
     for (const tag of selectedTags) {
       chips.push({
@@ -1899,6 +1965,9 @@
       >
         <BookSidebar
           books={sortedBooks}
+          groups={authorGroups}
+          view={sidebarView}
+          onViewChange={setSidebarView}
           selectedId={bookId}
           totalCount={libraryTotal}
           onSelect={selectBook}
@@ -1964,11 +2033,14 @@
 
           <FilterMenu
             bind:open={filtersOpen}
+            {authors}
+            {authorGroups}
             {kinds}
             {favoritesOnly}
             {editedOnly}
             {tagIds}
             tags={filterTags}
+            onToggleAuthor={toggleAuthor}
             onToggleKind={toggleKind}
             onToggleFavorites={toggleFavoritesOnly}
             onToggleEdited={toggleEditedOnly}

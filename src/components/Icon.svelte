@@ -10,6 +10,7 @@
     | "export"
     | "backup"
     | "restore"
+    | "chevron"
     | "close"
     | "expand"
     | "keyboard"
@@ -38,6 +39,7 @@
     export: ["M12 3v12", "M8 11l4 4 4-4", "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"],
     backup: ["M3 4h18v4H3z", "M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8", "M10 12h4"],
     restore: ["M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5"],
+    chevron: ["M9 18l6-6-6-6"],
     close: ["M6 6l12 12", "M18 6L6 18"],
     expand: ["M15 3h6v6", "M9 21H3v-6", "M21 3l-7 7", "M3 21l7-7"],
     keyboard: [

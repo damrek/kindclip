@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { importParsedClippings, buildCountQuery, buildListQuery, buildSearchQuery, type DbPort } from "./db";
 import { emptyFilter } from "./library";
 import { loadReadingStats, TOP_BOOKS } from "./stats";
-import type { ClippingDto } from "./types";
+import type { ClippingDto, ClippingFilter } from "./types";
 
 /** Applied in order, exactly like tauri-plugin-sql does at startup. */
 const MIGRATIONS = [
@@ -207,6 +207,7 @@ describe("multi-word search against real SQLite", () => {
       {
         query: "aurora  STOIC",
         bookId: null,
+        authors: [],
         kinds: [],
         favoritesOnly: false,
         editedOnly: false,
@@ -221,6 +222,87 @@ describe("multi-word search against real SQLite", () => {
       "title-and-author",
       "title-and-content",
     ]);
+  });
+});
+
+describe("author filter against real SQLite", () => {
+  async function seed(port: SqlitePort): Promise<void> {
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-authors",
+        skipped: 0,
+        clippings: [
+          clipping({
+            title: "Meditations",
+            author: "Marcus Aurelius",
+            content: "One",
+            content_hash: "author-1",
+          }),
+          clipping({
+            title: "Letters",
+            author: "Seneca",
+            kind: "note",
+            content: "Two",
+            content_hash: "author-2",
+          }),
+          clipping({
+            title: "Manual",
+            author: "Marcus Aurelius",
+            content: "Three",
+            content_hash: "author-3",
+          }),
+          clipping({
+            title: "Unknown",
+            author: null,
+            content: "Four",
+            content_hash: "author-4",
+          }),
+          clipping({
+            title: "Zola",
+            author: "Émile Zola",
+            content: "Five",
+            content_hash: "author-5",
+          }),
+          clipping({
+            title: "Zola 2",
+            author: "Emile Zola",
+            content: "Six",
+            content_hash: "author-6",
+          }),
+        ],
+      },
+      () => {},
+    );
+  }
+
+  it("matches folded variants and the unknown author, and combines with kinds", async () => {
+    const port = new SqlitePort();
+    await seed(port);
+
+    const rowsFor = async (filter: ClippingFilter): Promise<string[]> => {
+      const { sql, params } = buildListQuery(filter, { page: 1, pageSize: 20 });
+      const rows = await port.select<{ content_hash: string }>(sql, params);
+      return rows.map((row) => row.content_hash).sort();
+    };
+
+    expect(await rowsFor({ ...emptyFilter(), authors: ["marcus aurelius"] })).toEqual([
+      "author-1",
+      "author-3",
+    ]);
+    expect(await rowsFor({ ...emptyFilter(), authors: ["emile zola"] })).toEqual([
+      "author-5",
+      "author-6",
+    ]);
+    expect(await rowsFor({ ...emptyFilter(), authors: [""] })).toEqual(["author-4"]);
+    expect(
+      await rowsFor({
+        ...emptyFilter(),
+        authors: ["marcus aurelius", "seneca"],
+        kinds: ["note"],
+      }),
+    ).toEqual(["author-2"]);
   });
 });
 
