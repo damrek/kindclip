@@ -85,12 +85,18 @@
   import { logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
+    AUTO_BACKUP_KEEP,
     BACKUP_EXTENSION,
+    autoBackupDue,
     backupFileName,
     baseName,
     inspectBackupFile,
     isBackupError,
     schemaVersion,
+    selectAutoBackupsToDelete,
+    type AutoBackup,
+    type AutoBackupPaths,
+    type AutoBackupPruneReport,
     type BackupInfo,
   } from "./lib/backup";
   import {
@@ -191,6 +197,14 @@
   let exportStatus = $state<string | null>(null);
   let backingUp = $state(false);
   let backupStatus = $state<string | null>(null);
+  /** Daily snapshot preference; on unless the user turned it off. */
+  let autoBackupEnabled = $state(true);
+  /** One launch attempt only: set once the first library load finished. */
+  let autoBackupStarted = false;
+  /** Automatic snapshots shown in the restore dialog, newest first. */
+  let autoBackups = $state<AutoBackup[]>([]);
+  let autoBackupsLoading = $state(false);
+  let autoBackupsError = $state<string | null>(null);
   let restoreOpen = $state(false);
   let restoreBusy = $state(false);
   let restoreChecking = $state(false);
@@ -329,6 +343,11 @@
     void persistSetting(SETTINGS_KEYS.fontScale, next);
   }
 
+  function setAutoBackup(next: boolean): void {
+    autoBackupEnabled = next;
+    void persistSetting(SETTINGS_KEYS.autoBackup, next ? "1" : "0");
+  }
+
   /** Live system preference: the theme follows macOS while the choice is "system". */
   $effect(() => {
     const mode = themeMode;
@@ -423,14 +442,16 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbFilter, dbTags] = await Promise.all([
-        getSetting(port, SETTINGS_KEYS.locale),
-        getSetting(port, SETTINGS_KEYS.theme),
-        getSetting(port, SETTINGS_KEYS.darkPalette),
-        getSetting(port, SETTINGS_KEYS.fontScale),
-        loadFilterState(port),
-        listTags(port),
-      ]);
+      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbAutoBackup, dbFilter, dbTags] =
+        await Promise.all([
+          getSetting(port, SETTINGS_KEYS.locale),
+          getSetting(port, SETTINGS_KEYS.theme),
+          getSetting(port, SETTINGS_KEYS.darkPalette),
+          getSetting(port, SETTINGS_KEYS.fontScale),
+          getSetting(port, SETTINGS_KEYS.autoBackup),
+          loadFilterState(port),
+          listTags(port),
+        ]);
       allTags = dbTags;
       if (dbLocale && isLocale(dbLocale)) {
         locale = dbLocale;
@@ -463,6 +484,14 @@
         applyFontScale(document.documentElement, dbFontScale);
       } else {
         await setSetting(port, SETTINGS_KEYS.fontScale, fontScale);
+      }
+      if (dbAutoBackup === "0") {
+        autoBackupEnabled = false;
+      } else {
+        autoBackupEnabled = true;
+        if (dbAutoBackup === null) {
+          await setSetting(port, SETTINGS_KEYS.autoBackup, "1");
+        }
       }
       if (dbFilter) {
         query = dbFilter.query;
@@ -541,6 +570,18 @@
 
   $effect(() => {
     void loadPreferences();
+  });
+
+  // One automatic snapshot per launch, after the first page is on screen:
+  // the VACUUM runs in the background and never delays first paint. Waiting
+  // for `loading` to settle also keeps it from competing with the first list
+  // query for the same connection.
+  $effect(() => {
+    if (!prefsReady || loading || autoBackupStarted) return;
+    autoBackupStarted = true;
+    if (autoBackupEnabled) {
+      void runAutoBackup();
+    }
   });
 
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
@@ -1452,6 +1493,54 @@
     }
   }
 
+  /**
+   * Daily rotating snapshot: copy-only, one attempt per launch.
+   *
+   * The snapshot is written next to the live database with `VACUUM INTO` and
+   * committed by Rust after checking the SQLite header, so a crash never
+   * leaves a damaged file under a backup name. Failures are logged and never
+   * interrupt startup (S7); retention runs only after a successful commit.
+   */
+  async function runAutoBackup(): Promise<void> {
+    try {
+      const finalName = backupFileName();
+      const existing = await invoke<AutoBackup[]>("list_auto_backups");
+      if (!autoBackupDue(existing.map((snapshot) => snapshot.name))) {
+        logger.info("auto-backup: today's snapshot already exists");
+        return;
+      }
+
+      const paths = await invoke<AutoBackupPaths>("prepare_auto_backup", { finalName });
+      const port = await getDb();
+      await port.execute("VACUUM INTO $1", [paths.tempPath]);
+      await invoke("commit_auto_backup", {
+        tempPath: paths.tempPath,
+        finalPath: paths.finalPath,
+      });
+      logger.info(`auto-backup: wrote ${finalName}`);
+
+      const snapshots = await invoke<AutoBackup[]>("list_auto_backups");
+      const doomed = new Set(
+        selectAutoBackupsToDelete(snapshots.map((snapshot) => snapshot.name)),
+      );
+      const candidates = snapshots
+        .filter((snapshot) => doomed.has(snapshot.name))
+        .map((snapshot) => snapshot.path);
+      if (candidates.length > 0) {
+        const report = await invoke<AutoBackupPruneReport>("prune_auto_backups", {
+          keep: AUTO_BACKUP_KEEP,
+          candidates,
+        });
+        logger.info(
+          `auto-backup: pruned ${report.deleted} snapshots (${report.failed} failed), ` +
+            `removed ${report.tempsDeleted} stale temp files`,
+        );
+      }
+    } catch (error) {
+      logger.error("auto-backup", error);
+    }
+  }
+
   /** Map a rejected snapshot to the reason shown in the restore dialog. */
   function restoreFailure(error: unknown): string {
     if (isBackupError(error)) {
@@ -1464,43 +1553,50 @@
     });
   }
 
-  /** Pick a snapshot, open it apart from the live DB and show what it holds. */
-  async function onRestoreRequest(): Promise<void> {
-    if (restoreBusy || backingUp) return;
-    rememberOpener();
-
-    let selected: string | null = null;
+  /** Read the automatic snapshots each time the restore dialog opens. */
+  async function loadAutoBackups(): Promise<void> {
+    autoBackupsLoading = true;
+    autoBackupsError = null;
     try {
-      const picked = await open({
-        multiple: false,
-        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
-      });
-      selected = typeof picked === "string" ? picked : null;
+      autoBackups = await invoke<AutoBackup[]>("list_auto_backups");
     } catch (error) {
-      restorePath = null;
-      restoreFile = "";
-      restoreInfo = null;
-      restoreChecking = false;
-      restoreError = t("restore.error", {
+      autoBackupsError = t("restore.listError", {
         message: error instanceof Error ? error.message : String(error),
       });
-      logger.error("restore-pick", error);
-      restoreOpen = true;
-      return;
+      logger.error("restore-list", error);
+    } finally {
+      autoBackupsLoading = false;
     }
-    if (selected === null) return;
+  }
 
+  /** Open the restore dialog with the automatic snapshots listed. */
+  function onRestoreRequest(): void {
+    if (restoreBusy || backingUp) return;
+    rememberOpener();
+    restoreRequest += 1;
+    restoreOpen = true;
+    restorePath = null;
+    restoreFile = "";
+    restoreInfo = null;
+    restoreError = null;
+    restoreChecking = false;
+    autoBackups = [];
+    autoBackupsError = null;
+    void loadAutoBackups();
+  }
+
+  /** Inspect one snapshot (automatic entry or picked file) before restoring. */
+  async function inspectRestorePath(path: string): Promise<void> {
     const request = ++restoreRequest;
-    restorePath = selected;
-    restoreFile = baseName(selected);
+    restorePath = path;
+    restoreFile = baseName(path);
     restoreInfo = null;
     restoreError = null;
     restoreChecking = true;
-    restoreOpen = true;
     try {
       const port = await getDb();
       const current = await schemaVersion(port);
-      const info = await inspectBackupFile(selected, current);
+      const info = await inspectBackupFile(path, current);
       if (request === restoreRequest) {
         restoreInfo = info;
       }
@@ -1513,6 +1609,28 @@
       if (request === restoreRequest) {
         restoreChecking = false;
       }
+    }
+  }
+
+  /** Native file picker inside the dialog: the manual flow is unchanged. */
+  async function chooseRestoreFile(): Promise<void> {
+    if (restoreBusy || restoreChecking) return;
+    let selected: string | null = null;
+    try {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
+      });
+      selected = typeof picked === "string" ? picked : null;
+    } catch (error) {
+      restoreError = t("restore.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      logger.error("restore-pick", error);
+      return;
+    }
+    if (selected !== null) {
+      await inspectRestorePath(selected);
     }
   }
 
@@ -2251,8 +2369,13 @@
     checking={restoreChecking}
     busy={restoreBusy}
     error={restoreError}
+    snapshots={autoBackups}
+    snapshotsLoading={autoBackupsLoading}
+    snapshotsError={autoBackupsError}
     onClose={closeRestore}
     onConfirm={confirmRestore}
+    onChooseFile={chooseRestoreFile}
+    onSelectSnapshot={inspectRestorePath}
   />
 {/if}
 
@@ -2265,10 +2388,12 @@
     dbBusy={locatingDb}
     backingUp={backingUp}
     backupStatus={backupStatus}
+    autoBackup={autoBackupEnabled}
     onLocale={setLocale}
     onTheme={setTheme}
     onPalette={setDarkPalette}
     onFont={setFontScale}
+    onAutoBackup={setAutoBackup}
     onOpenDb={openDbFromPreferences}
     onBackup={onBackup}
     onRestore={() => handOffFromPreferences(onRestoreRequest)}

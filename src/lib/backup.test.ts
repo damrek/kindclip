@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  AUTO_BACKUP_KEEP,
   BackupError,
+  autoBackupDate,
+  autoBackupDue,
   backupFileName,
   baseName,
+  formatBackupSize,
   inspectBackup,
   inspectBackupFile,
+  isAutoBackupName,
   schemaVersion,
+  selectAutoBackupsToDelete,
   type BackupFileDeps,
 } from "./backup";
 import type { DbPort } from "./db";
@@ -204,5 +210,92 @@ describe("inspectBackupFile", () => {
       "not a SQLite database",
     );
     expect(fake.load).not.toHaveBeenCalled();
+  });
+});
+
+describe("isAutoBackupName", () => {
+  it("accepts only the dated automatic snapshot name", () => {
+    expect(isAutoBackupName("kindclip-backup-2026-11-03.db")).toBe(true);
+    expect(isAutoBackupName("kindclip-backup-2026-01-09.db")).toBe(true);
+    expect(isAutoBackupName("kindclip.db")).toBe(false);
+    expect(isAutoBackupName("kindclip.db.before-restore")).toBe(false);
+    expect(isAutoBackupName("kindclip-backup-2026-11-3.db")).toBe(false);
+    expect(isAutoBackupName("kindclip-backup-2026-11-03.db.tmp")).toBe(false);
+    expect(isAutoBackupName("kindclip-backup-today.db")).toBe(false);
+  });
+});
+
+describe("autoBackupDue", () => {
+  const now = new Date(2026, 10, 3);
+
+  it("is due when today's snapshot is missing", () => {
+    expect(autoBackupDue([], now)).toBe(true);
+    expect(autoBackupDue(["kindclip-backup-2026-11-02.db"], now)).toBe(true);
+  });
+
+  it("is not due when today's snapshot already exists", () => {
+    expect(
+      autoBackupDue(
+        ["kindclip-backup-2026-11-02.db", "kindclip-backup-2026-11-03.db"],
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("ignores unrelated files in the folder", () => {
+    expect(autoBackupDue(["kindclip-backup.db", "notes.txt"], now)).toBe(true);
+  });
+});
+
+describe("selectAutoBackupsToDelete", () => {
+  function names(count: number): string[] {
+    return Array.from({ length: count }, (_, index) => {
+      const day = String(index + 1).padStart(2, "0");
+      return `kindclip-backup-2026-01-${day}.db`;
+    });
+  }
+
+  it("keeps exactly the newest seven snapshots", () => {
+    const all = names(10);
+    expect(selectAutoBackupsToDelete(all)).toEqual([all[0], all[1], all[2]]);
+    expect(AUTO_BACKUP_KEEP).toBe(7);
+  });
+
+  it("does not delete anything below the keep count", () => {
+    expect(selectAutoBackupsToDelete(names(7))).toEqual([]);
+  });
+
+  it("ignores files that do not match the snapshot name", () => {
+    const all = [...names(8), "kindclip.db", "kindclip.db-wal", "notes.txt"];
+    expect(selectAutoBackupsToDelete(all)).toEqual([all[0]]);
+  });
+
+  it("never selects the newest snapshot, even with a keep count of zero", () => {
+    const all = names(3);
+    expect(selectAutoBackupsToDelete(all, 0)).toEqual([all[0], all[1]]);
+  });
+
+  it("orders by date, not by array order", () => {
+    const all = names(10).reverse();
+    expect(selectAutoBackupsToDelete(all)).toEqual([all[9], all[8], all[7]]);
+  });
+});
+
+describe("autoBackupDate", () => {
+  it("reads the date out of the snapshot name", () => {
+    expect(autoBackupDate("kindclip-backup-2026-11-03.db")).toBe("2026-11-03");
+  });
+
+  it("returns an empty label for an unrelated name", () => {
+    expect(autoBackupDate("notes.txt")).toBe("");
+  });
+});
+
+describe("formatBackupSize", () => {
+  it("uses bytes, kilobytes and megabytes with a readable precision", () => {
+    expect(formatBackupSize(0)).toBe("0 B");
+    expect(formatBackupSize(512)).toBe("512 B");
+    expect(formatBackupSize(1536)).toBe("2 KB");
+    expect(formatBackupSize(2.5 * 1024 * 1024)).toBe("2.5 MB");
   });
 });

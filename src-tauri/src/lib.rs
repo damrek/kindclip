@@ -122,7 +122,11 @@ pub fn run() {
             commands::export_default_path,
             commands::validate_backup_file,
             commands::clear_backup_target,
-            commands::restore_database_file
+            commands::restore_database_file,
+            commands::prepare_auto_backup,
+            commands::list_auto_backups,
+            commands::commit_auto_backup,
+            commands::prune_auto_backups
         ])
         .run(tauri::generate_context!())
         .expect("error while running kindclip");
