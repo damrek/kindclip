@@ -7,6 +7,7 @@ export function emptyFilter(): ClippingFilter {
   return {
     query: "",
     bookId: null,
+    authors: [],
     kinds: [],
     favoritesOnly: false,
     editedOnly: false,
@@ -52,6 +53,78 @@ export function filterBooks(books: Book[], query: string): Book[] {
       foldText(book.title).includes(needle) ||
       foldText(book.author ?? "").includes(needle),
   );
+}
+
+/** One author group shared by the Filters menu and the grouped sidebar (S5). */
+export interface AuthorGroup {
+  /** Folded author key; the empty key is the unknown author. */
+  key: string;
+  /** Most frequent exact spelling in the group; null for the unknown author. */
+  name: string | null;
+  books: Book[];
+  clippingCount: number;
+  bookCount: number;
+}
+
+/**
+ * Group the already-sorted books by folded author, preserving book order
+ * inside each group. Groups sort by folded key ascending, unknown last.
+ */
+export function groupBooksByAuthor(books: Book[]): AuthorGroup[] {
+  const byKey = new Map<string, Book[]>();
+  for (const book of books) {
+    const key = foldText(book.author ?? "");
+    const group = byKey.get(key);
+    if (group) {
+      group.push(book);
+    } else {
+      byKey.set(key, [book]);
+    }
+  }
+
+  const groups: AuthorGroup[] = [];
+  for (const [key, groupBooks] of byKey) {
+    let name: string | null = null;
+    if (key !== "") {
+      const spellings = new Map<string, number>();
+      for (const book of groupBooks) {
+        if (book.author) {
+          spellings.set(book.author, (spellings.get(book.author) ?? 0) + 1);
+        }
+      }
+      let best = 0;
+      for (const [candidate, count] of spellings) {
+        if (count > best || (count === best && name !== null && candidate < name)) {
+          name = candidate;
+          best = count;
+        }
+      }
+    }
+    groups.push({
+      key,
+      name,
+      books: groupBooks,
+      clippingCount: groupBooks.reduce((sum, book) => sum + book.clipping_count, 0),
+      bookCount: groupBooks.length,
+    });
+  }
+
+  return groups.sort((a, b) => {
+    if (a.key === "") return b.key === "" ? 0 : 1;
+    if (b.key === "") return -1;
+    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+  });
+}
+
+/**
+ * Drop selected author keys that no longer exist in the book list (S6).
+ * Returns the same array when nothing was pruned, so callers can skip a
+ * needless filter write.
+ */
+export function pruneAuthors(authors: string[], books: Book[]): string[] {
+  const known = new Set(books.map((book) => foldText(book.author ?? "")));
+  const next = authors.filter((key) => known.has(key));
+  return next.length === authors.length ? authors : next;
 }
 
 export type BookSortKey = "title" | "author";

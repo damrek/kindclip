@@ -77,27 +77,35 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Unified Filters menu** with a badge, removable chips and **Clear all**.
   Full-text search covers content, title and author, accent- and
   case-insensitive; every word must match and hits are highlighted in the list
-  and the reading view. Combine with book, multi-select type/status/tag filters;
-  click a card's type or **Edited** badge to toggle it. Pagination 20/50/100.
+  and the reading view. Combine with book, multi-select author/type/status/tag
+  filters; click a card's type or **Edited** badge to toggle it. Pagination
+  20/50/100.
 - **Sorting**: books by title or author (↑/↓); clippings by newest/oldest, book
   title (A–Z/Z–A) or page. All persisted.
 
 ### Export & Data
 - **Export** the filtered view to Markdown, JSON or CSV as one file grouped by
-  book, with favorites and tags marked. Markdown labels follow the app language;
-  JSON/CSV keep stable English fields (original and edited notes, tags) for
-  scripting.
+  book, with favorites and tags marked. Markdown can also be written as one file
+  per book into a folder you choose, with YAML frontmatter (title, author, tags,
+  clipping count, export date) ready for an Obsidian-style vault. Markdown labels
+  follow the app language; JSON/CSV keep stable English fields (original and
+  edited notes, tags) for scripting.
 - **Backup & restore** (Preferences → Data): save a consistent snapshot of
   `kindclip.db` (default `kindclip-backup-YYYY-MM-DD.db`). Restores verify the
   file is real SQLite with the kindclip tables and no failed migrations, preview
   its contents, then keep the replaced database as `kindclip.db.before-restore`.
   Older snapshots migrate on launch; newer ones are refused, and the app
   restarts.
+- **Daily backups**: once per launch (unless turned off in Preferences → Data),
+  kindclip snapshots the database into `backups/` next to `kindclip.db`, keeps
+  the newest 7 and lists them in the restore dialog. A manual backup saved into
+  that folder also counts as the day's snapshot.
 - **Open database location** reveals `kindclip.db` in your file manager.
 
 ### UI & Accessibility
-- **Collapsible shell**: sidebar toggle (remembered); search collapses to an
-  icon until clicked or filled.
+- **Collapsible shell**: sidebar toggle (remembered), and the sidebar switches
+  between the flat book list and collapsible author groups (remembered); search
+  collapses to an icon until clicked or filled.
 - **Grouped chrome**: the top bar keeps only the sidebar toggle and the
   settings gear; search, filters, sort and export sit above the list they act
   on; the sidebar footer carries import, library management and statistics.
@@ -188,7 +196,8 @@ Resolved to the standard per-OS config dir (`identifier: app.kindclip`):
 
 Delete the file to wipe the library and note edits, then re-import from scratch.
 A restore keeps the replaced file as `kindclip.db.before-restore`, so you can
-undo it by hand while the app is closed.
+undo it by hand while the app is closed. Daily snapshots live in the `backups/`
+folder next to the database and are pruned to the newest seven.
 
 Quick count:
 ```bash

@@ -3,16 +3,20 @@
   import Icon from "./Icon.svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import type { TagCount } from "../lib/db";
+  import type { AuthorGroup } from "../lib/library";
   import type { ClippingKind } from "../lib/types";
 
   interface Props {
     /** Controlled by App so Escape closes one layer in order. */
     open?: boolean;
+    authors: string[];
+    authorGroups: AuthorGroup[];
     kinds: ClippingKind[];
     favoritesOnly: boolean;
     editedOnly: boolean;
     tagIds: number[];
     tags: TagCount[];
+    onToggleAuthor: (key: string) => void;
     onToggleKind: (kind: ClippingKind) => void;
     onToggleFavorites: () => void;
     onToggleEdited: () => void;
@@ -22,11 +26,14 @@
 
   let {
     open = $bindable(false),
+    authors,
+    authorGroups,
     kinds,
     favoritesOnly,
     editedOnly,
     tagIds,
     tags,
+    onToggleAuthor,
     onToggleKind,
     onToggleFavorites,
     onToggleEdited,
@@ -56,7 +63,11 @@
   });
 
   const activeCount = $derived(
-    kinds.length + (favoritesOnly ? 1 : 0) + (editedOnly ? 1 : 0) + tagIds.length,
+    authors.length +
+      kinds.length +
+      (favoritesOnly ? 1 : 0) +
+      (editedOnly ? 1 : 0) +
+      tagIds.length,
   );
 
   function toggleMenu(): void {
@@ -155,6 +166,34 @@
         />
         <span class="min-w-0 flex-1 truncate">{i18n.t("edit.toggle")}</span>
       </label>
+
+      <p
+        class="mt-1 border-t border-line-subtle px-2 pt-2 pb-1 text-xs font-medium text-fg-muted"
+      >
+        {i18n.t("filters.authors")}
+      </p>
+      {#if authorGroups.length === 0}
+        <p class="px-2 py-2 text-sm text-fg-muted">
+          {i18n.t("filters.noAuthors")}
+        </p>
+      {:else}
+        {#each authorGroups as group (group.key)}
+          <label
+            class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
+          >
+            <input
+              type="checkbox"
+              checked={authors.includes(group.key)}
+              onchange={() => onToggleAuthor(group.key)}
+              class="accent-[var(--accent)]"
+            />
+            <span class="min-w-0 flex-1 truncate">
+              {group.name ?? i18n.t("filters.unknownAuthor")}
+            </span>
+            <span class="text-xs text-fg-subtle">{group.clippingCount}</span>
+          </label>
+        {/each}
+      {/if}
 
       <p
         class="mt-1 border-t border-line-subtle px-2 pt-2 pb-1 text-xs font-medium text-fg-muted"

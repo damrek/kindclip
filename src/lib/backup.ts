@@ -18,6 +18,83 @@ export function baseName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
+/** Folder next to `kindclip.db` that holds the automatic snapshots. */
+export const AUTO_BACKUP_DIR = "backups";
+
+/** How many automatic snapshots survive pruning (the newest ones). */
+export const AUTO_BACKUP_KEEP = 7;
+
+/** In-flight `VACUUM INTO` targets, removed when stale after a crash. */
+export const AUTO_BACKUP_TEMP_PREFIX = "kindclip-auto-";
+export const AUTO_BACKUP_TEMP_SUFFIX = ".tmp";
+
+/** One automatic snapshot as listed by Rust, newest first. */
+export interface AutoBackup {
+  name: string;
+  path: string;
+  size: number;
+}
+
+/** Paths returned by the `prepare_auto_backup` command. */
+export interface AutoBackupPaths {
+  dir: string;
+  finalPath: string;
+  tempPath: string;
+}
+
+/** What the retention prune removed; failures never fail startup. */
+export interface AutoBackupPruneReport {
+  deleted: number;
+  failed: number;
+  tempsDeleted: number;
+}
+
+const AUTO_BACKUP_NAME = /^kindclip-backup-\d{4}-\d{2}-\d{2}\.db$/;
+
+/** Whether a file name is one of the dated automatic snapshots. */
+export function isAutoBackupName(name: string): boolean {
+  return AUTO_BACKUP_NAME.test(name);
+}
+
+/**
+ * Whether this launch still owes today's snapshot. A file with today's name
+ * already there counts, including a manual backup the user saved into the
+ * automatic folder.
+ */
+export function autoBackupDue(names: string[], now: Date = new Date()): boolean {
+  return !names.includes(backupFileName(now));
+}
+
+/**
+ * Snapshot names the retention policy may delete: dated names only, oldest
+ * first, and never the newest `keep` files. The newest snapshot survives even
+ * when the caller asks to keep nothing.
+ */
+export function selectAutoBackupsToDelete(
+  names: string[],
+  keep: number = AUTO_BACKUP_KEEP,
+): string[] {
+  const dated = [...new Set(names.filter(isAutoBackupName))].sort();
+  const protectedCount = Math.min(Math.max(1, keep), dated.length);
+  return dated.slice(0, dated.length - protectedCount);
+}
+
+/** `YYYY-MM-DD` label of an automatic snapshot; empty for another name. */
+export function autoBackupDate(name: string): string {
+  return isAutoBackupName(name) ? name.slice(16, 26) : "";
+}
+
+/** Compact size for the restore list; decimal dot, language-neutral units. */
+export function formatBackupSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** What a validated snapshot holds, shown before the destructive step. */
 export interface BackupInfo {
   schemaVersion: number;

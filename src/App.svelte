@@ -14,7 +14,7 @@
   import StatsDialog from "./components/StatsDialog.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { confirm, open, save } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
   import {
@@ -45,7 +45,13 @@
     saveFontScale,
     type FontScale,
   } from "./lib/font";
-  import { readSidebarOpen, saveSidebarOpen } from "./lib/sidebar";
+  import {
+    readSidebarOpen,
+    readSidebarView,
+    saveSidebarOpen,
+    saveSidebarView,
+    type SidebarView,
+  } from "./lib/sidebar";
   import {
     addClippingTag,
     closeDb,
@@ -85,16 +91,25 @@
   import { logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
+    AUTO_BACKUP_KEEP,
     BACKUP_EXTENSION,
+    autoBackupDue,
     backupFileName,
     baseName,
     inspectBackupFile,
     isBackupError,
     schemaVersion,
+    selectAutoBackupsToDelete,
+    type AutoBackup,
+    type AutoBackupPaths,
+    type AutoBackupPruneReport,
     type BackupInfo,
   } from "./lib/backup";
   import {
     exportFileName,
+    groupRowsByBook,
+    planBookFileNames,
+    serializeBookMarkdown,
     serializeCsv,
     serializeJson,
     serializeMarkdown,
@@ -107,9 +122,11 @@
     copyClippingContent,
     debounce,
     formatQuoteCitation,
+    groupBooksByAuthor,
     sortBooks,
     totalClippings,
     withTag,
+    pruneAuthors,
     withoutTag,
     withoutTagId,
     emptyFilter,
@@ -150,6 +167,8 @@
   import { loadReadingStats, type ReadingStats } from "./lib/stats";
 
   let books = $state<Book[]>([]);
+  /** Set after the first successful book load; gates author pruning. */
+  let booksLoaded = $state(false);
   let allTags = $state<TagCount[]>([]);
   let result = $state<PagedResult<ClippingRow> | null>(null);
   /** True from boot: the stored filter is applied before the first list load. */
@@ -170,8 +189,10 @@
   let kinds = $state<ClippingKind[]>([]);
   let favoritesOnly = $state(false);
   let editedOnly = $state(false);
+  let authors = $state<string[]>([]);
   let tagIds = $state<number[]>([]);
   let sidebarOpen = $state(readSidebarOpen());
+  let sidebarView = $state<SidebarView>(readSidebarView());
   let searchExpanded = $state(false);
   let searchInput = $state<HTMLInputElement | null>(null);
   let bookSortBy = $state<BookSortKey>("title");
@@ -191,6 +212,14 @@
   let exportStatus = $state<string | null>(null);
   let backingUp = $state(false);
   let backupStatus = $state<string | null>(null);
+  /** Daily snapshot preference; on unless the user turned it off. */
+  let autoBackupEnabled = $state(true);
+  /** One launch attempt only: set once the first library load finished. */
+  let autoBackupStarted = false;
+  /** Automatic snapshots shown in the restore dialog, newest first. */
+  let autoBackups = $state<AutoBackup[]>([]);
+  let autoBackupsLoading = $state(false);
+  let autoBackupsError = $state<string | null>(null);
   let restoreOpen = $state(false);
   let restoreBusy = $state(false);
   let restoreChecking = $state(false);
@@ -329,6 +358,11 @@
     void persistSetting(SETTINGS_KEYS.fontScale, next);
   }
 
+  function setAutoBackup(next: boolean): void {
+    autoBackupEnabled = next;
+    void persistSetting(SETTINGS_KEYS.autoBackup, next ? "1" : "0");
+  }
+
   /** Live system preference: the theme follows macOS while the choice is "system". */
   $effect(() => {
     const mode = themeMode;
@@ -356,6 +390,7 @@
   const filter = $derived<ClippingFilter>({
     query: debouncedQuery,
     bookId,
+    authors,
     kinds,
     favoritesOnly,
     editedOnly,
@@ -389,7 +424,12 @@
       // Commit rows and the filter that produced them together: the reading
       // view must never fetch a page with a filter other than this one.
       result = next;
-      resultFilter = { ...f, kinds: [...f.kinds], tagIds: [...f.tagIds] };
+      resultFilter = {
+        ...f,
+        authors: [...f.authors],
+        kinds: [...f.kinds],
+        tagIds: [...f.tagIds],
+      };
       resultSort = sort;
       page = last;
     } catch (error) {
@@ -408,6 +448,7 @@
     try {
       await getDb();
       books = await listBooks();
+      booksLoaded = true;
       if (bookId !== null && !books.some((book) => book.id === bookId)) {
         // Persisted book gone (fresh DB, re-import, …): fall back to all.
         bookId = null;
@@ -423,14 +464,16 @@
   async function loadPreferences(): Promise<void> {
     try {
       const port = await getDb();
-      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbFilter, dbTags] = await Promise.all([
-        getSetting(port, SETTINGS_KEYS.locale),
-        getSetting(port, SETTINGS_KEYS.theme),
-        getSetting(port, SETTINGS_KEYS.darkPalette),
-        getSetting(port, SETTINGS_KEYS.fontScale),
-        loadFilterState(port),
-        listTags(port),
-      ]);
+      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbAutoBackup, dbFilter, dbTags] =
+        await Promise.all([
+          getSetting(port, SETTINGS_KEYS.locale),
+          getSetting(port, SETTINGS_KEYS.theme),
+          getSetting(port, SETTINGS_KEYS.darkPalette),
+          getSetting(port, SETTINGS_KEYS.fontScale),
+          getSetting(port, SETTINGS_KEYS.autoBackup),
+          loadFilterState(port),
+          listTags(port),
+        ]);
       allTags = dbTags;
       if (dbLocale && isLocale(dbLocale)) {
         locale = dbLocale;
@@ -464,10 +507,19 @@
       } else {
         await setSetting(port, SETTINGS_KEYS.fontScale, fontScale);
       }
+      if (dbAutoBackup === "0") {
+        autoBackupEnabled = false;
+      } else {
+        autoBackupEnabled = true;
+        if (dbAutoBackup === null) {
+          await setSetting(port, SETTINGS_KEYS.autoBackup, "1");
+        }
+      }
       if (dbFilter) {
         query = dbFilter.query;
         debouncedQuery = dbFilter.query;
         bookId = dbFilter.bookId;
+        authors = dbFilter.authors ?? [];
         kinds = dbFilter.kinds;
         favoritesOnly = dbFilter.favoritesOnly;
         editedOnly = dbFilter.editedOnly;
@@ -485,6 +537,7 @@
         await persistFilterState({
           query: debouncedQuery,
           bookId,
+          authors,
           kinds,
           favoritesOnly,
           editedOnly,
@@ -543,6 +596,18 @@
     void loadPreferences();
   });
 
+  // One automatic snapshot per launch, after the first page is on screen:
+  // the VACUUM runs in the background and never delays first paint. Waiting
+  // for `loading` to settle also keeps it from competing with the first list
+  // query for the same connection.
+  $effect(() => {
+    if (!prefsReady || loading || autoBackupStarted) return;
+    autoBackupStarted = true;
+    if (autoBackupEnabled) {
+      void runAutoBackup();
+    }
+  });
+
   // Snapshot passed synchronously (see the loadList NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
   // Gated until the stored filter is applied, so the defaults are never written
@@ -552,6 +617,7 @@
     saveFilters({
       query: debouncedQuery,
       bookId,
+      authors,
       kinds,
       favoritesOnly,
       editedOnly,
@@ -562,6 +628,18 @@
       sortBy,
       sortDir,
     });
+  });
+
+  // A renamed or deleted author must not keep hiding the library (S6). Wait
+  // for the stored filter and the first successful book load, so neither the
+  // empty default nor a cold-start race can silently clear the selection.
+  $effect(() => {
+    if (!prefsReady || !booksLoaded) return;
+    const next = pruneAuthors(authors, books);
+    if (next !== authors) {
+      authors = next;
+      page = 1;
+    }
   });
 
   $effect(() => {
@@ -592,6 +670,12 @@
   function toggleSidebar(): void {
     sidebarOpen = !sidebarOpen;
     saveSidebarOpen(sidebarOpen);
+  }
+
+  function setSidebarView(next: SidebarView): void {
+    if (next === sidebarView) return;
+    sidebarView = next;
+    saveSidebarView(next);
   }
 
   async function openSearch(): Promise<void> {
@@ -635,6 +719,14 @@
 
   function toggleEditedOnly(): void {
     editedOnly = !editedOnly;
+    page = 1;
+  }
+
+  /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
+  function toggleAuthor(key: string): void {
+    authors = authors.includes(key)
+      ? authors.filter((author) => author !== key)
+      : [...authors, key];
     page = 1;
   }
 
@@ -1240,6 +1332,7 @@
     debouncedQuery = "";
     favoritesOnly = false;
     editedOnly = false;
+    authors = [];
     kinds = [];
     tagIds = [];
     searchExpanded = false;
@@ -1357,12 +1450,60 @@
     exportOpen = true;
   }
 
+  /** S6/S7: one Markdown file per book into a chosen folder. */
+  async function exportOneFilePerBook(
+    rows: ClippingRow[],
+    includeOriginal: boolean,
+  ): Promise<void> {
+    const groups = groupRowsByBook(rows);
+    if (groups.length === 0) return;
+    const names = planBookFileNames(groups);
+    const picked = await open({
+      directory: true,
+      multiple: false,
+      title: t("export.folderPrompt"),
+    });
+    const folder = typeof picked === "string" ? picked : null;
+    if (folder === null) return; // Cancelled: the dialog stays open.
+    const existing = await invoke<string[]>("check_export_targets", { dir: folder, names });
+    if (existing.length > 0) {
+      const replace = await confirm(t("export.overwrite", { count: existing.length }), {
+        title: t("export.title"),
+        kind: "warning",
+      });
+      if (!replace) return;
+    }
+    const now = new Date();
+    const files = groups.map((group, index) => ({
+      name: names[index],
+      contents: serializeBookMarkdown(group.rows, { includeOriginal, locale, t, now }),
+    }));
+    await invoke<number>("write_export_files", { dir: folder, files });
+    logger.info(
+      `export: wrote ${groups.length} per-book markdown files with ${rows.length} clippings to '${folder}'`,
+    );
+    exportStatus = t("export.doneFolder", {
+      count: rows.length,
+      books: groups.length,
+      folder,
+    });
+    closeExport();
+  }
+
   /** S4: filtered rows → serializer → native save dialog → Rust write. */
-  async function onExport(format: ExportFormat, includeOriginal: boolean): Promise<void> {
+  async function onExport(
+    format: ExportFormat,
+    includeOriginal: boolean,
+    perBook: boolean,
+  ): Promise<void> {
     if (exporting) return;
     exporting = true;
     try {
       const rows = await exportClippings(filter);
+      if (format === "markdown" && perBook) {
+        await exportOneFilePerBook(rows, includeOriginal);
+        return;
+      }
       const bookTitle = books.find((book) => book.id === bookId)?.title ?? null;
       const fileName = exportFileName(format, bookTitle);
       const text =
@@ -1452,6 +1593,54 @@
     }
   }
 
+  /**
+   * Daily rotating snapshot: copy-only, one attempt per launch.
+   *
+   * The snapshot is written next to the live database with `VACUUM INTO` and
+   * committed by Rust after checking the SQLite header, so a crash never
+   * leaves a damaged file under a backup name. Failures are logged and never
+   * interrupt startup (S7); retention runs only after a successful commit.
+   */
+  async function runAutoBackup(): Promise<void> {
+    try {
+      const finalName = backupFileName();
+      const existing = await invoke<AutoBackup[]>("list_auto_backups");
+      if (!autoBackupDue(existing.map((snapshot) => snapshot.name))) {
+        logger.info("auto-backup: today's snapshot already exists");
+        return;
+      }
+
+      const paths = await invoke<AutoBackupPaths>("prepare_auto_backup", { finalName });
+      const port = await getDb();
+      await port.execute("VACUUM INTO $1", [paths.tempPath]);
+      await invoke("commit_auto_backup", {
+        tempPath: paths.tempPath,
+        finalPath: paths.finalPath,
+      });
+      logger.info(`auto-backup: wrote ${finalName}`);
+
+      const snapshots = await invoke<AutoBackup[]>("list_auto_backups");
+      const doomed = new Set(
+        selectAutoBackupsToDelete(snapshots.map((snapshot) => snapshot.name)),
+      );
+      const candidates = snapshots
+        .filter((snapshot) => doomed.has(snapshot.name))
+        .map((snapshot) => snapshot.path);
+      // Prune after every successful commit, even with nothing to delete:
+      // the command also sweeps crash leftovers from earlier runs.
+      const report = await invoke<AutoBackupPruneReport>("prune_auto_backups", {
+        keep: AUTO_BACKUP_KEEP,
+        candidates,
+      });
+      logger.info(
+        `auto-backup: pruned ${report.deleted} snapshots (${report.failed} failed), ` +
+          `removed ${report.tempsDeleted} stale temp files`,
+      );
+    } catch (error) {
+      logger.error("auto-backup", error);
+    }
+  }
+
   /** Map a rejected snapshot to the reason shown in the restore dialog. */
   function restoreFailure(error: unknown): string {
     if (isBackupError(error)) {
@@ -1464,43 +1653,50 @@
     });
   }
 
-  /** Pick a snapshot, open it apart from the live DB and show what it holds. */
-  async function onRestoreRequest(): Promise<void> {
-    if (restoreBusy || backingUp) return;
-    rememberOpener();
-
-    let selected: string | null = null;
+  /** Read the automatic snapshots each time the restore dialog opens. */
+  async function loadAutoBackups(): Promise<void> {
+    autoBackupsLoading = true;
+    autoBackupsError = null;
     try {
-      const picked = await open({
-        multiple: false,
-        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
-      });
-      selected = typeof picked === "string" ? picked : null;
+      autoBackups = await invoke<AutoBackup[]>("list_auto_backups");
     } catch (error) {
-      restorePath = null;
-      restoreFile = "";
-      restoreInfo = null;
-      restoreChecking = false;
-      restoreError = t("restore.error", {
+      autoBackupsError = t("restore.listError", {
         message: error instanceof Error ? error.message : String(error),
       });
-      logger.error("restore-pick", error);
-      restoreOpen = true;
-      return;
+      logger.error("restore-list", error);
+    } finally {
+      autoBackupsLoading = false;
     }
-    if (selected === null) return;
+  }
 
+  /** Open the restore dialog with the automatic snapshots listed. */
+  function onRestoreRequest(): void {
+    if (restoreBusy || backingUp) return;
+    rememberOpener();
+    restoreRequest += 1;
+    restoreOpen = true;
+    restorePath = null;
+    restoreFile = "";
+    restoreInfo = null;
+    restoreError = null;
+    restoreChecking = false;
+    autoBackups = [];
+    autoBackupsError = null;
+    void loadAutoBackups();
+  }
+
+  /** Inspect one snapshot (automatic entry or picked file) before restoring. */
+  async function inspectRestorePath(path: string): Promise<void> {
     const request = ++restoreRequest;
-    restorePath = selected;
-    restoreFile = baseName(selected);
+    restorePath = path;
+    restoreFile = baseName(path);
     restoreInfo = null;
     restoreError = null;
     restoreChecking = true;
-    restoreOpen = true;
     try {
       const port = await getDb();
       const current = await schemaVersion(port);
-      const info = await inspectBackupFile(selected, current);
+      const info = await inspectBackupFile(path, current);
       if (request === restoreRequest) {
         restoreInfo = info;
       }
@@ -1513,6 +1709,28 @@
       if (request === restoreRequest) {
         restoreChecking = false;
       }
+    }
+  }
+
+  /** Native file picker inside the dialog: the manual flow is unchanged. */
+  async function chooseRestoreFile(): Promise<void> {
+    if (restoreBusy || restoreChecking) return;
+    let selected: string | null = null;
+    try {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
+      });
+      selected = typeof picked === "string" ? picked : null;
+    } catch (error) {
+      restoreError = t("restore.error", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      logger.error("restore-pick", error);
+      return;
+    }
+    if (selected !== null) {
+      await inspectRestorePath(selected);
     }
   }
 
@@ -1741,9 +1959,12 @@
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
   const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
+  /** Author groups shared by the Filters menu, chips and the grouped sidebar. */
+  const authorGroups = $derived(groupBooksByAuthor(sortedBooks));
   const hasActiveFilters = $derived(
     debouncedQuery.trim() !== "" ||
       bookId !== null ||
+      authors.length > 0 ||
       kinds.length > 0 ||
       favoritesOnly ||
       editedOnly ||
@@ -1767,6 +1988,13 @@
     csv: "csv",
   };
 
+  /** Selected authors in selection order, for the removable chips under the bar. */
+  const selectedAuthors = $derived(
+    authors.flatMap((key) => {
+      const group = authorGroups.find((item) => item.key === key);
+      return group ? [group] : [];
+    }),
+  );
   /** Selected tags in selection order, for the removable chips under the bar. */
   const selectedTags = $derived(
     tagIds.flatMap((id) => {
@@ -1800,6 +2028,13 @@
     }
     if (editedOnly) {
       chips.push({ key: "edited", label: t("edit.toggle"), remove: toggleEditedOnly });
+    }
+    for (const group of selectedAuthors) {
+      chips.push({
+        key: `author:${group.key}`,
+        label: group.name ?? t("filters.unknownAuthor"),
+        remove: () => toggleAuthor(group.key),
+      });
     }
     for (const tag of selectedTags) {
       chips.push({
@@ -1899,6 +2134,9 @@
       >
         <BookSidebar
           books={sortedBooks}
+          groups={authorGroups}
+          view={sidebarView}
+          onViewChange={setSidebarView}
           selectedId={bookId}
           totalCount={libraryTotal}
           onSelect={selectBook}
@@ -1964,11 +2202,14 @@
 
           <FilterMenu
             bind:open={filtersOpen}
+            {authors}
+            {authorGroups}
             {kinds}
             {favoritesOnly}
             {editedOnly}
             {tagIds}
             tags={filterTags}
+            onToggleAuthor={toggleAuthor}
             onToggleKind={toggleKind}
             onToggleFavorites={toggleFavoritesOnly}
             onToggleEdited={toggleEditedOnly}
@@ -2251,8 +2492,13 @@
     checking={restoreChecking}
     busy={restoreBusy}
     error={restoreError}
+    snapshots={autoBackups}
+    snapshotsLoading={autoBackupsLoading}
+    snapshotsError={autoBackupsError}
     onClose={closeRestore}
     onConfirm={confirmRestore}
+    onChooseFile={chooseRestoreFile}
+    onSelectSnapshot={inspectRestorePath}
   />
 {/if}
 
@@ -2265,10 +2511,12 @@
     dbBusy={locatingDb}
     backingUp={backingUp}
     backupStatus={backupStatus}
+    autoBackup={autoBackupEnabled}
     onLocale={setLocale}
     onTheme={setTheme}
     onPalette={setDarkPalette}
     onFont={setFontScale}
+    onAutoBackup={setAutoBackup}
     onOpenDb={openDbFromPreferences}
     onBackup={onBackup}
     onRestore={() => handOffFromPreferences(onRestoreRequest)}
