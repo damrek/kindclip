@@ -94,6 +94,10 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
   its contents, then keep the replaced database as `kindclip.db.before-restore`.
   Older snapshots migrate on launch; newer ones are refused, and the app
   restarts.
+- **Daily backups**: once per launch (unless turned off in Preferences → Data),
+  kindclip snapshots the database into `backups/` next to `kindclip.db`, keeps
+  the newest 7 and lists them in the restore dialog. A manual backup saved into
+  that folder also counts as the day's snapshot.
 - **Open database location** reveals `kindclip.db` in your file manager.
 
 ### UI & Accessibility
@@ -190,7 +194,8 @@ Resolved to the standard per-OS config dir (`identifier: app.kindclip`):
 
 Delete the file to wipe the library and note edits, then re-import from scratch.
 A restore keeps the replaced file as `kindclip.db.before-restore`, so you can
-undo it by hand while the app is closed.
+undo it by hand while the app is closed. Daily snapshots live in the `backups/`
+folder next to the database and are pruned to the newest seven.
 
 Quick count:
 ```bash

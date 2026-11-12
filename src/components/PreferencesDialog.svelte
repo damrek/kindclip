@@ -29,10 +29,12 @@
     dbBusy: boolean;
     backingUp: boolean;
     backupStatus: string | null;
+    autoBackup: boolean;
     onLocale: (locale: Locale) => void;
     onTheme: (choice: ThemeMode) => void;
     onPalette: (palette: DarkPalette) => void;
     onFont: (scale: FontScale) => void;
+    onAutoBackup: (enabled: boolean) => void;
     onOpenDb: () => void;
     onBackup: () => void;
     onRestore: () => void;
@@ -48,10 +50,12 @@
     dbBusy,
     backingUp,
     backupStatus,
+    autoBackup,
     onLocale,
     onTheme,
     onPalette,
     onFont,
+    onAutoBackup,
     onOpenDb,
     onBackup,
     onRestore,
@@ -236,6 +240,17 @@
           {i18n.t("prefs.data")}
         </h3>
         <div class="mt-1 space-y-0.5">
+          <label
+            class="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted"
+          >
+            <input
+              type="checkbox"
+              checked={autoBackup}
+              onchange={(event) => onAutoBackup(event.currentTarget.checked)}
+              class="mt-0.5 size-3.5 shrink-0"
+            />
+            <span class="min-w-0 flex-1">{i18n.t("prefs.autoBackup")}</span>
+          </label>
           <button
             type="button"
             onclick={onBackup}

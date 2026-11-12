@@ -930,6 +930,7 @@ export const SETTINGS_KEYS = {
   fontScale: "fontScale",
   filter: "filter",
   searchFolding: "searchFolding",
+  autoBackup: "autoBackup",
 } as const;
 
 export async function getSetting(port: DbPort, key: string): Promise<string | null> {
