@@ -155,60 +155,63 @@
         {i18n.t("sidebar.viewAuthors")}
       </button>
     </div>
-    <div class="mb-2 flex items-center gap-1.5">
-      <div class="flex items-center gap-1.5" role="group" aria-label={i18n.t("sort.toggle")}>
-        <button
-          type="button"
-          onclick={() => onSortBy?.("title")}
-          aria-pressed={sortBy === "title"}
-          class="rounded-full border px-2.5 py-1 text-xs font-medium transition {sortBy === 'title'
-            ? 'border-inverse bg-inverse text-inverse-fg'
-            : 'border-line text-fg-muted hover:bg-surface-hover'}"
-        >
-          {i18n.t("sort.title")}
-        </button>
-        <button
-          type="button"
-          onclick={() => onSortBy?.("author")}
-          aria-pressed={sortBy === "author"}
-          class="rounded-full border px-2.5 py-1 text-xs font-medium transition {sortBy === 'author'
-            ? 'border-inverse bg-inverse text-inverse-fg'
-            : 'border-line text-fg-muted hover:bg-surface-hover'}"
-        >
-          {i18n.t("sort.author")}
-        </button>
-        <button
-          type="button"
-          onclick={() => onSortDirToggle?.()}
-          aria-label={i18n.t("sort.toggle")}
-          class="rounded-full border px-2.5 py-1 text-xs font-medium transition border-line text-fg-muted hover:bg-surface-hover"
-        >
-          {sortDir === "asc" ? "A–Z" : "Z–A"}
-        </button>
+    {#if view === "books" || groups.length > 0}
+      <div class="mb-2 flex items-center gap-1.5">
+        {#if view === "books"}
+          <div class="flex items-center gap-1.5" role="group" aria-label={i18n.t("sort.toggle")}>
+            <button
+              type="button"
+              onclick={() => onSortBy?.("title")}
+              aria-pressed={sortBy === "title"}
+              class="rounded-full border px-2.5 py-1 text-xs font-medium transition {sortBy === 'title'
+                ? 'border-inverse bg-inverse text-inverse-fg'
+                : 'border-line text-fg-muted hover:bg-surface-hover'}"
+            >
+              {i18n.t("sort.title")}
+            </button>
+            <button
+              type="button"
+              onclick={() => onSortBy?.("author")}
+              aria-pressed={sortBy === "author"}
+              class="rounded-full border px-2.5 py-1 text-xs font-medium transition {sortBy === 'author'
+                ? 'border-inverse bg-inverse text-inverse-fg'
+                : 'border-line text-fg-muted hover:bg-surface-hover'}"
+            >
+              {i18n.t("sort.author")}
+            </button>
+            <button
+              type="button"
+              onclick={() => onSortDirToggle?.()}
+              aria-label={i18n.t("sort.toggle")}
+              class="rounded-full border px-2.5 py-1 text-xs font-medium transition border-line text-fg-muted hover:bg-surface-hover"
+            >
+              {sortDir === "asc" ? "A–Z" : "Z–A"}
+            </button>
+          </div>
+        {:else}
+          <div class="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onclick={expandAllGroups}
+              aria-label={i18n.t("sidebar.expandAll")}
+              title={i18n.t("sidebar.expandAll")}
+              class="flex h-7 w-7 items-center justify-center rounded-full border border-line text-fg-muted transition hover:bg-surface-hover hover:text-fg"
+            >
+              <Icon name="chevronsDown" class="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onclick={collapseAllGroups}
+              aria-label={i18n.t("sidebar.collapseAll")}
+              title={i18n.t("sidebar.collapseAll")}
+              class="flex h-7 w-7 items-center justify-center rounded-full border border-line text-fg-muted transition hover:bg-surface-hover hover:text-fg"
+            >
+              <Icon name="chevronsUp" class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        {/if}
       </div>
-      {#if view === "authors" && groups.length > 0}
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            onclick={expandAllGroups}
-            aria-label={i18n.t("sidebar.expandAll")}
-            title={i18n.t("sidebar.expandAll")}
-            class="flex h-7 w-7 items-center justify-center rounded-full border border-line text-fg-muted transition hover:bg-surface-hover hover:text-fg"
-          >
-            <Icon name="chevronsDown" class="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onclick={collapseAllGroups}
-            aria-label={i18n.t("sidebar.collapseAll")}
-            title={i18n.t("sidebar.collapseAll")}
-            class="flex h-7 w-7 items-center justify-center rounded-full border border-line text-fg-muted transition hover:bg-surface-hover hover:text-fg"
-          >
-            <Icon name="chevronsUp" class="h-3.5 w-3.5" />
-          </button>
-        </div>
-      {/if}
-    </div>
+    {/if}
     <button
       type="button"
       onclick={() => onSelect(null)}
