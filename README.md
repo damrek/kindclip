@@ -84,9 +84,11 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 
 ### Export & Data
 - **Export** the filtered view to Markdown, JSON or CSV as one file grouped by
-  book, with favorites and tags marked. Markdown labels follow the app language;
-  JSON/CSV keep stable English fields (original and edited notes, tags) for
-  scripting.
+  book, with favorites and tags marked. Markdown can also be written as one file
+  per book into a folder you choose, with YAML frontmatter (title, author, tags,
+  clipping count, export date) ready for an Obsidian-style vault. Markdown labels
+  follow the app language; JSON/CSV keep stable English fields (original and
+  edited notes, tags) for scripting.
 - **Backup & restore** (Preferences → Data): save a consistent snapshot of
   `kindclip.db` (default `kindclip-backup-YYYY-MM-DD.db`). Restores verify the
   file is real SQLite with the kindclip tables and no failed migrations, preview
