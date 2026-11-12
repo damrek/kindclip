@@ -197,7 +197,7 @@ describe("escapeLike", () => {
 describe("buildListQuery", () => {
   it("filters by text across content, title and author", () => {
     const { sql, params } = buildListQuery(
-      { query: "stoic", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
+      { query: "stoic", bookId: null, authors: [], kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("LIKE");
@@ -209,7 +209,7 @@ describe("buildListQuery", () => {
 
   it("applies book, kind and favorites filters with pagination", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: 3, kinds: ["note"], favoritesOnly: true, editedOnly: false, tagIds: [] },
+      { query: "", bookId: 3, authors: [], kinds: ["note"], favoritesOnly: true, editedOnly: false, tagIds: [] },
       { page: 2, pageSize: 50 },
     );
     expect(sql).toContain("b.id =");
@@ -223,16 +223,50 @@ describe("buildListQuery", () => {
 
   it("matches any of several selected kinds", () => {
     const { sql, params } = buildListQuery(
-      { query: "", bookId: null, kinds: ["highlight", "note"], favoritesOnly: false, editedOnly: false, tagIds: [] },
+      { query: "", bookId: null, authors: [], kinds: ["highlight", "note"], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.kind IN ($1, $2)");
     expect(params.slice(0, 2)).toEqual(["highlight", "note"]);
   });
 
+  it("filters by any selected folded author and dedupes the keys", () => {
+    const { sql, params } = buildListQuery(
+      filter({ authors: ["marcus aurelius", "marcus aurelius", "seneca"] }),
+      { page: 1, pageSize: 20 },
+    );
+    expect(sql).toContain("COALESCE(b.author_folded, '') IN ($1, $2)");
+    expect(params.slice(0, 2)).toEqual(["marcus aurelius", "seneca"]);
+  });
+
+  it("matches the unknown author with the empty key", () => {
+    const { sql, params } = buildListQuery(filter({ authors: [""] }), {
+      page: 1,
+      pageSize: 20,
+    });
+    expect(sql).toContain("COALESCE(b.author_folded, '') IN ($1)");
+    expect(params[0]).toBe("");
+  });
+
+  it("adds no author clause for an empty selection", () => {
+    const { sql } = buildListQuery(filter(), { page: 1, pageSize: 20 });
+    expect(sql).not.toContain("author_folded, '') IN");
+  });
+
+  it("combines selected authors with book, kind and tag filters", () => {
+    const { sql, params } = buildListQuery(
+      filter({ bookId: 3, authors: ["ana"], kinds: ["note"], tagIds: [7] }),
+      { page: 1, pageSize: 20 },
+    );
+    expect(sql).toContain("b.id = $1");
+    expect(sql).toContain("COALESCE(b.author_folded, '') IN ($2)");
+    expect(sql).toContain("c.kind IN ($3)");
+    expect(params.slice(0, 4)).toEqual([3, "ana", "note", 7]);
+  });
+
   it("selects the overlay columns for edited notes", () => {
     const { sql } = buildListQuery(
-      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
+      { query: "", bookId: null, authors: [], kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.content_edited, c.edited_at");
@@ -240,7 +274,7 @@ describe("buildListQuery", () => {
 
   it("searches the edited text, falling back to the original", () => {
     const { sql } = buildListQuery(
-      { query: "x", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
+      { query: "x", bookId: null, authors: [], kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("COALESCE(c.content_edited_folded, c.content_folded) LIKE");
@@ -311,7 +345,7 @@ describe("buildListQuery", () => {
 
   it("restricts the list to edited notes only", () => {
     const { sql } = buildListQuery(
-      { query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: true, tagIds: [] },
+      { query: "", bookId: null, authors: [], kinds: [], favoritesOnly: false, editedOnly: true, tagIds: [] },
       { page: 1, pageSize: 20 },
     );
     expect(sql).toContain("c.content_edited IS NOT NULL");
@@ -389,6 +423,7 @@ describe("buildCountQuery", () => {
     const { sql, params } = buildCountQuery({
       query: "x",
       bookId: null,
+      authors: [],
       kinds: [],
       favoritesOnly: true,
       editedOnly: false,
@@ -404,6 +439,7 @@ describe("buildCountQuery", () => {
     const { sql } = buildCountQuery({
       query: "",
       bookId: null,
+      authors: [],
       kinds: [],
       favoritesOnly: false,
       editedOnly: true,
@@ -447,6 +483,7 @@ function filter(overrides: Partial<ClippingFilter> = {}): ClippingFilter {
   return {
     query: "",
     bookId: null,
+    authors: [],
     kinds: [],
     favoritesOnly: false,
     editedOnly: false,
@@ -898,6 +935,7 @@ describe("settings", () => {
     const state: StoredFilterState = {
       query: "stoic",
       bookId: 3,
+      authors: ["marcus aurelius", "seneca"],
       kinds: ["note"],
       favoritesOnly: true,
       editedOnly: true,
@@ -923,6 +961,7 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toEqual({
       query: "",
       bookId: null,
+      authors: [],
       kinds: [],
       favoritesOnly: false,
       editedOnly: false,
@@ -948,6 +987,7 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toEqual({
       query: "x",
       bookId: 3,
+      authors: [],
       kinds: ["note"],
       favoritesOnly: true,
       editedOnly: false,
@@ -974,6 +1014,10 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toBe(null);
     await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], tagIds: [1, "2"] }));
     await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], authors: "nope" }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
+    await setSetting(port, "filter", JSON.stringify({ query: "x", favoritesOnly: false, editedOnly: false, pageSize: 20, bookId: null, kinds: [], authors: ["ana", 2] }));
+    await expect(loadFilterState(port)).resolves.toBe(null);
   });
 
   it("migrates the legacy single-kind payload", async () => {
@@ -986,6 +1030,7 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toEqual({
       query: "",
       bookId: null,
+      authors: [],
       kinds: ["note"],
       favoritesOnly: false,
       editedOnly: false,
@@ -1000,11 +1045,28 @@ describe("settings", () => {
     await expect(loadFilterState(port)).resolves.toEqual({
       query: "",
       bookId: null,
+      authors: [],
       kinds: [],
       favoritesOnly: false,
       editedOnly: false,
       tagIds: [],
       pageSize: 20,
+    });
+  });
+
+  it("roundtrips selected authors and dedupes them on load", async () => {
+    const port = new FakePort();
+    await saveFilterState(port, {
+      query: "",
+      bookId: null,
+      authors: ["ana", "ana", "emile zola"],
+      kinds: [],
+      favoritesOnly: false,
+      editedOnly: false,
+      pageSize: 20,
+    });
+    await expect(loadFilterState(port)).resolves.toMatchObject({
+      authors: ["ana", "emile zola"],
     });
   });
 });

@@ -77,8 +77,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Unified Filters menu** with a badge, removable chips and **Clear all**.
   Full-text search covers content, title and author, accent- and
   case-insensitive; every word must match and hits are highlighted in the list
-  and the reading view. Combine with book, multi-select type/status/tag filters;
-  click a card's type or **Edited** badge to toggle it. Pagination 20/50/100.
+  and the reading view. Combine with book, multi-select author/type/status/tag
+  filters; click a card's type or **Edited** badge to toggle it. Pagination
+  20/50/100.
 - **Sorting**: books by title or author (↑/↓); clippings by newest/oldest, book
   title (A–Z/Z–A) or page. All persisted.
 
@@ -96,8 +97,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Open database location** reveals `kindclip.db` in your file manager.
 
 ### UI & Accessibility
-- **Collapsible shell**: sidebar toggle (remembered); search collapses to an
-  icon until clicked or filled.
+- **Collapsible shell**: sidebar toggle (remembered), and the sidebar switches
+  between the flat book list and collapsible author groups (remembered); search
+  collapses to an icon until clicked or filled.
 - **Grouped chrome**: the top bar keeps only the sidebar toggle and the
   settings gear; search, filters, sort and export sit above the list they act
   on; the sidebar footer carries import, library management and statistics.

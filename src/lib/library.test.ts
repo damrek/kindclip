@@ -11,8 +11,10 @@ import {
   foldText,
   formatQuoteCitation,
   formatReference,
+  groupBooksByAuthor,
   PAGE_SIZES,
   pageWindow,
+  pruneAuthors,
   tagOverflow,
   totalClippings,
   totalPages,
@@ -91,7 +93,15 @@ describe("debounce", () => {
 
 describe("emptyFilter", () => {
   it("returns the default filter", () => {
-    expect(emptyFilter()).toEqual({ query: "", bookId: null, kinds: [], favoritesOnly: false, editedOnly: false, tagIds: [] });
+    expect(emptyFilter()).toEqual({
+      query: "",
+      bookId: null,
+      authors: [],
+      kinds: [],
+      favoritesOnly: false,
+      editedOnly: false,
+      tagIds: [],
+    });
   });
 });
 
@@ -267,6 +277,84 @@ describe("filterBooks", () => {
 
   it("keeps the incoming order", () => {
     expect(filterBooks([books[1], books[0]], "a")).toEqual([books[1], books[0]]);
+  });
+});
+
+describe("groupBooksByAuthor", () => {
+  const books: Book[] = [
+    { id: 1, title: "Meditations", author: "Marcus Aurelius", clipping_count: 4 },
+    { id: 2, title: "Letters", author: "Seneca", clipping_count: 2 },
+    { id: 3, title: "Discourses", author: null, clipping_count: 7 },
+    { id: 4, title: "Manual", author: "Marcus Aurelius", clipping_count: 1 },
+    { id: 5, title: "Trois", author: "Émile Zola", clipping_count: 3 },
+    { id: 6, title: "Aux champs", author: "Emile Zola", clipping_count: 2 },
+    { id: 7, title: "Anonyme", author: "", clipping_count: 5 },
+  ];
+
+  it("merges case and diacritic variants into one folded group", () => {
+    const zola = groupBooksByAuthor(books).find((group) => group.key === "emile zola");
+    expect(zola?.books.map((book) => book.id)).toEqual([5, 6]);
+  });
+
+  it("counts clippings and books per group", () => {
+    const marcus = groupBooksByAuthor(books).find((group) => group.key === "marcus aurelius");
+    expect(marcus).toMatchObject({ clippingCount: 5, bookCount: 2 });
+  });
+
+  it("orders groups by folded author with the unknown group last", () => {
+    expect(groupBooksByAuthor(books).map((group) => group.key)).toEqual([
+      "emile zola",
+      "marcus aurelius",
+      "seneca",
+      "",
+    ]);
+  });
+
+  it("uses the most frequent exact spelling, breaking ties by code-unit order", () => {
+    // Both Zola spellings appear once; "Emile Zola" sorts before "Émile Zola".
+    const zola = groupBooksByAuthor(books).find((group) => group.key === "emile zola");
+    expect(zola?.name).toBe("Emile Zola");
+
+    const repeated = groupBooksByAuthor([
+      { id: 1, title: "A", author: "Ana", clipping_count: 1 },
+      { id: 2, title: "B", author: "ANA", clipping_count: 1 },
+      { id: 3, title: "C", author: "Ana", clipping_count: 1 },
+    ]);
+    expect(repeated[0].name).toBe("Ana");
+  });
+
+  it("keeps the unknown group nameless and preserves book order", () => {
+    const unknown = groupBooksByAuthor(books).at(-1);
+    expect(unknown).toMatchObject({ key: "", name: null, bookCount: 2, clippingCount: 12 });
+    expect(unknown?.books.map((book) => book.id)).toEqual([3, 7]);
+  });
+});
+
+describe("pruneAuthors", () => {
+  const books: Book[] = [
+    { id: 1, title: "A", author: "Ana", clipping_count: 1 },
+    { id: 2, title: "B", author: null, clipping_count: 1 },
+    { id: 3, title: "C", author: "Émile Zola", clipping_count: 1 },
+  ];
+
+  it("keeps selected keys that still exist, matching the folded author", () => {
+    expect(pruneAuthors(["ana", "emile zola"], books)).toEqual(["ana", "emile zola"]);
+  });
+
+  it("drops keys whose author disappeared", () => {
+    expect(pruneAuthors(["ana", "tolkien"], books)).toEqual(["ana"]);
+  });
+
+  it("keeps the unknown key only while an unknown author exists", () => {
+    expect(pruneAuthors([""], books)).toEqual([""]);
+    expect(
+      pruneAuthors([""], [{ id: 1, title: "A", author: "Ana", clipping_count: 1 }]),
+    ).toEqual([]);
+  });
+
+  it("returns the same array when nothing is pruned", () => {
+    const selected = ["ana"];
+    expect(pruneAuthors(selected, books)).toBe(selected);
   });
 });
 

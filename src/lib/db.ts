@@ -178,6 +178,13 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
   if (filter.bookId !== null) {
     conditions.push(`b.id = ${next(filter.bookId)}`);
   }
+  // Author filter (S4): the folded key also covers the unknown author ("").
+  // Duplicates are dropped so the clause always holds distinct keys.
+  const authorKeys = [...new Set(filter.authors)];
+  if (authorKeys.length > 0) {
+    const placeholders = authorKeys.map((key) => next(key));
+    conditions.push(`COALESCE(b.author_folded, '') IN (${placeholders.join(", ")})`);
+  }
   if (filter.kinds.length > 0) {
     const placeholders = filter.kinds.map((kind) => next(kind));
     conditions.push(`c.kind IN (${placeholders.join(", ")})`);
@@ -950,6 +957,8 @@ export interface StoredFilterState {
   editedOnly: boolean;
   /** Absent in payloads stored before tags existed. */
   tagIds?: number[];
+  /** Absent in payloads stored before the author filter existed. */
+  authors?: string[];
   pageSize: number;
   /** Absent in payloads stored before book sorting existed. */
   bookSortBy?: "title" | "author";
@@ -995,6 +1004,9 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       (parsed.tagIds !== undefined &&
         (!Array.isArray(parsed.tagIds) ||
           !parsed.tagIds.every((id) => typeof id === "number" && Number.isInteger(id)))) ||
+      (parsed.authors !== undefined &&
+        (!Array.isArray(parsed.authors) ||
+          !parsed.authors.every((author) => typeof author === "string"))) ||
       (parsed.bookSortBy !== undefined &&
         parsed.bookSortBy !== "title" &&
         parsed.bookSortBy !== "author") ||
@@ -1010,6 +1022,7 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
     return {
       query: parsed.query,
       bookId: parsed.bookId ?? null,
+      authors: [...new Set(parsed.authors ?? [])],
       kinds,
       favoritesOnly: parsed.favoritesOnly,
       editedOnly: parsed.editedOnly ?? false,
