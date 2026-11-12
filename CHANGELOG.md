@@ -10,6 +10,30 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-12
+
+### Added
+
+- **Author filter and grouped sidebar**: filter clippings by one or more authors —
+  including an explicit unknown-author entry — with counts, removable chips and
+  Clear all. The sidebar switches between the flat book list and collapsible
+  author groups, remembers the choice and expands or collapses every group at
+  once.
+- **Daily backups**: once per launch, unless turned off in Preferences → Data,
+  kindclip snapshots the database into a `backups/` folder next to it, keeps the
+  newest 7 and lists them in the restore dialog. A manual backup saved there
+  counts as the day's snapshot.
+- **Obsidian export**: write the filtered view as one Markdown file per book into
+  a folder you choose, with YAML frontmatter (title, author, tags, clipping
+  count, export date), an overwrite confirmation and atomic writes.
+
+### Fixed
+
+- Long book titles no longer break per-book export file names, and export logs
+  never record file names.
+- Automatic backups sweep temporary files left by an interrupted launch and
+  never delete a file they do not own.
+
 ## [1.17.0] - 2026-11-11
 
 ### Added

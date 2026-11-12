@@ -6,7 +6,7 @@
     <title>kindclip — your Kindle highlights, finally in one place</title>
     <meta
       name="description"
-      content="A local, keyboard-first desktop viewer for your Kindle highlights. Import My Clippings.txt, search everything, tag, edit notes, copy quotes or export to Markdown, JSON or CSV. Windows, Linux and macOS."
+      content="A local, keyboard-first desktop viewer for your Kindle highlights. Import My Clippings.txt, search everything, filter by book or author, tag, edit notes, copy quotes or export to Markdown, JSON, CSV or one file per book for Obsidian. Windows, Linux and macOS."
     />
     <link rel="canonical" href="https://damrek.github.io/kindclip/" />
     <link rel="icon" type="image/png" href="icon.png" />
@@ -17,7 +17,7 @@
     <meta property="og:title" content="kindclip — your Kindle highlights, finally in one place" />
     <meta
       property="og:description"
-      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, Markdown quotes, exports and reading stats. Local-first and native on Windows, Linux and macOS."
+      content="Import My Clippings.txt once and get a fast, searchable library with author filters, tags, edited notes, Markdown quotes, per-book Obsidian exports, daily backups and reading stats. Local-first and native on Windows, Linux and macOS."
     />
     <meta property="og:image" content="https://damrek.github.io/kindclip/screen_1.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -1408,9 +1408,10 @@
               <h3>Organization without a cloud</h3>
               <p>
                 Favorites, free-form tags with inline suggestions, an
-                edited-notes filter, and library tools to rename or merge books,
-                delete a book, or undo one import. Everything lives in one
-                SQLite file.
+                edited-notes filter, and an author filter with counts. Switch
+                the sidebar between the flat book list and collapsible author
+                groups, and rename or merge books, delete one, or undo an
+                import. Everything lives in one SQLite file.
               </p>
             </article>
 
@@ -1442,9 +1443,11 @@
               <p>
                 Copy a highlight as a Markdown quote with author, book and page,
                 or export the filtered view to Markdown, JSON or CSV with
-                favorites and tags marked. Backups are verified SQLite snapshots,
-                previewed before restore, and the replaced file is kept aside.
-                The old one is always recoverable.
+                favorites and tags marked. Markdown can also become one file per
+                book, frontmatter included, ready for an Obsidian-style vault.
+                Backups are verified SQLite snapshots, taken daily on launch with
+                the last seven kept, previewed before restore, and the replaced
+                file is kept aside. The old one is always recoverable.
               </p>
             </article>
 
@@ -1771,11 +1774,14 @@
               <summary>How do I move or back up a library?</summary>
               <p>
                 Preferences → Data saves a consistent snapshot of the database
-                with a date in the name. A restore verifies the file is real
-                SQLite with the kindclip tables, previews its contents, and keeps
-                the replaced file as <code>kindclip.db.before-restore</code>.
-                Re-importing restores clippings, but not favorites, tags or
-                edited notes — the backup covers those.
+                with a date in the name, and kindclip also snapshots the library
+                once per launch, keeping the newest seven in a
+                <code>backups/</code> folder next to the database. A restore
+                verifies the file is real SQLite with the kindclip tables,
+                previews its contents, and keeps the replaced file as
+                <code>kindclip.db.before-restore</code>. Re-importing restores
+                clippings, but not favorites, tags or edited notes — the backups
+                cover those.
               </p>
             </details>
 
