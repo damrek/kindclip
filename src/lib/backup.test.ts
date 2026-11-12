@@ -295,7 +295,9 @@ describe("formatBackupSize", () => {
   it("uses bytes, kilobytes and megabytes with a readable precision", () => {
     expect(formatBackupSize(0)).toBe("0 B");
     expect(formatBackupSize(512)).toBe("512 B");
+    expect(formatBackupSize(1024)).toBe("1 KB");
     expect(formatBackupSize(1536)).toBe("2 KB");
     expect(formatBackupSize(2.5 * 1024 * 1024)).toBe("2.5 MB");
+    expect(formatBackupSize(1024 * 1024)).toBe("1.0 MB");
   });
 });

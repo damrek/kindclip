@@ -1526,16 +1526,16 @@
       const candidates = snapshots
         .filter((snapshot) => doomed.has(snapshot.name))
         .map((snapshot) => snapshot.path);
-      if (candidates.length > 0) {
-        const report = await invoke<AutoBackupPruneReport>("prune_auto_backups", {
-          keep: AUTO_BACKUP_KEEP,
-          candidates,
-        });
-        logger.info(
-          `auto-backup: pruned ${report.deleted} snapshots (${report.failed} failed), ` +
-            `removed ${report.tempsDeleted} stale temp files`,
-        );
-      }
+      // Prune after every successful commit, even with nothing to delete:
+      // the command also sweeps crash leftovers from earlier runs.
+      const report = await invoke<AutoBackupPruneReport>("prune_auto_backups", {
+        keep: AUTO_BACKUP_KEEP,
+        candidates,
+      });
+      logger.info(
+        `auto-backup: pruned ${report.deleted} snapshots (${report.failed} failed), ` +
+          `removed ${report.tempsDeleted} stale temp files`,
+      );
     } catch (error) {
       logger.error("auto-backup", error);
     }

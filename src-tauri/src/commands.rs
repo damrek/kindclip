@@ -335,22 +335,18 @@ pub(crate) fn list_auto_backups_in(dir: &Path) -> Result<Vec<AutoBackup>, String
 
 /// Validate the written snapshot and move it to its final dated name.
 ///
-/// The temporary file is removed on every failure, so a crash or a rejected
-/// snapshot can never leave a damaged file under a backup name. An existing
-/// final name is never overwritten: it already counts as today's snapshot.
+/// Once the temp path is confirmed to be this folder's `kindclip-auto-*.tmp`,
+/// the temporary file is removed on every later failure, so a crash or a
+/// rejected snapshot can never leave a damaged file under a backup name. An
+/// existing final name is never overwritten, and a path that is not this
+/// folder's temporary file is rejected without deleting it.
 pub(crate) fn commit_auto_backup_at(temp: &Path, final_path: &Path) -> Result<(), String> {
-    let discard = |message: String| -> String {
-        let _ = std::fs::remove_file(temp);
-        message
-    };
     let final_name = final_path
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_default();
     if !is_auto_backup_name(&final_name) {
-        return Err(discard(format!(
-            "'{final_name}' is not an automatic backup name"
-        )));
+        return Err(format!("'{final_name}' is not an automatic backup name"));
     }
     let temp_name = temp
         .file_name()
@@ -359,11 +355,18 @@ pub(crate) fn commit_auto_backup_at(temp: &Path, final_path: &Path) -> Result<()
     let is_temp_name = temp_name.starts_with(AUTO_BACKUP_TEMP_PREFIX)
         && temp_name.ends_with(AUTO_BACKUP_TEMP_SUFFIX);
     if !is_temp_name || temp.parent() != final_path.parent() {
-        return Err(discard(format!(
+        // Never delete a path this command did not create: a foreign file
+        // passed as `temp` must survive the rejection.
+        return Err(format!(
             "cannot commit '{}': the temporary file is not part of the backup folder",
             temp.display()
-        )));
+        ));
     }
+    // The temp path is ours from here on, so cleanup on failure is safe.
+    let discard = |message: String| -> String {
+        let _ = std::fs::remove_file(temp);
+        message
+    };
     if final_path.exists() {
         return Err(discard(format!(
             "'{}' already exists; today's snapshot is kept",
@@ -972,6 +975,10 @@ mod tests {
         let error = commit_auto_backup_at(&temp, &final_path).unwrap_err();
 
         assert!(error.contains("temporary"), "{error}");
+        assert!(
+            temp.exists(),
+            "the foreign temp file must survive the rejection"
+        );
         assert!(!final_path.exists());
         std::fs::remove_dir_all(dir.parent().unwrap()).ok();
         std::fs::remove_dir_all(other.parent().unwrap()).ok();
@@ -986,8 +993,13 @@ mod tests {
             snapshot(&dir, day);
         }
         std::fs::write(dir.join("kindclip.db"), b"live").unwrap();
+        std::fs::write(dir.join("kindclip.db-wal"), b"wal").unwrap();
+        std::fs::write(dir.join("kindclip.db-shm"), b"shm").unwrap();
+        std::fs::write(dir.join("kindclip.db-journal"), b"journal").unwrap();
         std::fs::write(dir.join("kindclip.db.before-restore"), b"previous").unwrap();
         std::fs::write(dir.join("notes.txt"), b"notes").unwrap();
+        let outside = dir.parent().unwrap().join("kindclip-backup-2026-01-01.db");
+        write_sqlite(&outside, b"outside");
         let newest = dir.join("kindclip-backup-2026-01-09.db");
 
         let report = prune_auto_backups_in(
@@ -997,19 +1009,30 @@ mod tests {
                 oldest.clone(),
                 second.clone(),
                 dir.join("kindclip.db"),
+                dir.join("kindclip.db-wal"),
+                dir.join("kindclip.db-shm"),
+                dir.join("kindclip.db-journal"),
+                outside.clone(),
                 newest.clone(),
             ],
             SystemTime::now(),
         );
 
         assert_eq!(report.deleted, 2);
-        assert_eq!(report.failed, 2);
+        assert_eq!(report.failed, 6);
         assert!(!oldest.exists());
         assert!(!second.exists());
         assert!(newest.exists());
         assert_eq!(std::fs::read(dir.join("kindclip.db")).unwrap(), b"live");
+        assert_eq!(std::fs::read(dir.join("kindclip.db-wal")).unwrap(), b"wal");
+        assert_eq!(std::fs::read(dir.join("kindclip.db-shm")).unwrap(), b"shm");
+        assert_eq!(
+            std::fs::read(dir.join("kindclip.db-journal")).unwrap(),
+            b"journal"
+        );
         assert!(dir.join("kindclip.db.before-restore").exists());
         assert!(dir.join("notes.txt").exists());
+        assert!(outside.exists());
         std::fs::remove_dir_all(dir.parent().unwrap()).ok();
     }
 
