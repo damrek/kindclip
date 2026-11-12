@@ -14,7 +14,7 @@
   import StatsDialog from "./components/StatsDialog.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { confirm, open, save } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
   import {
@@ -107,6 +107,9 @@
   } from "./lib/backup";
   import {
     exportFileName,
+    groupRowsByBook,
+    planBookFileNames,
+    serializeBookMarkdown,
     serializeCsv,
     serializeJson,
     serializeMarkdown,
@@ -1447,12 +1450,60 @@
     exportOpen = true;
   }
 
+  /** S6/S7: one Markdown file per book into a chosen folder. */
+  async function exportOneFilePerBook(
+    rows: ClippingRow[],
+    includeOriginal: boolean,
+  ): Promise<void> {
+    const groups = groupRowsByBook(rows);
+    if (groups.length === 0) return;
+    const names = planBookFileNames(groups);
+    const picked = await open({
+      directory: true,
+      multiple: false,
+      title: t("export.folderPrompt"),
+    });
+    const folder = typeof picked === "string" ? picked : null;
+    if (folder === null) return; // Cancelled: the dialog stays open.
+    const existing = await invoke<string[]>("check_export_targets", { dir: folder, names });
+    if (existing.length > 0) {
+      const replace = await confirm(t("export.overwrite", { count: existing.length }), {
+        title: t("export.title"),
+        kind: "warning",
+      });
+      if (!replace) return;
+    }
+    const now = new Date();
+    const files = groups.map((group, index) => ({
+      name: names[index],
+      contents: serializeBookMarkdown(group.rows, { includeOriginal, locale, t, now }),
+    }));
+    await invoke<number>("write_export_files", { dir: folder, files });
+    logger.info(
+      `export: wrote ${groups.length} per-book markdown files with ${rows.length} clippings to '${folder}'`,
+    );
+    exportStatus = t("export.doneFolder", {
+      count: rows.length,
+      books: groups.length,
+      folder,
+    });
+    closeExport();
+  }
+
   /** S4: filtered rows → serializer → native save dialog → Rust write. */
-  async function onExport(format: ExportFormat, includeOriginal: boolean): Promise<void> {
+  async function onExport(
+    format: ExportFormat,
+    includeOriginal: boolean,
+    perBook: boolean,
+  ): Promise<void> {
     if (exporting) return;
     exporting = true;
     try {
       const rows = await exportClippings(filter);
+      if (format === "markdown" && perBook) {
+        await exportOneFilePerBook(rows, includeOriginal);
+        return;
+      }
       const bookTitle = books.find((book) => book.id === bookId)?.title ?? null;
       const fileName = exportFileName(format, bookTitle);
       const text =

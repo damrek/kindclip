@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { exportFileName, serializeCsv, serializeJson, serializeMarkdown } from "./exporter";
+import {
+  exportFileName,
+  groupRowsByBook,
+  planBookFileNames,
+  serializeBookMarkdown,
+  serializeCsv,
+  serializeJson,
+  serializeMarkdown,
+} from "./exporter";
 import { formatAddedOn } from "./library";
 import type { ClippingRow, Tag } from "./types";
 
@@ -283,5 +291,174 @@ describe("exportFileName", () => {
     expect(exportFileName("json", null, now)).toBe("kindclip-export-2026-10-16.json");
     expect(exportFileName("json", "", now)).toBe("kindclip-export-2026-10-16.json");
     expect(exportFileName("json", "¿?", now)).toBe("kindclip-export-2026-10-16.json");
+  });
+});
+
+describe("groupRowsByBook", () => {
+  it("groups rows by title and author, keeping first-seen order", () => {
+    const groups = groupRowsByBook([
+      row({ id: 1, title: "Book A", author: "Author A" }),
+      row({ id: 2, title: "Book B", author: null }),
+      row({ id: 3, title: "Book A", author: "Author A" }),
+    ]);
+    expect(
+      groups.map((group) => [group.title, group.author, group.rows.map((item) => item.id)]),
+    ).toEqual([
+      ["Book A", "Author A", [1, 3]],
+      ["Book B", null, [2]],
+    ]);
+  });
+});
+
+describe("planBookFileNames", () => {
+  it("slugifies the title and appends the markdown extension", () => {
+    expect(planBookFileNames([{ title: "Meditations", author: "Marcus Aurelius" }])).toEqual([
+      "meditations.md",
+    ]);
+  });
+
+  it("falls back to untitled and caps the base at 80 characters", () => {
+    expect(planBookFileNames([{ title: "¿?", author: null }])).toEqual(["untitled.md"]);
+    expect(planBookFileNames([{ title: "a".repeat(100), author: null }])).toEqual([
+      `${"a".repeat(80)}.md`,
+    ]);
+  });
+
+  it("adds the author suffix when two books share a base", () => {
+    expect(
+      planBookFileNames([
+        { title: "Dune", author: "Frank Herbert" },
+        { title: "Dune", author: "Brian Herbert" },
+      ]),
+    ).toEqual(["dune--frank-herbert.md", "dune--brian-herbert.md"]);
+  });
+
+  it("uses unknown-author and numeric suffixes for residual collisions", () => {
+    expect(
+      planBookFileNames([
+        { title: "Dune", author: null },
+        { title: "DUNE", author: "Someone" },
+      ]),
+    ).toEqual(["dune--unknown-author.md", "dune--someone.md"]);
+    expect(
+      planBookFileNames([
+        { title: "C++", author: "A" },
+        { title: "C#", author: "A" },
+      ]),
+    ).toEqual(["c--a.md", "c--a-2.md"]);
+  });
+
+  it("detects collisions case-insensitively", () => {
+    expect(
+      planBookFileNames([
+        { title: "Dune", author: "A" },
+        { title: "DUNE", author: "A" },
+      ]),
+    ).toEqual(["dune--a.md", "dune--a-2.md"]);
+  });
+
+  it("suffixes Windows reserved device names before resolving collisions", () => {
+    expect(
+      planBookFileNames([
+        { title: "CON", author: null },
+        { title: "com1", author: null },
+        { title: "Con Book", author: null },
+      ]),
+    ).toEqual(["con-book.md", "com1-book.md", "con-book-2.md"]);
+  });
+
+  it("keeps separators and control characters out of the name", () => {
+    expect(planBookFileNames([{ title: 'A/B\\C:D*E?F"G<H>I|J\tK', author: null }])).toEqual([
+      "a-b-c-d-e-f-g-h-i-j-k.md",
+    ]);
+  });
+
+  it("caps by code points without splitting a surrogate pair", () => {
+    const [name] = planBookFileNames([{ title: "a".repeat(79) + "\u{20000}", author: null }]);
+    expect(name).toBe(`${"a".repeat(79)}\u{20000}.md`);
+    expect(() => encodeURIComponent(name)).not.toThrow();
+  });
+});
+
+describe("serializeBookMarkdown", () => {
+  const now = new Date("2026-10-16T12:30:00.000Z");
+
+  it("writes frontmatter in the frozen key order, then the book body", () => {
+    const markdown = serializeBookMarkdown(
+      [
+        row({
+          tags: [tag("writing"), tag("habits"), tag("writing")],
+          added_on: null,
+          added_on_raw: "raw",
+        }),
+      ],
+      { ...markdownOpts, now },
+    );
+    expect(markdown).toBe(
+      "---\n" +
+        'title: "Meditations"\n' +
+        'author: "Marcus Aurelius"\n' +
+        'tags: ["habits", "writing"]\n' +
+        "clippings: 1\n" +
+        'exported_at: "2026-10-16T12:30:00.000Z"\n' +
+        "---\n" +
+        "# Meditations\n_Marcus Aurelius_\n\n> Waste no more time arguing.\n— Highlight · #writing #habits #writing · raw\n",
+    );
+  });
+
+  it("writes null for unknown authors and an empty tag sequence", () => {
+    const markdown = serializeBookMarkdown(
+      [row({ author: null, tags: [], added_on: null, added_on_raw: "raw" })],
+      { ...markdownOpts, now },
+    );
+    expect(markdown).toContain('author: null\ntags: []\nclippings: 1\n');
+    expect(markdown).toContain("# Meditations\n\n> Waste no more time arguing.");
+    expect(markdown).not.toContain("_Marcus Aurelius_");
+  });
+
+  it("escapes quotes and backslashes and collapses line breaks in scalars", () => {
+    const markdown = serializeBookMarkdown(
+      [row({ title: 'He said "hi" \\ bye\nnext', author: 'A "B"\r\nC' })],
+      { ...markdownOpts, now },
+    );
+    expect(markdown).toContain('title: "He said \\"hi\\" \\\\ bye next"');
+    expect(markdown).toContain('author: "A \\"B\\" C"');
+  });
+
+  it("unions and deduplicates tags across the book", () => {
+    const markdown = serializeBookMarkdown(
+      [row({ tags: [tag("b")] }), row({ id: 2, tags: [tag("a"), tag("b")] })],
+      { ...markdownOpts, now },
+    );
+    expect(markdown).toContain('tags: ["a", "b"]\n');
+    expect(markdown).toContain("clippings: 2\n");
+  });
+
+  it("keeps the edited-note and original-text behavior of the markdown body", () => {
+    const edited = row({
+      kind: "note",
+      content: "First draft",
+      content_edited: "Final text",
+      edited_at: "2026-01-01T00:00:00",
+      added_on: null,
+      added_on_raw: "raw",
+    });
+    const withOriginal = serializeBookMarkdown([edited], {
+      ...markdownOpts,
+      includeOriginal: true,
+      now,
+    });
+    expect(withOriginal).toContain("> Final text\n— Note · raw\n\nOriginal: First draft\n");
+  });
+
+  it("stamps the current time when no date is injected", () => {
+    const markdown = serializeBookMarkdown([row()], markdownOpts);
+    const match = /exported_at: "([^"]+)"/.exec(markdown);
+    expect(match).not.toBeNull();
+    expect(Number.isNaN(Date.parse(match?.[1] ?? ""))).toBe(false);
+  });
+
+  it("returns an empty file for no rows", () => {
+    expect(serializeBookMarkdown([], markdownOpts)).toBe("");
   });
 });

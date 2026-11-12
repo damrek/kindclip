@@ -89,6 +89,10 @@ describe("export keys", () => {
     "export.done",
     "export.error",
     "export.originalLabel",
+    "export.perBook",
+    "export.folderPrompt",
+    "export.overwrite",
+    "export.doneFolder",
   ];
 
   it("resolves every export key in every locale", () => {

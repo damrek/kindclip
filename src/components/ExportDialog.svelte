@@ -9,7 +9,7 @@
     scope: string;
     busy: boolean;
     onClose: () => void;
-    onExport: (format: ExportFormat, includeOriginal: boolean) => void;
+    onExport: (format: ExportFormat, includeOriginal: boolean, perBook: boolean) => void;
   }
 
   const { count, scope, busy, onClose, onExport }: Props = $props();
@@ -24,6 +24,7 @@
 
   let format = $state<ExportFormat>("markdown");
   let includeOriginal = $state(false);
+  let perBook = $state(false);
 
   const summary = $derived(i18n.t("export.summary", { count, scope }));
 </script>
@@ -82,6 +83,15 @@
         />
         {i18n.t("export.includeOriginal")}
       </label>
+      <label class="mt-2 flex items-center gap-2 text-sm text-fg">
+        <input
+          type="checkbox"
+          bind:checked={perBook}
+          disabled={busy}
+          class="accent-[var(--accent)]"
+        />
+        {i18n.t("export.perBook")}
+      </label>
     {/if}
 
     <div class="mt-4 flex items-center justify-end gap-2">
@@ -95,7 +105,7 @@
       </button>
       <button
         type="button"
-        onclick={() => onExport(format, includeOriginal)}
+        onclick={() => onExport(format, includeOriginal, format === "markdown" && perBook)}
         disabled={busy}
         class="rounded-full bg-inverse px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:opacity-80 disabled:opacity-50"
       >
