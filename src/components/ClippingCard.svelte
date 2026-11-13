@@ -2,7 +2,8 @@
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { selectOnInteraction } from "../lib/focus";
-  import { formatAddedOn, formatReference, tagOverflow } from "../lib/library";
+  import { formatAddedOn, referenceText } from "../lib/format";
+  import { tagOverflow } from "../lib/library";
   import type { ClippingKind, ClippingRow, Tag } from "../lib/types";
   import HighlightedText from "./HighlightedText.svelte";
   import Icon from "./Icon.svelte";
@@ -49,7 +50,7 @@
     onFilterEdited,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
-  const reference = $derived(formatReference(clipping.page, clipping.location));
+  const reference = $derived(referenceText(i18n.t, clipping.page, clipping.location));
   const kindLabel = $derived(i18n.t(`kind.${clipping.kind}`));
   const addedOnLabel = $derived(
     formatAddedOn(clipping.added_on, clipping.added_on_raw, i18n.locale),

@@ -2,7 +2,8 @@
  * them, pagination, and the request token that makes a slow response lose
  * against a newer one. Extracted from App so it can be tested without a DOM. */
 import { describeError } from "../errors";
-import { clampPage, emptyFilter } from "../library";
+import { emptyFilter } from "../library";
+import { clampPage } from "../pagination";
 import { DEFAULT_CLIPPING_SORT, type ClippingSort } from "../sorting";
 import type { Book, ClippingFilter, ClippingRow, PagedResult, PageRequest } from "../types";
 

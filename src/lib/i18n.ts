@@ -13,6 +13,8 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 };
 
 const es = {
+  "reference.page": "pág. {n}",
+  "reference.location": "pos. {value}",
   "app.tagline": "Tus subrayados de Kindle, en un solo lugar.",
   "header.import": "Importar",
   "header.importing": "Importando…",
@@ -262,6 +264,8 @@ export type TranslateParams = Record<string, string | number>;
 export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
   es,
   en: {
+  "reference.page": "p. {n}",
+  "reference.location": "pos. {value}",
     "app.tagline": "Your Kindle highlights, all in one place.",
     "header.import": "Import",
     "header.importing": "Importing…",
@@ -503,6 +507,8 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "stats.unknownYear": "Undated",
   },
   fr: {
+  "reference.page": "p. {n}",
+  "reference.location": "pos. {value}",
     "app.tagline": "Vos surlignages Kindle, au même endroit.",
     "header.import": "Importer",
     "header.importing": "Importation…",
@@ -745,6 +751,8 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "stats.unknownYear": "Sans date",
   },
   de: {
+  "reference.page": "S. {n}",
+  "reference.location": "Pos. {value}",
     "app.tagline": "Deine Kindle-Markierungen, alle an einem Ort.",
     "header.import": "Importieren",
     "header.importing": "Wird importiert…",
@@ -987,6 +995,8 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "stats.unknownYear": "Ohne Datum",
   },
   it: {
+  "reference.page": "p. {n}",
+  "reference.location": "pos. {value}",
     "app.tagline": "Le tue evidenziazioni Kindle, tutte in un unico posto.",
     "header.import": "Importa",
     "header.importing": "Importazione…",

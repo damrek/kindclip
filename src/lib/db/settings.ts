@@ -1,4 +1,4 @@
-import { PAGE_SIZES } from "../library";
+import { PAGE_SIZES } from "../pagination";
 import {
   CLIPPING_SORT_DIRS,
   CLIPPING_SORT_KEYS,
