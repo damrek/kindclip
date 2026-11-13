@@ -7,6 +7,7 @@
 import { describeError } from "../errors";
 import {
   addClippingTag,
+  getDb,
   ensureTag,
   listTags,
   removeClippingTag,
@@ -54,6 +55,13 @@ const writeClipboard = async (text: string): Promise<void> => {
   const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
   await writeText(text);
 };
+
+/** Production wiring: the shared connection; the rest stays injectable. */
+export function createClippingActions(
+  deps: Omit<ClippingActionsDeps, "getPort">,
+): ClippingActions {
+  return new ClippingActions({ ...deps, getPort: () => getDb() });
+}
 
 export class ClippingActions {
   /** Which copy action just succeeded, for its 1.5 s check mark. */

@@ -1,7 +1,9 @@
 /** The clipping list as one state machine: rows, the filter that produced
  * them, pagination, and the request token that makes a slow response lose
  * against a newer one. Extracted from App so it can be tested without a DOM. */
+import { getDb, listBooks, listClippings } from "../db";
 import { describeError } from "../errors";
+import { logger } from "../log";
 import { emptyFilter } from "../library";
 import { clampPage } from "../pagination";
 import { DEFAULT_CLIPPING_SORT, type ClippingSort } from "../sorting";
@@ -16,6 +18,14 @@ export type PageLoader = (
 export type BookLoader = () => Promise<Book[]>;
 
 type LogSink = (scope: string, error: unknown) => void;
+
+/** Production wiring: the shared connection and the diagnostic logger. */
+export function createClippingList(): ClippingList {
+  return new ClippingList(
+    async (filter, page, sort) => listClippings(await getDb(), filter, page, sort),
+    logger.error,
+  );
+}
 
 export class ClippingList {
   result = $state<PagedResult<ClippingRow> | null>(null);
@@ -96,6 +106,10 @@ export class ClippingList {
 }
 
 /** Book list with its own loaded flag; the caller prunes a stale selection. */
+export function createBookShelf(): BookShelf {
+  return new BookShelf(async () => listBooks(await getDb()), logger.error);
+}
+
 export class BookShelf {
   books = $state<Book[]>([]);
   loaded = $state(false);

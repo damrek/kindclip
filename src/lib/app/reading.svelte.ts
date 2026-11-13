@@ -5,6 +5,8 @@
  * Closing returns focus to the opener when it is still mounted, or parks it on
  * the list when a page change unmounted the card. */
 import { tick } from "svelte";
+import { getDb, listClippings } from "../db";
+import { logger } from "../log";
 import { describeError } from "../errors";
 import {
   advanceReading,
@@ -34,6 +36,14 @@ export type ReadingPageLoader = (
 ) => Promise<PagedResult<ClippingRow>>;
 
 type LogSink = (scope: string, error: unknown) => void;
+
+/** Production wiring: the shared connection and the diagnostic logger. */
+export function createReadingState(): ReadingState {
+  return new ReadingState(
+    async (filter, page, sort) => listClippings(await getDb(), filter, page, sort),
+    logger.error,
+  );
+}
 
 export class ReadingState {
   /** Full-window session; null when closed. */

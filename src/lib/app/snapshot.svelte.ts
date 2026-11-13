@@ -22,10 +22,10 @@ import {
   type AutoBackupPruneReport,
   type BackupInfo,
 } from "../backup";
-import type { DbPort } from "../db";
+import { closeDb, getDb, type DbPort } from "../db";
 import { commandError, describeError } from "../errors";
 import type { Translate } from "../format";
-import type { Logger } from "../log";
+import { logger, type Logger } from "../log";
 
 /** Native seams of the snapshot flows, one method per external effect. */
 export interface SnapshotBackend {
@@ -90,6 +90,23 @@ export interface SnapshotDeps {
   /** Reload the views after a failed restore attempt reopened the database. */
   refresh: () => Promise<void>;
   log: Logger;
+}
+
+/** Production wiring: the shared connection, the Tauri backend and the logger. */
+export function createSnapshotState(deps: {
+  t: Translate;
+  refresh: () => Promise<void>;
+}): SnapshotState {
+  return new SnapshotState({
+    getPort: () => getDb(),
+    closePort: async () => {
+      await closeDb();
+    },
+    t: deps.t,
+    backend: tauriSnapshotBackend(),
+    refresh: deps.refresh,
+    log: logger,
+  });
 }
 
 export class SnapshotState {

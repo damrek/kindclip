@@ -4,13 +4,14 @@
 import {
   pickDroppedFile,
   runImportFromPath,
+  tauriImportDeps,
   type ImportDeps,
   type ImportOutcome,
 } from "../importer";
 import type { Translate } from "../format";
 import type { CountText } from "../i18n";
 import { describeError } from "../errors";
-import type { Logger } from "../log";
+import { logger, type Logger } from "../log";
 
 export type ImportRunner = (
   deps: ImportDeps,
@@ -26,6 +27,15 @@ export interface ImportStateDeps {
   /** Reload the shelf and the list after a successful import. */
   refresh: () => Promise<void>;
   log: Logger;
+}
+
+/** Production wiring: the Tauri seams and the diagnostic logger. */
+export function createImportState(deps: {
+  t: Translate;
+  count: CountText;
+  refresh: () => Promise<void>;
+}): ImportState {
+  return new ImportState({ ...deps, makeDeps: tauriImportDeps, log: logger });
 }
 
 export class ImportState {

@@ -13,13 +13,9 @@
   import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
   import StatsDialog from "./components/StatsDialog.svelte";
   import appIcon from "./assets/icon.png";
-  import { invoke } from "@tauri-apps/api/core";
-  import { confirm, open } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
   import { I18N_CONTEXT_KEY, countText, type I18nContext } from "./lib/i18n";
-  import { applyTheme, resolveTheme, systemPrefersDark } from "./lib/theme";
-  import { applyFontScale } from "./lib/font";
   import {
     readSidebarOpen,
     readSidebarView,
@@ -28,43 +24,22 @@
     type SidebarView,
   } from "./lib/sidebar";
   import {
-    closeDb,
     exportClippings,
     getDb,
-    getSetting,
-    listBooks,
-    listClippings,
     listTags,
-    loadFilterState,
-    setSetting,
-    SETTINGS_KEYS,
     type DbPort,
     type ImportedFile,
-    type StoredFilterState,
     type TagCount,
   } from "./lib/db";
-  import { runImportFlow, tauriImportDeps } from "./lib/importer";
+  import { runImportFlow } from "./lib/importer";
   import { describeError, logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
                   type ExportFormat,
   } from "./lib/exporter";
   import {
-    debounce,
-    groupBooksByAuthor,
-    totalClippings,
-    pruneAuthors,
     withoutTagId,
   } from "./lib/library";
-  import {
-      fromStored,
-    keepKnownTags,
-    toStored,
-      } from "./lib/filters";
-  import {
-    sortBooks,
-    type BookSortKey,
-  } from "./lib/sorting";
   import {
     type ReadingDirection,
   } from "./lib/reading";
@@ -75,48 +50,63 @@
     resolveShortcut,
     stepSelection,
     type SelectionDirection,
-    type ShortcutAction,
   } from "./lib/shortcuts";
   import { focusOnMount, trapFocus } from "./lib/focus";
-  import type { Book, ClippingKind, ClippingRow } from "./lib/types";
-  import { loadReadingStats } from "./lib/stats";
-  import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
-  import { Preferences } from "./lib/app/preferences.svelte";
-  import { ReadingState } from "./lib/app/reading.svelte";
-  import { LibraryPanel } from "./lib/app/library.svelte";
-  import { SnapshotState, tauriSnapshotBackend } from "./lib/app/snapshot.svelte";
-  import { ImportState, type ImportRunner } from "./lib/app/import.svelte";
-  import { ExportState, saveDialog } from "./lib/app/export.svelte";
-  import { StatsState } from "./lib/app/stats.svelte";
-  import { ClippingActions } from "./lib/app/actions.svelte";
-  import { FilterState } from "./lib/app/filters.svelte";
-  import { escapeLayer } from "./lib/app/overlays";
+  import type { BookSortKey } from "./lib/sorting";
+import type { Book, ClippingKind, ClippingRow } from "./lib/types";
+  import { createBookShelf, createClippingList } from "./lib/app/catalog.svelte";
+  import { createPreferences } from "./lib/app/preferences.svelte";
+  import { createReadingState } from "./lib/app/reading.svelte";
+  import { createLibraryPanel } from "./lib/app/library.svelte";
+  import { createSnapshotState } from "./lib/app/snapshot.svelte";
+  import { createImportState, type ImportRunner } from "./lib/app/import.svelte";
+  import { createExportState } from "./lib/app/export.svelte";
+  import { createStatsState } from "./lib/app/stats.svelte";
+  import { createClippingActions } from "./lib/app/actions.svelte";
+  import { createViewModel } from "./lib/app/viewModel";
+  import { ShellBoot } from "./lib/app/boot.svelte";
+  import { escapeLayer, Overlays } from "./lib/app/overlays.svelte";
+  import {
+    dispatchEscape,
+    dispatchShortcut,
+    type EscapeHandlers,
+    type ShortcutHandlers,
+  } from "./lib/app/keyboard";
 
   /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
     return run(await getDb());
   }
 
-  const list = new ClippingList(
-    (filter, page, sort) => withPort((port) => listClippings(port, filter, page, sort)),
-    logger.error,
-  );
-  const shelf = new BookShelf(
-    () => withPort((port) => listBooks(port)),
-    logger.error,
-  );
+  const list = createClippingList();
+  const shelf = createBookShelf();
   let allTags = $state<TagCount[]>([]);
-  /** Set once the stored filter has been applied; gates load and save. */
-  let prefsReady = $state(false);
 
-  const filters = new FilterState({
+  const prefs = createPreferences();
+  const t = prefs.t;
+  /** Dialog flags, the selection cursor and the opener focus returns to. */
+  const overlays = new Overlays();
+  const snapshot = createSnapshotState({
+    t,
+    refresh: () => refreshAfterLibraryChange(),
+  });
+  /** Startup effects, hydration and the stored filter live in one module. */
+  const boot = new ShellBoot({
+    prefs,
+    list,
+    shelf,
+    overlays,
+    snapshot,
+    getPort: () => getDb(),
+    setTags: (tags) => {
+      allTags = tags;
+    },
+    autoBackupEnabled: () => prefs.autoBackupEnabled,
     resetPage: () => {
       list.page = 1;
     },
-    persist: (state) => {
-      saveFilters(state);
-    },
   });
+  const filters = boot.filters;
   let sidebarOpen = $state(readSidebarOpen());
   let sidebarView = $state(readSidebarView());
   let searchExpanded = $state(false);
@@ -124,44 +114,17 @@
 
   let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
-  /** Manual backup, automatic snapshot and restore live in one module. */
-  let autoBackupStarted = false;
-  /** Full-window reading.session session; null when closed. */
-  const reading = new ReadingState(
-    (filterState, page, sort) => withPort((port) => listClippings(port, filterState, page, sort)),
-    logger.error,
-  );
-  /** Element that opened the reading.session view; focus returns to it on close. */
+  /** Full-window reading session; null when closed. */
+  const reading = createReadingState();
+  /** Element that opened the reading view; focus returns to it on close. */
   let listRegion = $state<HTMLElement | null>(null);
   /** Card selected with j/k; the target of Enter, * and c. */
-  let selectedId = $state<number | null>(null);
-  let shortcutsOpen = $state(false);
-  /** Global clipping search overlay (Ctrl/Cmd+P). */
-  let paletteOpen = $state(false);
-  /** Controlled so App can close one overlay per Escape. */
-  let filtersOpen = $state(false);
-  let prefsOpen = $state(false);
-  /** Element that opened the current modal; focus returns to it on close. */
-  let modalOpener: HTMLElement | null = null;
-  const prefs = new Preferences({
-    getSetting: (key) => withPort((port) => getSetting(port, key)),
-    setSetting: (key, value) => withPort((port) => setSetting(port, key, value)),
-    applyTheme: (mode, palette) =>
-      applyTheme(
-        document.documentElement,
-        resolveTheme(mode, systemPrefersDark(), palette),
-      ),
-    applyFontScale: (scale) => applyFontScale(document.documentElement, scale),
-    log: logger.error,
-  });
-  const t = prefs.t;
 
-  const library = new LibraryPanel({
-    getPort: () => getDb(),
+  const library = createLibraryPanel({
     t,
     count: (noun, value) => countText(prefs.locale, noun, value),
     refresh: async () => {
-      await loadBooks();
+      await boot.loadBooks();
       await list.reload(filters.filter, filters.values.pageSize, filters.sort);
       const port = await getDb();
       allTags = await listTags(port);
@@ -169,36 +132,7 @@
     onTagRemoved: (tagId) => {
       filters.values.tagIds = withoutTagId(filters.values.tagIds, tagId);
     },
-    log: logger.error,
   });
-  const snapshot = new SnapshotState({
-    getPort: () => getDb(),
-    closePort: async () => {
-      await closeDb();
-    },
-    t,
-    backend: tauriSnapshotBackend(),
-    refresh: () => refreshAfterLibraryChange(),
-    log: logger,
-  });
-
-  /** Live system preference: the theme follows macOS while the choice is "system". */
-  $effect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = (): void => prefs.applyCurrentTheme();
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  });
-
-  $effect(() => {
-    prefs.applyCurrentFont();
-  });
-
-  $effect(() => {
-    document.documentElement.lang = prefs.locale;
-  });
-
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
       return prefs.locale;
@@ -208,21 +142,18 @@
   });
 
   const filter = $derived(filters.filter);
-  const clippingSort = $derived(filters.sort);
 
-  const imports = new ImportState({
+  const imports = createImportState({
     t,
     count: (noun, value) => countText(prefs.locale, noun, value),
-    makeDeps: tauriImportDeps,
     refresh: async () => {
       list.page = 1;
-      await loadBooks();
+      await boot.loadBooks();
       list.resetPage();
       await list.reload(filters.filter, filters.values.pageSize, filters.sort);
     },
-    log: logger,
   });
-  const exports = new ExportState({
+  const exports = createExportState({
     loadRows: () => withPort((port) => exportClippings(port, filter)),
     t,
     locale: () => prefs.locale,
@@ -230,37 +161,10 @@
     bookId: () => filters.values.bookId,
     bookTitle: (bookId) => shelf.books.find((book) => book.id === bookId)?.title ?? null,
     canExport: () => list.result !== null && list.result.total > 0,
-    now: () => new Date(),
-    backend: {
-      pickFolder: async (title) => {
-        const picked = await open({ directory: true, multiple: false, title });
-        return typeof picked === "string" ? picked : null;
-      },
-      checkTargets: (dir, names) => invoke<string[]>("check_export_targets", { dir, names }),
-      confirmReplace: (message, title) => confirm(message, { title, kind: "warning" }),
-      writeFiles: (dir, files) => invoke<number>("write_export_files", { dir, files }),
-      defaultPath: async (fileName) => {
-        try {
-          return await invoke<string>("export_default_path", { suggestedFileName: fileName });
-        } catch {
-          // Non-fatal: the bare file name is a valid default path.
-          return fileName;
-        }
-      },
-      saveFile: saveDialog,
-      writeFile: (path, contents) => invoke("write_export_file", { path, contents }),
-    },
-    log: logger,
   });
 
-  const stats = new StatsState({
-    getPort: () => getDb(),
-    load: loadReadingStats,
-    t,
-    log: logger,
-  });
-  const actions = new ClippingActions({
-    getPort: () => getDb(),
+  const stats = createStatsState({ t });
+  const actions = createClippingActions({
     list,
     reload: () => list.reload(filters.filter, filters.values.pageSize, filters.sort),
     favoritesOnly: () => filters.values.favoritesOnly,
@@ -272,143 +176,21 @@
     },
   });
 
+
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
     reading.session !== null ||
-      paletteOpen ||
+      overlays.palette ||
       actions.resetTarget !== null ||
       exports.open ||
       library.open ||
       stats.open ||
       snapshot.open ||
-      prefsOpen ||
-      shortcutsOpen,
+      overlays.preferences ||
+      overlays.shortcuts,
   );
   const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.values.pageSize)));
 
-
-  async function loadBooks(): Promise<void> {
-    const failure = await shelf.reload();
-    if (failure !== null) {
-      list.error = failure;
-      return;
-    }
-    if (filters.values.bookId !== null && !shelf.has(filters.values.bookId)) {
-      // Persisted book gone (fresh DB, re-import, …): fall back to all.
-      filters.values.bookId = null;
-      list.resetPage();
-    }
-  }
-
-  /** Once on startup: DB is the source of truth, caches seed it on first run. */
-  async function loadPreferences(): Promise<void> {
-    try {
-      await prefs.hydrate();
-      const port = await getDb();
-      const [dbFilter, dbTags] = await Promise.all([loadFilterState(port), listTags(port)]);
-      allTags = dbTags;
-      if (dbFilter) {
-        const restored = fromStored(dbFilter);
-        // Drop ids whose tag is gone (same guard as the book id).
-        restored.tagIds = keepKnownTags(
-          restored.tagIds,
-          dbTags.map((tag) => tag.id),
-        );
-        filters.hydrate(restored);
-      } else {
-        filters.hydrate(null);
-        await persistFilterState(toStored(filters.values));
-      }
-    } catch (error) {
-      // Non-fatal: the app works with defaults and in-memory filters.
-      logger.error("preferences-load", error);
-    } finally {
-      // The stored filter (or the defaults) is in place: the list may load
-      // and the filter state may be saved. Without this gate the first load
-      // runs with the empty default filter, so a list saved with
-      // kinds = [note, highlight] briefly shows every kind and a slow DB
-      // start can even persist the defaults back over the stored filter.
-      prefsReady = true;
-    }
-  }
-
-  async function persistFilterState(state: StoredFilterState): Promise<void> {
-    await prefs.persistSetting(SETTINGS_KEYS.filter, JSON.stringify(state));
-  }
-
-  const saveFilters = debounce((state: StoredFilterState) => {
-    void persistFilterState(state);
-  }, 500);
-
-  $effect(() => {
-    filters.scheduleQuery(filters.values.query);
-  });
-
-  // NOTE: $effect only tracks state read SYNCHRONOUSLY in its body.
-  // list.reload reads page synchronously, so this effect tracks it; filter and
-  // pageSize are passed in from state read in this body.
-  //
-  // Waiting for prefsReady keeps the first load from running with the empty
-  // default filter: the stored filters.values.kinds must be applied first, or a list saved
-  // as notes + highlights flashes every kind (bookmarks included) and a slow
-  // cold start can leave that unfiltered page on screen.
-  $effect(() => {
-    if (!prefsReady) return;
-    void list.reload(filter, filters.values.pageSize, clippingSort);
-  });
-
-  $effect(() => {
-    void loadBooks();
-  });
-
-  $effect(() => {
-    void loadPreferences();
-  });
-
-  // One automatic snapshot per launch, after the first page is on screen:
-  // the VACUUM runs in the background and never delays first paint. Waiting
-  // for `loading` to settle also keeps it from competing with the first list
-  // filters.values.query for the same connection.
-  $effect(() => {
-    if (!prefsReady || list.loading || autoBackupStarted) return;
-    autoBackupStarted = true;
-    if (prefs.autoBackupEnabled) {
-      void snapshot.autoBackup();
-    }
-  });
-
-  // Snapshot passed synchronously (see the reload NOTE above): the debounced
-  // write itself runs outside tracking, but the state snapshot is captured here.
-  // Gated until the stored filter is applied, so the defaults are never written
-  // over a filter the user already saved.
-  $effect(() => {
-    if (!prefsReady) return;
-    filters.save();
-  });
-
-  // A renamed or deleted author must not keep hiding the library (S6). Wait
-  // for the stored filter and the first successful book load, so neither the
-  // empty default nor a cold-start race can silently clear the selection.
-  $effect(() => {
-    if (!prefsReady || !shelf.loaded) return;
-    const next = pruneAuthors(filters.values.authors, shelf.books);
-    if (next !== filters.values.authors) {
-      filters.values.authors = next;
-      list.page = 1;
-    }
-  });
-
-  $effect(() => {
-    document.documentElement.lang = prefs.locale;
-  });
-
-  /** A reload that drops the selected row (page, filter, delete) clears it. */
-  $effect(() => {
-    if (selectedId === null) return;
-    if (list.result === null || !list.result.items.some((item) => item.id === selectedId)) {
-      selectedId = null;
-    }
-  });
 
   const selectBook = (id: number | null): void => filters.selectBook(id);
   const setBookSortBy = (key: BookSortKey): void => filters.setBookSortBy(key);
@@ -486,7 +268,7 @@
     return actions.confirmReset();
   }
 
-  /** Open the full-window reading.session view on one visible row. */
+  /** Open the full-window reading view on one visible row. */
   function startReading(id: number): void {
     if (!list.result) return;
     const opener =
@@ -499,15 +281,14 @@
     );
   }
 
-  /** Global palette result: the matches become the reading.session window. */
+  /** Global palette result: the matches become the reading session window. */
   function openPaletteResult(items: ClippingRow[], id: number, query: string): void {
-    const opener = modalOpener;
-    paletteOpen = false;
-    modalOpener = null;
+    const opener = overlays.takeOpener();
+    overlays.palette = false;
     reading.openWindow(items, id, opener, query);
   }
 
-  /** Close and leave the list on the page where reading.session stopped. */
+  /** Close and leave the list on the page where reading stopped. */
   function closeReading(): Promise<void> {
     return reading.close(
       (target) => {
@@ -518,48 +299,14 @@
     );
   }
 
-  /** Remember where focus was before a modal opened. A dialog opened from
-   * another one keeps the original opener, so focus never lands on a panel
-   * that unmounted with the chain. */
-  function rememberOpener(): void {
-    if (modalOpener !== null && modalOpener.isConnected) return;
-    modalOpener =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  }
+  const rememberOpener = (): void => overlays.rememberOpener();
+  /** Focus returns to the opener, or to the list when it unmounted. */
+  const restoreOpener = (): void => overlays.restoreOpener(listRegion);
 
-  /** Give focus back once the modal unmounted and the shell is not inert. */
-  function restoreOpener(): void {
-    const opener = modalOpener;
-    modalOpener = null;
-    void tick().then(() => {
-      const target = opener !== null && opener.isConnected ? opener : listRegion;
-      target?.focus();
-    });
-  }
-
-  function openShortcuts(): void {
-    if (shortcutsOpen) return;
-    rememberOpener();
-    shortcutsOpen = true;
-  }
-
-  function openPalette(): void {
-    if (paletteOpen || modalOpen) return;
-    rememberOpener();
-    paletteOpen = true;
-  }
-
-  function closePalette(): void {
-    if (!paletteOpen) return;
-    paletteOpen = false;
-    restoreOpener();
-  }
-
-  function closeShortcuts(): void {
-    if (!shortcutsOpen) return;
-    shortcutsOpen = false;
-    restoreOpener();
-  }
+  const openShortcuts = (): void => overlays.openShortcuts();
+  const closeShortcuts = (): void => overlays.closeShortcuts(listRegion);
+  const openPalette = (): void => overlays.openPalette(modalOpen);
+  const closePalette = (): void => overlays.closePalette(listRegion);
 
   function closeReset(): void {
     if (actions.closeReset()) {
@@ -580,18 +327,10 @@
     }
   }
 
-  function openPreferences(): void {
-    if (prefsOpen) return;
-    rememberOpener();
-    prefsOpen = true;
-  }
-
+  const openPreferences = (): void => overlays.openPreferences();
   /** `restoreFocus: false` when another dialog takes over the screen. */
-  function closePreferences(restoreFocus = true): void {
-    if (!prefsOpen) return;
-    prefsOpen = false;
-    if (restoreFocus) restoreOpener();
-  }
+  const closePreferences = (restoreFocus = true): void =>
+    overlays.closePreferences(listRegion, restoreFocus);
 
   /** Settings actions that own the screen: the dialog steps aside first. */
   function handOffFromPreferences(action: () => void): void {
@@ -607,9 +346,9 @@
 
   /** Focus a visible card so it becomes the j/k, Enter, * and c target. */
   async function moveSelection(direction: SelectionDirection): Promise<void> {
-    const next = stepSelection(list.result?.items ?? [], selectedId, direction);
+    const next = stepSelection(list.result?.items ?? [], overlays.selectedId, direction);
     if (next === null) return;
-    selectedId = next;
+    overlays.selectedId = next;
     await tick();
     listRegion
       ?.querySelector<HTMLElement>(`[data-clipping-id="${next}"]`)
@@ -620,55 +359,59 @@
     const next = direction === "next" ? list.page + 1 : list.page - 1;
     if (next < 1 || next > pages) return;
     list.page = next;
-    selectedId = null;
+    overlays.selectedId = null;
   }
 
-  function runShortcut(action: ShortcutAction): void {
-    switch (action) {
-      case "focus-search":
-        void openSearch();
-        break;
-      case "open-palette":
-        openPalette();
-        break;
-      case "open-help":
-        openShortcuts();
-        break;
-      case "toggle-sidebar":
-        toggleSidebar();
-        break;
-      case "open-filters":
-        filtersOpen = true;
-        break;
-      case "open-preferences":
-        openPreferences();
-        break;
-      case "next-clipping":
-        void moveSelection("next");
-        break;
-      case "prev-clipping":
-        void moveSelection("prev");
-        break;
-      case "open-clipping":
-        if (selectedId !== null) startReading(selectedId);
-        break;
-      case "toggle-favorite":
-        if (selectedId !== null) void toggleStar(selectedId);
-        break;
-      case "copy-clipping":
-        if (selectedId !== null) void copyContent(selectedId);
-        break;
-      case "copy-quote":
-        if (selectedId !== null) void copyQuote(selectedId);
-        break;
-      case "next-page":
-        stepPage("next");
-        break;
-      case "prev-page":
-        stepPage("prev");
-        break;
-    }
-  }
+  /** One handler per resolved shortcut; the shell owns the actions. */
+  const shortcutHandlers: ShortcutHandlers = {
+    openSearch: () => void openSearch(),
+    openPalette,
+    openShortcuts,
+    toggleSidebar,
+    openFilters: () => overlays.openFilters(),
+    openPreferences,
+    nextClipping: () => void moveSelection("next"),
+    prevClipping: () => void moveSelection("prev"),
+    openClipping: () => {
+      if (overlays.selectedId !== null) startReading(overlays.selectedId);
+    },
+    toggleFavorite: () => {
+      if (overlays.selectedId !== null) void toggleStar(overlays.selectedId);
+    },
+    copyClipping: () => {
+      if (overlays.selectedId !== null) void copyContent(overlays.selectedId);
+    },
+    copyQuote: () => {
+      if (overlays.selectedId !== null) void copyQuote(overlays.selectedId);
+    },
+    nextPage: () => stepPage("next"),
+    prevPage: () => stepPage("prev"),
+  };
+
+  /** Escape handlers; the busy read stays live through the getter. */
+  const escapeHandlers: EscapeHandlers = {
+    busy: () => ({
+      export: exports.task.busy,
+      library: library.busy,
+      restore: snapshot.busy,
+    }),
+    closePalette,
+    closeShortcuts,
+    closeReset,
+    closeExport,
+    closeLibrary,
+    closeStats,
+    closeRestore,
+    closePreferences: () => closePreferences(),
+    closeFilters: () => overlays.closeFilters(),
+    clearQuery: () => {
+      filters.values.query = "";
+    },
+    foldSearch: () => {
+      searchExpanded = false;
+    },
+    clearSelection: () => overlays.clearSelection(),
+  };
 
   /** One window listener: Escape closes one layer, everything else resolves. */
   function onWindowKeydown(event: KeyboardEvent): void {
@@ -677,66 +420,27 @@
     if (event.key === "Escape") {
       const layer = escapeLayer({
         reading: reading.session !== null,
-        palette: paletteOpen,
-        shortcuts: shortcutsOpen,
+        palette: overlays.palette,
+        shortcuts: overlays.shortcuts,
         reset: actions.resetTarget !== null,
         exportOpen: exports.open,
         library: library.open,
         stats: stats.open,
         restore: snapshot.open,
-        preferences: prefsOpen,
-        filters: filtersOpen,
+        preferences: overlays.preferences,
+        filters: overlays.filters,
         query: filters.values.query,
         searchExpanded,
-        selection: selectedId !== null,
+        selection: overlays.selectedId !== null,
       });
-      if (layer === "none") return;
-      // The reading view owns its own Escape and arrows.
-      if (layer === "reading") return;
+      if (layer === "none" || layer === "reading") return;
       event.preventDefault();
-      switch (layer) {
-        case "palette":
-          closePalette();
-          return;
-        case "shortcuts":
-          closeShortcuts();
-          return;
-        case "reset":
-          closeReset();
-          return;
-        case "export":
-          if (!exports.task.busy) closeExport();
-          return;
-        case "library":
-          if (!library.busy) closeLibrary();
-          return;
-        case "stats":
-          closeStats();
-          return;
-        case "restore":
-          if (!snapshot.busy) closeRestore();
-          return;
-        case "preferences":
-          closePreferences();
-          return;
-        case "filters":
-          filtersOpen = false;
-          return;
-        case "query":
-          filters.values.query = "";
-          return;
-        case "search":
-          searchExpanded = false;
-          return;
-        case "selection":
-          selectedId = null;
-          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-          return;
-      }
+      dispatchEscape(layer, escapeHandlers);
+      return;
     }
 
     // ? toggles the help it opened.
-    if (shortcutsOpen && event.key === "?") {
+    if (overlays.shortcuts && event.key === "?") {
       event.preventDefault();
       closeShortcuts();
       return;
@@ -746,10 +450,10 @@
     const action = resolveShortcut(event, {
       typing: isTypingTarget(target),
       interactive: isInteractiveTarget(target),
-      overlay: modalOpen || filtersOpen,
-      hasLibrary,
+      overlay: modalOpen || overlays.filters,
+      hasLibrary: view.hasLibrary,
       hasResults: (list.result?.items.length ?? 0) > 0,
-      hasSelection: selectedId !== null,
+      hasSelection: overlays.selectedId !== null,
       canPrevPage: list.page > 1,
       canNextPage: list.page < pages,
     });
@@ -763,7 +467,7 @@
       return;
     }
     event.preventDefault();
-    runShortcut(action);
+    dispatchShortcut(action, shortcutHandlers);
   }
 
   /** Step one row; fetch the adjacent page only when the window runs out. */
@@ -881,7 +585,7 @@
 
   /** Reload every view the app can affect after a database swap. */
   async function refreshAfterLibraryChange(): Promise<void> {
-    await loadBooks();
+    await boot.loadBooks();
     await list.reload(filters.filter, filters.values.pageSize, filters.sort);
     await library.loadFiles();
     const port = await getDb();
@@ -910,88 +614,22 @@
     library.mergeTags(sourceId, targetId);
   const libraryDeleteTag = (tag: TagCount) => library.removeTag(tag);
 
-  const hasLibrary = $derived(shelf.books.length > 0);
-  const libraryTotal = $derived(totalClippings(shelf.books));
-  const sortedBooks = $derived(sortBooks(shelf.books, filters.values.bookSortBy, filters.values.bookSortDir));
-  /** Author groups shared by the Filters menu, chips and the grouped sidebar. */
-  const authorGroups = $derived(groupBooksByAuthor(sortedBooks));
-  const hasActiveFilters = $derived(
-    filters.values.debouncedQuery.trim() !== "" ||
-      filters.values.bookId !== null ||
-      filters.values.authors.length > 0 ||
-      filters.values.kinds.length > 0 ||
-      filters.values.favoritesOnly ||
-      filters.values.editedOnly ||
-      filters.values.tagIds.length > 0,
-  );
-  /** Dialog scope: selected book title, else which view is being exported. */
-  const exportScope = $derived(
-    shelf.books.find((book) => book.id === filters.values.bookId)?.title ??
-      (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
-  );
-  /** Tooltip for the toolbar export button: what the next export would hold. */
-  const exportSummary = $derived(
-    t("export.summary", { count: list.result?.total ?? 0, scope: exportScope }),
-  );
-  /** Row shown full-window; null while the reading.session view is closed. */
+  boot.mount();
+
+  /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading.current);
 
-  /** Selected filters.values.authors in selection order, for the removable chips under the bar. */
-  const selectedAuthors = $derived(
-    filters.values.authors.flatMap((key) => {
-      const group = authorGroups.find((item) => item.key === key);
-      return group ? [group] : [];
-    }),
-  );
-  /** Selected tags in selection order, for the removable chips under the bar. */
-  const selectedTags = $derived(
-    filters.values.tagIds.flatMap((id) => {
-      const tag = allTags.find((item) => item.id === id);
-      return tag ? [tag] : [];
-    }),
-  );
-  /** Filter checklist: orphans stay hidden unless already selected (S5). */
-  const filterTags = $derived(
-    allTags.filter((tag) => tag.clipping_count > 0 || filters.values.tagIds.includes(tag.id)),
-  );
-
-  interface ActiveFilterChip {
-    key: string;
-    label: string;
-    remove: () => void;
-  }
-
-  /** Every active filter is visible and removable in the chip row, not just tags. */
-  const activeChips = $derived.by((): ActiveFilterChip[] => {
-    const chips: ActiveFilterChip[] = [];
-    for (const kind of filters.values.kinds) {
-      chips.push({
-        key: `kind:${kind}`,
-        label: t(`kind.${kind}`),
-        remove: () => toggleKind(kind),
-      });
-    }
-    if (filters.values.favoritesOnly) {
-      chips.push({ key: "favorites", label: t("fav.toggle"), remove: toggleFavoritesOnly });
-    }
-    if (filters.values.editedOnly) {
-      chips.push({ key: "edited", label: t("edit.toggle"), remove: toggleEditedOnly });
-    }
-    for (const group of selectedAuthors) {
-      chips.push({
-        key: `author:${group.key}`,
-        label: group.name ?? t("filters.unknownAuthor"),
-        remove: () => toggleAuthor(group.key),
-      });
-    }
-    for (const tag of selectedTags) {
-      chips.push({
-        key: `tag:${tag.id}`,
-        label: `#${tag.name}`,
-        remove: () => toggleTag(tag.id),
-      });
-    }
-    return chips;
+  const view = createViewModel({
+    books: () => shelf.books,
+    tags: () => allTags,
+    values: () => filters.values,
+    total: () => list.result?.total ?? 0,
+    t,
+    toggleKind,
+    toggleFavorites: toggleFavoritesOnly,
+    toggleEdited: toggleEditedOnly,
+    toggleAuthor,
+    toggleTag,
   });
 </script>
 
@@ -1000,7 +638,7 @@
     class="flex items-center justify-between gap-4 border-b border-line px-4 py-2.5"
   >
     <div class="flex min-w-0 items-center gap-2">
-      {#if hasLibrary}
+      {#if view.hasLibrary}
         <button
           type="button"
           onclick={toggleSidebar}
@@ -1040,7 +678,7 @@
     </p>
   {/if}
 
-  {#if !hasLibrary && !list.loading}
+  {#if !view.hasLibrary && !list.loading}
     <main class="flex flex-1 items-center justify-center px-6">
       <div class="max-w-sm text-center">
         <div
@@ -1081,12 +719,12 @@
           : 'hidden'}"
       >
         <BookSidebar
-          books={sortedBooks}
-          groups={authorGroups}
+          books={view.sortedBooks}
+          groups={view.authorGroups}
           view={sidebarView}
           onViewChange={setSidebarView}
           selectedId={filters.values.bookId}
-          totalCount={libraryTotal}
+          totalCount={view.libraryTotal}
           onSelect={selectBook}
           sortBy={filters.values.bookSortBy}
           sortDir={filters.values.bookSortDir}
@@ -1096,7 +734,7 @@
           importing={imports.busy}
           onOpenLibrary={openLibrary}
           onOpenStats={openStats}
-          libraryActionsDisabled={!hasLibrary}
+          libraryActionsDisabled={!view.hasLibrary}
         />
       </aside>
 
@@ -1149,14 +787,14 @@
           </div>
 
           <FilterMenu
-            bind:open={filtersOpen}
+            bind:open={overlays.filters}
             authors={filters.values.authors}
-            {authorGroups}
+            authorGroups={view.authorGroups}
             kinds={filters.values.kinds}
             favoritesOnly={filters.values.favoritesOnly}
             editedOnly={filters.values.editedOnly}
             tagIds={filters.values.tagIds}
-            tags={filterTags}
+            tags={view.filterTags}
             onToggleAuthor={toggleAuthor}
             onToggleKind={toggleKind}
             onToggleFavorites={toggleFavoritesOnly}
@@ -1186,8 +824,8 @@
               type="button"
               onclick={openExport}
               disabled={!list.result || list.result.total === 0}
-              title={exportSummary}
-              aria-label={exportSummary}
+              title={view.exportSummary}
+              aria-label={view.exportSummary}
               class="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
             >
               <Icon name="export" />
@@ -1209,11 +847,11 @@
           </div>
         {/if}
 
-        {#if activeChips.length > 0}
+        {#if view.activeChips.length > 0}
           <div
             class="flex flex-wrap items-center gap-1.5 border-b border-line px-6 py-2"
           >
-            {#each activeChips as chip (chip.key)}
+            {#each view.activeChips as chip (chip.key)}
               <span
                 class="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs font-medium text-fg-muted"
               >
@@ -1252,7 +890,7 @@
                 copied={actions.copyFlash?.id === clipping.id && actions.copyFlash.kind === "content"}
                 quoted={actions.copyFlash?.id === clipping.id && actions.copyFlash.kind === "quote"}
                 query={list.resultFilter.query}
-                onSelect={(id) => (selectedId = id)}
+                onSelect={(id) => (overlays.selectedId = id)}
                 onOpen={startReading}
                 onToggleFavorite={toggleStar}
                 onCopy={copyContent}
@@ -1270,13 +908,13 @@
             <div class="py-16 text-center">
               <p class="text-base font-medium">{t("results.empty")}</p>
               <p class="mt-1 text-sm text-fg-muted">
-                {#if hasActiveFilters}
+                {#if view.hasActiveFilters}
                   {t("results.noMatch")}
                 {:else}
                   {t("results.noItems")}
                 {/if}
               </p>
-              {#if hasActiveFilters}
+              {#if view.hasActiveFilters}
                 <button
                   type="button"
                   onclick={clearFilters}
@@ -1319,7 +957,7 @@
   </div>
 {/if}
 
-{#if paletteOpen}
+{#if overlays.palette}
   <CommandPalette onClose={closePalette} onOpen={openPaletteResult} />
 {/if}
 
@@ -1407,7 +1045,7 @@
 {#if exports.open}
   <ExportDialog
     count={list.result?.total ?? 0}
-    scope={exportScope}
+    scope={view.exportScope}
     busy={exports.task.busy}
     onClose={closeExport}
     onExport={onExport}
@@ -1416,7 +1054,7 @@
 
 {#if library.open}
   <LibraryDialog
-    books={sortedBooks}
+    books={view.sortedBooks}
     files={library.files}
     tags={allTags}
     busy={library.busy}
@@ -1450,7 +1088,7 @@
   />
 {/if}
 
-{#if prefsOpen}
+{#if overlays.preferences}
   <PreferencesDialog
     locale={prefs.locale}
     theme={prefs.themeMode}
@@ -1473,6 +1111,6 @@
   />
 {/if}
 
-{#if shortcutsOpen}
+{#if overlays.shortcuts}
   <ShortcutsDialog onClose={closeShortcuts} />
 {/if}

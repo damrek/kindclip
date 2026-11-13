@@ -3,8 +3,9 @@
  * The module owns the state, the fast localStorage cache that the pre-paint
  * script reads, and the DB hydration rules; the DOM application arrives as a
  * dependency so `hydrate` can be tested without a document. */
-import { SETTINGS_KEYS } from "../db";
-import { loadFontScale, saveFontScale, type FontScale } from "../font";
+import { getDb, getSetting, SETTINGS_KEYS, setSetting } from "../db";
+import { applyFontScale, loadFontScale, saveFontScale, type FontScale } from "../font";
+import { logger } from "../log";
 import {
   isLocale,
   loadLocale,
@@ -19,7 +20,10 @@ import {
   loadDarkPalette,
   loadThemeMode,
   saveDarkPalette,
+  applyTheme,
+  resolveTheme,
   saveThemeMode,
+  systemPrefersDark,
   type DarkPalette,
   type ThemeMode,
 } from "../theme";
@@ -52,6 +56,18 @@ export interface PreferencesDeps {
   applyTheme: (mode: ThemeMode, palette: DarkPalette) => void;
   applyFontScale: (scale: FontScale) => void;
   log: (scope: string, error: unknown) => void;
+}
+
+/** Production wiring: DB settings, the document and the logger. */
+export function createPreferences(): Preferences {
+  return new Preferences({
+    getSetting: async (key) => getSetting(await getDb(), key),
+    setSetting: async (key, value) => setSetting(await getDb(), key, value),
+    applyTheme: (mode, palette) =>
+      applyTheme(document.documentElement, resolveTheme(mode, systemPrefersDark(), palette)),
+    applyFontScale: (scale) => applyFontScale(document.documentElement, scale),
+    log: logger.error,
+  });
 }
 
 export class Preferences {

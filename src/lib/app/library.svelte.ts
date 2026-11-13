@@ -6,6 +6,7 @@
  * touches the books, the list and the tags. */
 import {
   deleteBook,
+  getDb,
   deleteTag,
   listImportedFiles,
   mergeBooks,
@@ -20,6 +21,7 @@ import {
   type TagCount,
 } from "../db";
 import { describeError } from "../errors";
+import { logger } from "../log";
 import type { Translate } from "../format";
 import type { CountText } from "../i18n";
 import type { Book } from "../types";
@@ -34,6 +36,13 @@ export interface LibraryDeps {
   /** Drop a tag id from the active filter after a merge or a delete. */
   onTagRemoved: (tagId: number) => void;
   log: (scope: string, error: unknown) => void;
+}
+
+/** Production wiring: the shared connection and the logger. */
+export function createLibraryPanel(
+  deps: Omit<LibraryDeps, "getPort" | "log">,
+): LibraryPanel {
+  return new LibraryPanel({ ...deps, getPort: () => getDb(), log: logger.error });
 }
 
 export class LibraryPanel {

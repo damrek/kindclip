@@ -1,16 +1,26 @@
 /** Reading-stats dialog: loaded fresh each time it opens, with a request token
  * so a slow read never lands in a dialog that was closed or reopened. */
-import type { DbPort } from "../db";
+import { getDb, type DbPort } from "../db";
 import { describeError } from "../errors";
 import type { Translate } from "../format";
-import type { Logger } from "../log";
-import type { ReadingStats } from "../stats";
+import { logger, type Logger } from "../log";
+import { loadReadingStats, type ReadingStats } from "../stats";
 
 export interface StatsStateDeps {
   getPort: () => Promise<DbPort>;
   load: (port: DbPort) => Promise<ReadingStats>;
   t: Translate;
   log: Logger;
+}
+
+/** Production wiring: the shared connection, the aggregate query and the logger. */
+export function createStatsState(deps: { t: Translate }): StatsState {
+  return new StatsState({
+    getPort: () => getDb(),
+    load: loadReadingStats,
+    t: deps.t,
+    log: logger,
+  });
 }
 
 export class StatsState {

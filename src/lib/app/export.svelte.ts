@@ -1,7 +1,8 @@
 /** Export flow: the dialog state and the two native writes (one file, or one
  * Markdown file per book), with the overwrite confirmation and the outcome
  * line in one place. */
-import { save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { AsyncTask } from "../asyncTask.svelte";
 import { describeError } from "../errors";
 import {
@@ -17,7 +18,8 @@ import {
 } from "../exporter";
 import type { Translate } from "../format";
 import type { CountText, Locale } from "../i18n";
-import type { Logger } from "../log";
+import { logger, type Logger } from "../log";
+import { nowDate } from "../time";
 import type { ClippingRow } from "../types";
 
 /** One native write the per-book export performs. */
@@ -64,6 +66,36 @@ export interface ExportStateDeps {
   now: () => Date;
   backend: ExportBackend;
   log: Logger;
+}
+
+/** Production wiring: Tauri dialogs/commands and the logger. */
+export function createExportState(
+  deps: Omit<ExportStateDeps, "now" | "backend" | "log">,
+): ExportState {
+  return new ExportState({
+    ...deps,
+    now: nowDate,
+    backend: {
+      pickFolder: async (title) => {
+        const picked = await open({ directory: true, multiple: false, title });
+        return typeof picked === "string" ? picked : null;
+      },
+      checkTargets: (dir, names) => invoke<string[]>("check_export_targets", { dir, names }),
+      confirmReplace: (message, title) => confirm(message, { title, kind: "warning" }),
+      writeFiles: (dir, files) => invoke<number>("write_export_files", { dir, files }),
+      defaultPath: async (fileName) => {
+        try {
+          return await invoke<string>("export_default_path", { suggestedFileName: fileName });
+        } catch {
+          // Non-fatal: the bare file name is a valid default path.
+          return fileName;
+        }
+      },
+      saveFile: saveDialog,
+      writeFile: (path, contents) => invoke("write_export_file", { path, contents }),
+    },
+    log: logger,
+  });
 }
 
 export class ExportState {
