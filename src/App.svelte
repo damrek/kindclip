@@ -17,7 +17,7 @@
   import { confirm, open } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "./lib/i18n";
+  import { I18N_CONTEXT_KEY, countText, type I18nContext } from "./lib/i18n";
   import { applyTheme, resolveTheme, systemPrefersDark } from "./lib/theme";
   import { applyFontScale } from "./lib/font";
   import {
@@ -177,6 +177,7 @@
   const library = new LibraryPanel({
     getPort: () => getDb(),
     t,
+    count: (noun, value) => countText(prefs.locale, noun, value),
     refresh: async () => {
       await loadBooks();
       await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
@@ -229,6 +230,7 @@
 
   const imports = new ImportState({
     t,
+    count: (noun, value) => countText(prefs.locale, noun, value),
     makeDeps: tauriImportDeps,
     refresh: async () => {
       list.page = 1;
@@ -242,6 +244,7 @@
     loadRows: () => withPort((port) => exportClippings(port, filter)),
     t,
     locale: () => prefs.locale,
+    count: (noun, value) => countText(prefs.locale, noun, value),
     bookId: () => filters.bookId,
     bookTitle: (bookId) => shelf.books.find((book) => book.id === bookId)?.title ?? null,
     canExport: () => list.result !== null && list.result.total > 0,

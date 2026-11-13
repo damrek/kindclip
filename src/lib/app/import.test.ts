@@ -35,6 +35,7 @@ function makeState() {
   const logged: string[] = [];
   const value: ImportStateDeps = {
     t,
+    count: (noun, value) => `${value} ${noun}`,
     makeDeps: () => deps,
     refresh: async () => {
       refreshes += 1;
@@ -107,7 +108,7 @@ describe("ImportState", () => {
     );
 
     expect(line).toContain("import.emptySkipped");
-    expect(line).toContain('"skipped":4');
+    expect(line).toContain('"skipped":"4 skipped"');
   });
 
   it("turns a thrown import into an error line and releases the flag", async () => {

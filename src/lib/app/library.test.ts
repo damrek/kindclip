@@ -12,6 +12,7 @@ function deps(port: DbPort, refresh = async () => {}) {
   const value: LibraryDeps = {
     getPort: async () => port,
     t,
+    count: (noun, value) => `${value} ${noun}`,
     refresh,
     onTagRemoved: (id) => removed.push(id),
     log: (scope) => logged.push(scope),

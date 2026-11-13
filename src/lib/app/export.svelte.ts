@@ -16,7 +16,7 @@ import {
   type ExportFormat,
 } from "../exporter";
 import type { Translate } from "../format";
-import type { Locale } from "../i18n";
+import type { CountText, Locale } from "../i18n";
 import type { Logger } from "../log";
 import type { ClippingRow } from "../types";
 
@@ -53,6 +53,8 @@ export interface ExportStateDeps {
   loadRows: () => Promise<ClippingRow[]>;
   t: Translate;
   locale: () => Locale;
+  /** `3 clippings`, `2 libros`, … for the per-book outcome line. */
+  count: CountText;
   /** Book that scopes the export, when the sidebar has one selected. */
   bookId: () => number | null;
   /** Title of that book, used in the suggested file name. */
@@ -153,8 +155,8 @@ export class ExportState {
       `export: wrote ${groups.length} per-book markdown files with ${rows.length} clippings to '${folder}'`,
     );
     this.task.status = this.deps.t("export.doneFolder", {
-      count: rows.length,
-      books: groups.length,
+      clippings: this.deps.count("clipping", rows.length),
+      books: this.deps.count("book", groups.length),
       folder,
     });
     this.close();

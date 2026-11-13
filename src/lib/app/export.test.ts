@@ -52,6 +52,7 @@ function makeState(rows: ClippingRow[], overrides: Partial<ExportBackend> = {}) 
     loadRows: async () => rows,
     t,
     locale: () => "en",
+    count: (noun, value) => `${value} ${noun}`,
     bookId: () => null,
     bookTitle: () => null,
     canExport: () => rows.length > 0,
@@ -113,7 +114,7 @@ describe("ExportState", () => {
     expect(written[0].map((file) => file.name)).toEqual(["a.md", "b.md"]);
     expect(written[0][0].contents).toContain("row 1");
     expect(state.message).toContain("export.doneFolder");
-    expect(state.message).toContain('"books":2');
+    expect(state.message).toContain('"books":"2 book"');
     expect(state.open).toBe(false);
   });
 

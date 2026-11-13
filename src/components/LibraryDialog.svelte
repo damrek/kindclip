@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getContext } from "svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import Modal from "./Modal.svelte";
   import { filterBooks } from "../lib/library";
   import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
@@ -650,7 +650,7 @@
         <p class="text-sm text-danger">
           {i18n.t("library.confirmDelete", {
             title: deleteTarget.title,
-            count: deleteTarget.clipping_count,
+            clippings: countText(i18n.locale, "clipping", deleteTarget.clipping_count),
           })}
         </p>
         <div class="mt-2 flex items-center justify-end gap-2">
@@ -679,7 +679,7 @@
         <p class="text-sm text-danger">
           {i18n.t("library.confirmRemove", {
             path: removeTarget.path,
-            count: removeTarget.clipping_count,
+            clippings: countText(i18n.locale, "clipping", removeTarget.clipping_count),
           })}
         </p>
         <div class="mt-2 flex items-center justify-end gap-2">
@@ -732,7 +732,7 @@
         <p class="text-sm text-danger">
           {i18n.t("library.confirmDeleteTag", {
             name: tagDeleteTarget.name,
-            count: tagDeleteTarget.clipping_count,
+            clippings: countText(i18n.locale, "clipping", tagDeleteTarget.clipping_count),
           })}
         </p>
         <div class="mt-2 flex items-center justify-end gap-2">

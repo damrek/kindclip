@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getContext } from "svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import Modal from "./Modal.svelte";
   import type { ReadingStats } from "../lib/stats";
 
@@ -39,7 +39,10 @@
       </h2>
       {#if stats && !loading && !error}
         <p class="mt-1 text-sm text-fg-muted">
-          {i18n.t("stats.summary", { clippings: stats.total, books: stats.bookCount })}
+          {i18n.t("stats.summary", {
+            clippings: countText(i18n.locale, "clipping", stats.total),
+            books: countText(i18n.locale, "book", stats.bookCount),
+          })}
         </p>
       {/if}
     </header>

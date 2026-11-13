@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getContext } from "svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import Modal from "./Modal.svelte";
   import {
     autoBackupDate,
@@ -69,9 +69,9 @@
       <p class="mt-1 text-sm text-fg-muted">
         {i18n.t("restore.summary", {
           file: fileName,
-          clippings: info.clippings,
-          books: info.books,
-          tags: info.tags,
+          clippings: countText(i18n.locale, "clipping", info.clippings),
+          books: countText(i18n.locale, "book", info.books),
+          tags: countText(i18n.locale, "tag", info.tags),
         })}
       </p>
       <p class="mt-3 text-sm text-accent-text">{i18n.t("restore.warning")}</p>

@@ -21,11 +21,14 @@ import {
 } from "../db";
 import { describeError } from "../errors";
 import type { Translate } from "../format";
+import type { CountText } from "../i18n";
 import type { Book } from "../types";
 
 export interface LibraryDeps {
   getPort: () => Promise<DbPort>;
   t: Translate;
+  /** `3 clippings`, `1 libro`, … for the status lines. */
+  count: CountText;
   /** Reload the views a mutation can affect: books, list and tags. */
   refresh: () => Promise<void>;
   /** Drop a tag id from the active filter after a merge or a delete. */
@@ -102,8 +105,8 @@ export class LibraryPanel {
       return false;
     }
     this.status = this.deps.t("library.statusRemoved", {
-      clippings: result.clippings,
-      books: result.books,
+      clippings: this.deps.count("clipping", result.clippings),
+      books: this.deps.count("book", result.books),
     });
     await this.#refresh();
     return true;

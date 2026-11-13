@@ -8,6 +8,7 @@ import {
   type ImportOutcome,
 } from "../importer";
 import type { Translate } from "../format";
+import type { CountText } from "../i18n";
 import { describeError } from "../errors";
 import type { Logger } from "../log";
 
@@ -18,6 +19,8 @@ export type ImportRunner = (
 
 export interface ImportStateDeps {
   t: Translate;
+  /** `3 clippings`, `1 libro`, … for the outcome line. */
+  count: CountText;
   /** Production import seams (picker, Rust parser, database port). */
   makeDeps: () => ImportDeps;
   /** Reload the shelf and the list after a successful import. */
@@ -53,7 +56,10 @@ export class ImportState {
         this.deps.log.info(`import: no clippings, ${outcome.skipped} skipped`);
         onProgress(
           outcome.skipped > 0
-            ? this.deps.t("import.emptySkipped", { path: outcome.path, skipped: outcome.skipped })
+            ? this.deps.t("import.emptySkipped", {
+                path: outcome.path,
+                skipped: this.deps.count("skipped", outcome.skipped),
+              })
             : this.deps.t("import.empty", { path: outcome.path }),
         );
         return;
@@ -73,15 +79,15 @@ export class ImportState {
           ? this.deps.t("import.doneSkipped", {
               inserted: report.inserted,
               total: report.total,
-              duplicates: report.duplicates,
-              skipped: report.skipped,
-              books: report.bookCount,
+              duplicates: this.deps.count("duplicate", report.duplicates),
+              skipped: this.deps.count("skipped", report.skipped),
+              books: this.deps.count("book", report.bookCount),
             })
           : this.deps.t("import.done", {
               inserted: report.inserted,
               total: report.total,
-              duplicates: report.duplicates,
-              books: report.bookCount,
+              duplicates: this.deps.count("duplicate", report.duplicates),
+              books: this.deps.count("book", report.bookCount),
             }),
       );
     } catch (error) {

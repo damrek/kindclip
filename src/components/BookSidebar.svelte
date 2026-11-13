@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import Icon from "./Icon.svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import type { AuthorGroup } from "../lib/library";
   import type { BookSortDir, BookSortKey } from "../lib/sorting";
   import type { SidebarView } from "../lib/sidebar";
@@ -256,8 +256,8 @@
                 </span>
                 <span class="block truncate text-xs text-fg-subtle">
                   {i18n.t("sidebar.groupCounts", {
-                    books: group.bookCount,
-                    clippings: group.clippingCount,
+                    books: countText(i18n.locale, "book", group.bookCount),
+                    clippings: countText(i18n.locale, "clipping", group.clippingCount),
                   })}
                 </span>
               </span>
