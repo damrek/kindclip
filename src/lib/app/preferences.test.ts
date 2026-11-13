@@ -88,3 +88,26 @@ describe("Preferences.hydrate", () => {
     expect(["es", "en", "fr", "de", "it"]).toContain(prefs.locale);
   });
 });
+
+describe("Preferences mutators as plain callbacks", () => {
+  it("survives being passed unbound, the way a Svelte prop does", () => {
+    const { deps, applied } = fakeDeps();
+    const prefs = new Preferences(deps);
+    // `onTheme={prefs.setTheme}` hands Svelte a receiver-less function;
+    // destructuring reproduces exactly that call shape.
+    const { setLocale, setTheme, setDarkPalette, setFontScale, setAutoBackup } = prefs;
+
+    expect(() => setLocale("en")).not.toThrow();
+    expect(() => setTheme("dark")).not.toThrow();
+    expect(() => setDarkPalette("nord")).not.toThrow();
+    expect(() => setFontScale("large")).not.toThrow();
+    expect(() => setAutoBackup(false)).not.toThrow();
+
+    expect(prefs.themeMode).toBe("dark");
+    expect(prefs.darkPalette).toBe("nord");
+    expect(prefs.fontScale).toBe("large");
+    expect(prefs.autoBackupEnabled).toBe(false);
+    expect(applied).toContainEqual({ kind: "theme", value: "dark:nord" });
+    expect(applied).toContainEqual({ kind: "font", value: "large" });
+  });
+});

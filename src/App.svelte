@@ -1098,7 +1098,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     backingUp={snapshot.backup.busy}
     backupStatus={snapshot.backup.status}
     autoBackup={prefs.autoBackupEnabled}
-    onLocale={(next) => prefs.setLocale(next)}
+    onLocale={prefs.setLocale}
     onTheme={prefs.setTheme}
     onPalette={prefs.setDarkPalette}
     onFont={prefs.setFontScale}

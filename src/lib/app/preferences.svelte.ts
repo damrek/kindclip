@@ -84,37 +84,39 @@ export class Preferences {
   t = (key: I18nKey, params?: TranslateParams): string =>
     translate(this.locale, key, params);
 
-  setLocale(next: Locale): void {
+  /** Bound on purpose: App wires these straight into component props, and an
+   * unbound method loses `this` the moment Svelte calls it as a callback. */
+  setLocale = (next: Locale): void => {
     this.locale = next;
     writeStored(LOCALE_KEY, next);
     void this.persistSetting(SETTINGS_KEYS.locale, next);
-  }
+  };
 
-  setTheme(next: ThemeMode): void {
+  setTheme = (next: ThemeMode): void => {
     this.themeMode = next;
     saveThemeMode(next); // fast cache for the pre-paint script
     this.applyCurrentTheme();
     void this.persistSetting(SETTINGS_KEYS.theme, next);
-  }
+  };
 
-  setDarkPalette(next: DarkPalette): void {
+  setDarkPalette = (next: DarkPalette): void => {
     this.darkPalette = next;
     saveDarkPalette(next);
     this.applyCurrentTheme();
     void this.persistSetting(SETTINGS_KEYS.darkPalette, next);
-  }
+  };
 
-  setFontScale(next: FontScale): void {
+  setFontScale = (next: FontScale): void => {
     this.fontScale = next;
     saveFontScale(next);
     this.deps.applyFontScale(next);
     void this.persistSetting(SETTINGS_KEYS.fontScale, next);
-  }
+  };
 
-  setAutoBackup(next: boolean): void {
+  setAutoBackup = (next: boolean): void => {
     this.autoBackupEnabled = next;
     void this.persistSetting(SETTINGS_KEYS.autoBackup, next ? "1" : "0");
-  }
+  };
 
   /** Reads the current state, so an `$effect` that calls it tracks both. */
   applyCurrentTheme(): void {
