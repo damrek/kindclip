@@ -5,7 +5,8 @@ import type { ClippingRow } from "./types";
 /** Formats offered by the export dialog (S1). */
 export type ExportFormat = "markdown" | "json" | "csv";
 
-const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
+/** File extension per format; the single source for dialogs and names. */
+export const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
   markdown: "md",
   json: "json",
   csv: "csv",

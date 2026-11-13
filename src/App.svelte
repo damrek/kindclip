@@ -14,7 +14,7 @@
   import StatsDialog from "./components/StatsDialog.svelte";
   import appIcon from "./assets/icon.png";
   import { invoke } from "@tauri-apps/api/core";
-  import { confirm, open, save } from "@tauri-apps/plugin-dialog";
+  import { confirm, open } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "./lib/i18n";
@@ -49,18 +49,11 @@
     type StoredFilterState,
     type TagCount,
   } from "./lib/db";
-  import { runImportFlow, pickDroppedFile, runImportFromPath, tauriImportDeps, type ImportDeps, type ImportOutcome } from "./lib/importer";
+  import { runImportFlow, tauriImportDeps } from "./lib/importer";
   import { describeError, logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
-    exportFileName,
-    groupRowsByBook,
-    planBookFileNames,
-    serializeBookMarkdown,
-    serializeCsv,
-    serializeJson,
-    serializeMarkdown,
-    type ExportFormat,
+                  type ExportFormat,
   } from "./lib/exporter";
   import {
     applyFavoriteToggle,
@@ -114,6 +107,8 @@
   import { ReadingState } from "./lib/app/reading.svelte";
   import { LibraryPanel } from "./lib/app/library.svelte";
   import { SnapshotState, tauriSnapshotBackend } from "./lib/app/snapshot.svelte";
+  import { ImportState, type ImportRunner } from "./lib/app/import.svelte";
+  import { ExportState, saveDialog } from "./lib/app/export.svelte";
   import { escapeLayer } from "./lib/app/overlays";
 
   /** Run one data-layer call with the shared connection. */
@@ -139,14 +134,8 @@
   let searchExpanded = $state(false);
   let searchInput = $state<HTMLInputElement | null>(null);
 
-  let importing = $state(false);
-  /** Files are being dragged over the window (native Tauri drag & drop). */
-  let dragActive = $state(false);
   let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
-  let exportOpen = $state(false);
-  let exporting = $state(false);
-  let exportStatus = $state<string | null>(null);
   /** Manual backup, automatic snapshot and restore live in one module. */
   let autoBackupStarted = false;
   let statsOpen = $state(false);
@@ -215,20 +204,6 @@
     log: logger,
   });
 
-  /** Reading view or a modal: the shell is inert and shortcuts are off. */
-  const modalOpen = $derived(
-    reading.session !== null ||
-      paletteOpen ||
-      resetTarget !== null ||
-      exportOpen ||
-      library.open ||
-      statsOpen ||
-      snapshot.open ||
-      prefsOpen ||
-      shortcutsOpen,
-  );
-  const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.pageSize)));
-
   /** Live system preference: the theme follows macOS while the choice is "system". */
   $effect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -256,6 +231,62 @@
 
   const filter = $derived(toFilter(filters));
   const clippingSort = $derived(clippingSortOf(filters));
+
+  const imports = new ImportState({
+    t,
+    makeDeps: tauriImportDeps,
+    refresh: async () => {
+      list.page = 1;
+      await loadBooks();
+      list.resetPage();
+      await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
+    },
+    log: logger,
+  });
+  const exports = new ExportState({
+    loadRows: () => withPort((port) => exportClippings(port, filter)),
+    t,
+    locale: () => prefs.locale,
+    bookId: () => filters.bookId,
+    bookTitle: (bookId) => shelf.books.find((book) => book.id === bookId)?.title ?? null,
+    canExport: () => list.result !== null && list.result.total > 0,
+    now: () => new Date(),
+    backend: {
+      pickFolder: async (title) => {
+        const picked = await open({ directory: true, multiple: false, title });
+        return typeof picked === "string" ? picked : null;
+      },
+      checkTargets: (dir, names) => invoke<string[]>("check_export_targets", { dir, names }),
+      confirmReplace: (message, title) => confirm(message, { title, kind: "warning" }),
+      writeFiles: (dir, files) => invoke<number>("write_export_files", { dir, files }),
+      defaultPath: async (fileName) => {
+        try {
+          return await invoke<string>("export_default_path", { suggestedFileName: fileName });
+        } catch {
+          // Non-fatal: the bare file name is a valid default path.
+          return fileName;
+        }
+      },
+      saveFile: saveDialog,
+      writeFile: (path, contents) => invoke("write_export_file", { path, contents }),
+    },
+    log: logger,
+  });
+
+  /** Reading view or a modal: the shell is inert and shortcuts are off. */
+  const modalOpen = $derived(
+    reading.session !== null ||
+      paletteOpen ||
+      resetTarget !== null ||
+      exports.open ||
+      library.open ||
+      statsOpen ||
+      snapshot.open ||
+      prefsOpen ||
+      shortcutsOpen,
+  );
+  const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.pageSize)));
+
 
   const scheduleQuery = debounce((value: string) => {
     filters.debouncedQuery = value;
@@ -745,12 +776,6 @@
     restoreOpener();
   }
 
-  function closeExport(): void {
-    if (!exportOpen) return;
-    exportOpen = false;
-    restoreOpener();
-  }
-
   /** S1: whole-library aggregates, fetched fresh each time the dialog opens. */
   async function openStats(): Promise<void> {
     if (statsOpen) return;
@@ -887,7 +912,7 @@
         palette: paletteOpen,
         shortcuts: shortcutsOpen,
         reset: resetTarget !== null,
-        exportOpen,
+        exportOpen: exports.open,
         library: library.open,
         stats: statsOpen,
         restore: snapshot.open,
@@ -912,7 +937,7 @@
           closeReset();
           return;
         case "export":
-          if (!exporting) closeExport();
+          if (!exports.task.busy) closeExport();
           return;
         case "library":
           if (!library.busy) closeLibrary();
@@ -990,78 +1015,22 @@
     selectBook(null);
   }
 
-  type ImportRunner = (
-    deps: ImportDeps,
-    onProgress: (done: number, total: number) => void,
-  ) => Promise<ImportOutcome>;
-
   async function onImport(): Promise<void> {
     await performImport(runImportFlow);
   }
 
   /** S1: one import run for both the picker and a native file drop. */
-  async function performImport(run: ImportRunner): Promise<void> {
-    if (importing) return;
-    importing = true;
-    importStatus = t("import.reading");
-    try {
-      const outcome = await run(tauriImportDeps(), (done, total) => {
-        importStatus = t("import.progress", { done, total });
-      });
-      if (outcome.status === "cancelled") {
-        importStatus = null;
-      } else if (outcome.status === "empty") {
-        importStatus =
-          outcome.skipped > 0
-            ? t("import.emptySkipped", { path: outcome.path, skipped: outcome.skipped })
-            : t("import.empty", { path: outcome.path });
-        logger.info(`import: no clippings, ${outcome.skipped} skipped`);
-      } else {
-        const report = outcome.report;
-        logger.info(
-          `import: ${report.inserted} inserted, ${report.duplicates} duplicates, ${report.skipped} skipped, ${report.bookCount} books`,
-        );
-        importStatus =
-          report.alreadyImported && report.skipped === 0
-            ? t("import.duplicate")
-            : report.skipped > 0
-              ? t("import.doneSkipped", {
-                  inserted: report.inserted,
-                  total: report.total,
-                  duplicates: report.duplicates,
-                  skipped: report.skipped,
-                  books: report.bookCount,
-                })
-              : t("import.done", {
-                  inserted: report.inserted,
-                  total: report.total,
-                  duplicates: report.duplicates,
-                  books: report.bookCount,
-                });
-        list.page = 1;
-        await loadBooks();
-        list.resetPage();
-        await list.reload(filter, filters.pageSize, clippingSort);
-      }
-    } catch (error) {
-      importStatus = t("import.error", {
-        message: describeError(error),
-      });
-      logger.error("import", error);
-    } finally {
-      importing = false;
-    }
+  function performImport(run: ImportRunner): Promise<void> {
+    return imports.run(run, (message) => {
+      importStatus = message;
+    });
   }
 
   /** S1: a native file drop imports the first `.txt` it carries. */
   function onDropPaths(paths: string[]): void {
-    if (importing || modalOpen) return;
-    const path = pickDroppedFile(paths);
-    if (path === null) {
-      importStatus = t("import.notTxt");
-      return;
-    }
-    void performImport((deps, onProgress) => runImportFromPath(deps, path, onProgress));
+    void imports.drop(paths, modalOpen, (message) => {
+      importStatus = message;
+    });
   }
 
   // Native drag & drop: Tauri intercepts the OS drag before the webview, so
@@ -1073,11 +1042,11 @@
       .onDragDropEvent((event) => {
         const payload = event.payload;
         if (payload.type === "enter") {
-          dragActive = !modalOpen && !importing;
+          imports.dragActive = !modalOpen && !imports.busy;
         } else if (payload.type === "leave") {
-          dragActive = false;
+          imports.dragActive = false;
         } else if (payload.type === "drop") {
-          dragActive = false;
+          imports.dragActive = false;
           onDropPaths(payload.paths);
         }
       })
@@ -1096,101 +1065,23 @@
 
   /** Open the export dialog from the header (clears the previous outcome). */
   function openExport(): void {
-    if (!list.result || list.result.total === 0) return;
-    rememberOpener();
-    exportStatus = null;
-    exportOpen = true;
-  }
-
-  /** S6/S7: one Markdown file per book into a chosen folder. */
-  async function exportOneFilePerBook(
-    rows: ClippingRow[],
-    includeOriginal: boolean,
-  ): Promise<void> {
-    const groups = groupRowsByBook(rows);
-    if (groups.length === 0) return;
-    const names = planBookFileNames(groups);
-    const picked = await open({
-      directory: true,
-      multiple: false,
-      title: t("export.folderPrompt"),
-    });
-    const folder = typeof picked === "string" ? picked : null;
-    if (folder === null) return; // Cancelled: the dialog stays open.
-    const existing = await invoke<string[]>("check_export_targets", { dir: folder, names });
-    if (existing.length > 0) {
-      const replace = await confirm(t("export.overwrite", { count: existing.length }), {
-        title: t("export.title"),
-        kind: "warning",
-      });
-      if (!replace) return;
+    if (exports.openDialog()) {
+      rememberOpener();
     }
-    const now = new Date();
-    const files = groups.map((group, index) => ({
-      name: names[index],
-      contents: serializeBookMarkdown(group.rows, { includeOriginal, locale: prefs.locale, t, now }),
-    }));
-    await invoke<number>("write_export_files", { dir: folder, files });
-    logger.info(
-      `export: wrote ${groups.length} per-book markdown files with ${rows.length} clippings to '${folder}'`,
-    );
-    exportStatus = t("export.doneFolder", {
-      count: rows.length,
-      books: groups.length,
-      folder,
-    });
-    closeExport();
   }
 
-  /** S4: filtered rows → serializer → native save dialog → Rust write. */
-  async function onExport(
+  function onExport(
     format: ExportFormat,
     includeOriginal: boolean,
     perBook: boolean,
   ): Promise<void> {
-    if (exporting) return;
-    exporting = true;
-    try {
-      const port = await getDb();
-      const rows = await exportClippings(port, filter);
-      if (format === "markdown" && perBook) {
-        await exportOneFilePerBook(rows, includeOriginal);
-        return;
-      }
-      const bookTitle = shelf.books.find((book) => book.id === filters.bookId)?.title ?? null;
-      const fileName = exportFileName(format, bookTitle);
-      const text =
-        format === "markdown"
-          ? serializeMarkdown(rows, { includeOriginal, locale: prefs.locale, t })
-          : format === "json"
-            ? serializeJson(rows)
-            : serializeCsv(rows);
-      const extension = EXPORT_EXTENSIONS[format];
-      let defaultPath = fileName;
-      try {
-        defaultPath = await invoke<string>("export_default_path", {
-          suggestedFileName: fileName,
-        });
-      } catch {
-        // Non-fatal: the bare file name is a valid default path.
-      }
-      const path = await save({
-        defaultPath,
-        filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
-      });
-      if (path === null) return; // Cancelled: the dialog stays open.
-      await invoke("write_export_file", { path, contents: text });
-      logger.info(`export: wrote ${format} with ${rows.length} clippings`);
-      exportStatus = t("export.done", { count: rows.length, file: fileName });
-      closeExport();
-    } catch (error) {
-      exportStatus = t("export.error", {
-        message: describeError(error),
-      });
-      logger.error("export", error);
-    } finally {
-      exporting = false;
-    }
+    return exports.run(format, includeOriginal, perBook);
+  }
+
+  function closeExport(): void {
+    if (!exports.open) return;
+    exports.close();
+    restoreOpener();
   }
 
   async function onOpenDbLocation(): Promise<void> {
@@ -1283,12 +1174,6 @@
   );
   /** Row shown full-window; null while the reading.session view is closed. */
   const readingClipping = $derived(reading.current);
-
-  const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
-    markdown: "md",
-    json: "json",
-    csv: "csv",
-  };
 
   /** Selected filters.authors in selection order, for the removable chips under the bar. */
   const selectedAuthors = $derived(
@@ -1410,10 +1295,10 @@
         <button
           type="button"
           onclick={onImport}
-          disabled={importing}
+          disabled={imports.busy}
           class="mt-4 rounded-full bg-inverse px-5 py-2 text-sm font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
         >
-          {importing ? t("header.importing") : t("empty.cta")}
+          {imports.busy ? t("header.importing") : t("empty.cta")}
         </button>
       </div>
     </main>
@@ -1447,7 +1332,7 @@
           onSortBy={setBookSortBy}
           onSortDirToggle={toggleBookSortDir}
           onImport={onImport}
-          importing={importing}
+          importing={imports.busy}
           onOpenLibrary={openLibrary}
           onOpenStats={openStats}
           libraryActionsDisabled={!hasLibrary}
@@ -1549,7 +1434,7 @@
           </div>
         </div>
 
-        {#if importStatus || exportStatus}
+        {#if importStatus || exports.message}
           <div
             class="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-6 py-2 text-sm text-fg-muted"
             role="status"
@@ -1557,8 +1442,8 @@
             {#if importStatus}
               <p class="min-w-0 truncate">{importStatus}</p>
             {/if}
-            {#if exportStatus}
-              <p class="min-w-0 truncate">{exportStatus}</p>
+            {#if exports.message}
+              <p class="min-w-0 truncate">{exports.message}</p>
             {/if}
           </div>
         {/if}
@@ -1661,7 +1546,7 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
-{#if dragActive}
+{#if imports.dragActive}
   <div class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-8" role="status">
     <div
       class="absolute inset-4 rounded-3xl border-2 border-dashed border-accent bg-surface/90"
@@ -1758,11 +1643,11 @@
   </div>
 {/if}
 
-{#if exportOpen}
+{#if exports.open}
   <ExportDialog
     count={list.result?.total ?? 0}
     scope={exportScope}
-    busy={exporting}
+    busy={exports.task.busy}
     onClose={closeExport}
     onExport={onExport}
   />
