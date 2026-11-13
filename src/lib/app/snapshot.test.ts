@@ -183,6 +183,20 @@ describe("SnapshotState", () => {
     expect(state.info).toBeNull();
   });
 
+  it("maps the Rust pre-flight rejection to the same translated reason", async () => {
+    const { deps } = makeDeps({
+      inspect: async () => {
+        throw { code: "invalid-backup", message: "not a SQLite database" };
+      },
+    });
+    const state = new SnapshotState(deps);
+
+    await state.inspect("/backups/notes.txt");
+
+    expect(state.error).toBe("restore.invalid");
+    expect(state.checking).toBe(false);
+  });
+
   it("keeps the newest inspection when the user picks another file quickly", async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {

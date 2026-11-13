@@ -1,4 +1,6 @@
 use serde::Serialize;
+
+use super::CommandError;
 use sha2::{Digest, Sha256};
 
 /// A parsed clippings file, ready for the frontend import orchestration.
@@ -14,10 +16,10 @@ pub struct ParsedFile {
 
 /// Read `My Clippings.txt` from disk, hash it (S5 dedupe key) and parse it (S2).
 #[tauri::command]
-pub fn parse_clippings_file(path: String) -> Result<ParsedFile, String> {
+pub fn parse_clippings_file(path: String) -> Result<ParsedFile, CommandError> {
     let bytes = std::fs::read(&path).map_err(|err| {
         log::warn!("import: cannot read '{path}': {err}");
-        format!("cannot read file '{path}': {err}")
+        CommandError::new("parse", format!("cannot read file '{path}': {err}"))
     })?;
     let file_hash: String = Sha256::digest(&bytes)
         .iter()

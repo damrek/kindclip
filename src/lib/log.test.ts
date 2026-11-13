@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createLogger, describeError, type LogSink } from "./log";
+import { commandError } from "./errors";
 
 function sink(): LogSink & { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> } {
   return {
@@ -21,6 +22,18 @@ describe("describeError", () => {
   it("stringifies anything else", () => {
     expect(describeError(404)).toBe("404");
     expect(describeError(null)).toBe("null");
+  });
+
+  it("reads the message out of a command error envelope", () => {
+    const envelope = { code: "invalid-backup", message: "not a SQLite database" };
+    expect(describeError(envelope)).toBe("not a SQLite database");
+    expect(commandError(envelope)).toEqual(envelope);
+  });
+
+  it("rejects anything that is not a command error envelope", () => {
+    expect(commandError(new Error("boom"))).toBeNull();
+    expect(commandError({ code: "x" })).toBeNull();
+    expect(commandError("boom")).toBeNull();
   });
 });
 

@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use super::CommandError;
+
 /// Every SQLite database starts with this 16-byte header.
 const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
 
@@ -25,10 +27,10 @@ pub(crate) fn read_sqlite_magic(path: &Path) -> Result<u64, String> {
 
 /// Pre-flight check for a backup the user picked in the restore dialog.
 #[tauri::command]
-pub fn validate_backup_file(path: String) -> Result<u64, String> {
+pub fn validate_backup_file(path: String) -> Result<u64, CommandError> {
     let size = read_sqlite_magic(Path::new(&path)).map_err(|err| {
         log::warn!("backup: rejected '{path}': {err}");
-        err
+        CommandError::new("invalid-backup", err)
     })?;
     log::info!("backup: validated '{path}' ({size} bytes)");
     Ok(size)
@@ -39,10 +41,13 @@ pub fn validate_backup_file(path: String) -> Result<u64, String> {
 /// The native save dialog already asked the user to confirm an overwrite;
 /// this only clears a regular file or accepts a path that does not exist yet.
 #[tauri::command]
-pub fn clear_backup_target(path: String) -> Result<(), String> {
+pub fn clear_backup_target(path: String) -> Result<(), CommandError> {
     let path = Path::new(&path);
     if path.is_dir() {
-        return Err(format!("'{}' is a directory", path.display()));
+        return Err(CommandError::new(
+            "backup-target",
+            format!("'{}' is a directory", path.display()),
+        ));
     }
     match std::fs::remove_file(path) {
         Ok(()) => {
@@ -52,7 +57,10 @@ pub fn clear_backup_target(path: String) -> Result<(), String> {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(err) => {
             log::warn!("backup: cannot clear '{}': {err}", path.display());
-            Err(format!("cannot clear '{}': {err}", path.display()))
+            Err(CommandError::new(
+                "backup-target",
+                format!("cannot clear '{}': {err}", path.display()),
+            ))
         }
     }
 }

@@ -2,6 +2,38 @@
 //! `#[tauri::command]` entry points; every helper stays crate-visible for the
 //! command tests.
 
+use serde::Serialize;
+
+/// Serializable error envelope shared by every command: `code` is stable for
+/// callers that branch on it, `message` is the text shown to the user.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandError {
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl CommandError {
+    pub(crate) fn new(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for CommandError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
+    }
+}
+
+impl From<String> for CommandError {
+    fn from(message: String) -> Self {
+        Self::new("command-failed", message)
+    }
+}
+
 mod auto_backup;
 mod backup;
 mod diagnostics;
@@ -108,7 +140,7 @@ mod tests {
             .join("export.md");
         let result = write_export_file(path.to_string_lossy().to_string(), "hola".to_string());
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("cannot write file"));
+        assert!(result.unwrap_err().message.contains("cannot write file"));
     }
 
     fn per_book_dir(name: &str) -> PathBuf {
@@ -214,7 +246,7 @@ mod tests {
             ],
         );
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("wrote 1 of 3"));
+        assert!(result.unwrap_err().message.contains("wrote 1 of 3"));
         assert_eq!(std::fs::read_to_string(dir.join("a.md")).unwrap(), "# A");
         assert!(!dir.join("c.md").exists());
         let entries: Vec<_> = std::fs::read_dir(&dir)
@@ -281,7 +313,7 @@ mod tests {
         let path = dir.join("notes.txt");
         std::fs::write(&path, b"not a database at all").unwrap();
         let error = validate_backup_file(path.to_string_lossy().to_string()).unwrap_err();
-        assert!(error.contains("SQLite"), "{error}");
+        assert!(error.message.contains("SQLite"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -289,7 +321,7 @@ mod tests {
     fn validate_backup_file_rejects_a_missing_file() {
         let path = std::env::temp_dir().join("kindclip-t5-definitely-missing.db");
         let error = validate_backup_file(path.to_string_lossy().to_string()).unwrap_err();
-        assert!(error.contains("cannot read file"), "{error}");
+        assert!(error.message.contains("cannot read file"), "{error}");
     }
 
     #[test]

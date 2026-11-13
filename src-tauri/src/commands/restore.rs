@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use super::backup::read_sqlite_magic;
-use super::diagnostics::db_file_path;
+use super::diagnostics::db_path;
 use super::export::with_suffix;
+use super::CommandError;
 
 /// Whether two paths point at the same file on disk.
 pub(crate) fn same_path(left: &Path, right: &Path) -> bool {
@@ -107,9 +108,13 @@ pub(crate) fn replace_database_with(
 /// process, so a swapped file can only be migrated on a fresh launch. The
 /// frontend closes its pool before invoking this command.
 #[tauri::command]
-pub fn restore_database_file(app: tauri::AppHandle, backup_path: String) -> Result<(), String> {
-    let db_path = db_file_path(app.clone())?;
-    restore_database_at(Path::new(&backup_path), Path::new(&db_path))?;
+pub fn restore_database_file(
+    app: tauri::AppHandle,
+    backup_path: String,
+) -> Result<(), CommandError> {
+    let db_path = db_path(&app)?;
+    restore_database_at(Path::new(&backup_path), Path::new(&db_path))
+        .map_err(|err| CommandError::new("restore", err))?;
     log::info!("restore: restarting the app to reopen the restored database");
     app.restart()
 }

@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime};
 use serde::Serialize;
 
 use super::backup::read_sqlite_magic;
+use super::CommandError;
 
 /* ------------------------------------------------------------------------- *
  * Automatic rotating backups
@@ -267,36 +268,46 @@ pub(crate) fn prune_auto_backups_in(
 /// `kindclip-backup-YYYY-MM-DD.db` for a local date; the frontend never
 /// composes the name, so TS and Rust cannot disagree about it.
 #[tauri::command]
-pub fn backup_file_name(date: String) -> Result<String, String> {
-    auto_backup_name(&date)
+pub fn backup_file_name(date: String) -> Result<String, CommandError> {
+    auto_backup_name(&date).map_err(|err| CommandError::new("invalid-date", err))
 }
 
 /// Resolve/create the snapshot folder and return this launch's target paths.
 #[tauri::command]
-pub fn prepare_auto_backup(app: tauri::AppHandle, date: String) -> Result<AutoBackupPaths, String> {
+pub fn prepare_auto_backup(
+    app: tauri::AppHandle,
+    date: String,
+) -> Result<AutoBackupPaths, CommandError> {
     use tauri::Manager;
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|err| format!("cannot resolve app config dir: {err}"))?;
+    let dir = app.path().app_config_dir().map_err(|err| {
+        CommandError::new(
+            "auto-backup",
+            format!("cannot resolve app config dir: {err}"),
+        )
+    })?;
     prepare_auto_backup_at(&auto_backup_dir_at(&dir), &date)
+        .map_err(|err| CommandError::new("auto-backup", err))
 }
 
 /// List the automatic snapshots for the restore dialog, newest first.
 #[tauri::command]
-pub fn list_auto_backups(app: tauri::AppHandle) -> Result<Vec<AutoBackup>, String> {
+pub fn list_auto_backups(app: tauri::AppHandle) -> Result<Vec<AutoBackup>, CommandError> {
     use tauri::Manager;
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|err| format!("cannot resolve app config dir: {err}"))?;
+    let dir = app.path().app_config_dir().map_err(|err| {
+        CommandError::new(
+            "auto-backup",
+            format!("cannot resolve app config dir: {err}"),
+        )
+    })?;
     list_auto_backups_in(&auto_backup_dir_at(&dir))
+        .map_err(|err| CommandError::new("auto-backup", err))
 }
 
 /// Validate and rename the in-flight snapshot; never overwrites a snapshot.
 #[tauri::command]
-pub fn commit_auto_backup(temp_path: String, final_path: String) -> Result<(), String> {
+pub fn commit_auto_backup(temp_path: String, final_path: String) -> Result<(), CommandError> {
     commit_auto_backup_at(Path::new(&temp_path), Path::new(&final_path))
+        .map_err(|err| CommandError::new("auto-backup", err))
 }
 
 /// Remove the snapshots selected by the retention policy plus stale temps.
@@ -305,12 +316,14 @@ pub fn prune_auto_backups(
     app: tauri::AppHandle,
     keep: u32,
     candidates: Vec<String>,
-) -> Result<PruneReport, String> {
+) -> Result<PruneReport, CommandError> {
     use tauri::Manager;
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|err| format!("cannot resolve app config dir: {err}"))?;
+    let config_dir = app.path().app_config_dir().map_err(|err| {
+        CommandError::new(
+            "auto-backup",
+            format!("cannot resolve app config dir: {err}"),
+        )
+    })?;
     let dir = auto_backup_dir_at(&config_dir);
     let paths: Vec<PathBuf> = candidates.iter().map(PathBuf::from).collect();
     let report = prune_auto_backups_in(&dir, keep as usize, &paths, SystemTime::now());

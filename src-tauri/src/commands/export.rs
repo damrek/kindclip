@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use super::CommandError;
+
 /// Reject empty export names and names containing path separators (S10).
 ///
 /// Export names are joined onto the Downloads directory, so a name with a
@@ -19,11 +21,11 @@ pub(crate) fn validate_file_name(name: &str) -> Result<(), String> {
 /// Write the exported document to disk (S4): the frontend picks the target
 /// path through the native save dialog and this command persists the contents.
 #[tauri::command]
-pub fn write_export_file(path: String, contents: String) -> Result<(), String> {
+pub fn write_export_file(path: String, contents: String) -> Result<(), CommandError> {
     let bytes = contents.len();
     std::fs::write(&path, contents).map_err(|err| {
         log::warn!("export: cannot write '{path}': {err}");
-        format!("cannot write file '{path}': {err}")
+        CommandError::new("export", format!("cannot write file '{path}': {err}"))
     })?;
     log::info!("export: wrote '{path}' ({bytes} bytes)");
     Ok(())
@@ -73,11 +75,11 @@ pub struct ExportFile {
 
 /// Report which per-book targets already exist, before replacing anything (S7).
 #[tauri::command]
-pub fn check_export_targets(dir: String, names: Vec<String>) -> Result<Vec<String>, String> {
-    let path = export_dir(&dir)?;
+pub fn check_export_targets(dir: String, names: Vec<String>) -> Result<Vec<String>, CommandError> {
+    let path = export_dir(&dir).map_err(|err| CommandError::new("export", err))?;
     let mut existing = Vec::new();
     for name in names {
-        validate_export_name(&name)?;
+        validate_export_name(&name).map_err(|err| CommandError::new("export", err))?;
         if path.join(&name).exists() {
             existing.push(name);
         }
@@ -113,16 +115,19 @@ pub(crate) fn per_book_failure_message(index: usize, total: usize) -> String {
 /// (S6). Writes are per-file atomic, not all-or-nothing; a mid-run failure
 /// reports how many files were written.
 #[tauri::command]
-pub fn write_export_files(dir: String, files: Vec<ExportFile>) -> Result<usize, String> {
-    let path = export_dir(&dir)?;
+pub fn write_export_files(dir: String, files: Vec<ExportFile>) -> Result<usize, CommandError> {
+    let path = export_dir(&dir).map_err(|err| CommandError::new("export", err))?;
     let total = files.len();
     for file in &files {
-        validate_export_name(&file.name)?;
+        validate_export_name(&file.name).map_err(|err| CommandError::new("export", err))?;
     }
     for (index, file) in files.iter().enumerate() {
         write_export_file_atomic(&path, &file.name, &file.contents, index).map_err(|err| {
             log::warn!("{}", per_book_failure_message(index, total));
-            format!("wrote {index} of {total} files before failing: {err}")
+            CommandError::new(
+                "export",
+                format!("wrote {index} of {total} files before failing: {err}"),
+            )
         })?;
     }
     log::info!("export: wrote {total} per-book files to '{dir}'");
@@ -140,13 +145,12 @@ pub fn write_export_files(dir: String, files: Vec<ExportFile>) -> Result<usize, 
 pub fn export_default_path(
     app: tauri::AppHandle,
     suggested_file_name: String,
-) -> Result<String, String> {
+) -> Result<String, CommandError> {
     use tauri::Manager;
-    validate_file_name(&suggested_file_name)?;
-    let dir = app
-        .path()
-        .download_dir()
-        .map_err(|err| format!("cannot resolve download dir: {err}"))?;
+    validate_file_name(&suggested_file_name).map_err(|err| CommandError::new("export", err))?;
+    let dir = app.path().download_dir().map_err(|err| {
+        CommandError::new("export", format!("cannot resolve download dir: {err}"))
+    })?;
     Ok(dir.join(&suggested_file_name).to_string_lossy().to_string())
 }
 

@@ -23,7 +23,7 @@ import {
   type BackupInfo,
 } from "../backup";
 import type { DbPort } from "../db";
-import { describeError } from "../errors";
+import { commandError, describeError } from "../errors";
 import type { Translate } from "../format";
 import type { Logger } from "../log";
 
@@ -294,6 +294,11 @@ export class SnapshotState {
       if (error.code === "not-kindclip") return this.deps.t("restore.invalid");
       if (error.code === "newer-version") return this.deps.t("restore.newer");
       return this.deps.t("restore.corrupt", { message: error.message });
+    }
+    // Rust rejects a file that is not a readable SQLite database before the
+    // frontend opens it; the code is stable even when the message changes.
+    if (commandError(error)?.code === "invalid-backup") {
+      return this.deps.t("restore.invalid");
     }
     return this.deps.t("restore.error", { message: describeError(error) });
   }

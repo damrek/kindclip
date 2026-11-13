@@ -1,11 +1,12 @@
 use std::path::Path;
 
+use super::CommandError;
+
 /// Absolute path of the SQLite file owned by tauri-plugin-sql.
 ///
 /// Relative `sqlite:` URLs are resolved by the plugin against the app config
 /// dir, so revealing this path shows the user where their library lives.
-#[tauri::command]
-pub fn db_file_path(app: tauri::AppHandle) -> Result<String, String> {
+pub(crate) fn db_path(app: &tauri::AppHandle) -> Result<String, String> {
     use tauri::Manager;
     let dir = app
         .path()
@@ -13,6 +14,11 @@ pub fn db_file_path(app: tauri::AppHandle) -> Result<String, String> {
         .map_err(|err| format!("cannot resolve app config dir: {err}"))?;
     std::fs::create_dir_all(&dir).map_err(|err| format!("cannot create app config dir: {err}"))?;
     Ok(dir.join("kindclip.db").to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn db_file_path(app: tauri::AppHandle) -> Result<String, CommandError> {
+    db_path(&app).map_err(|err| CommandError::new("diagnostics", err))
 }
 
 /// Open a directory in the system file manager through the opener's Rust API.
@@ -37,14 +43,14 @@ pub(crate) fn open_directory(
 
 /// Open the diagnostic log directory in the system file manager.
 #[tauri::command]
-pub fn open_logs_dir(app: tauri::AppHandle) -> Result<(), String> {
+pub fn open_logs_dir(app: tauri::AppHandle) -> Result<(), CommandError> {
     use tauri::Manager;
 
     let dir = app
         .path()
         .app_log_dir()
         .map_err(|err| format!("cannot resolve app log dir: {err}"))?;
-    open_directory(&app, &dir, "logs")
+    open_directory(&app, &dir, "logs").map_err(|err| CommandError::new("diagnostics", err))
 }
 
 /// Open the folder that holds the live database.
@@ -53,10 +59,10 @@ pub fn open_logs_dir(app: tauri::AppHandle) -> Result<(), String> {
 /// launch created it. The parent directory is resolved in Rust so the webview
 /// never needs to compute or request a filesystem path.
 #[tauri::command]
-pub fn open_db_dir(app: tauri::AppHandle) -> Result<(), String> {
-    let db_path = db_file_path(app.clone())?;
+pub fn open_db_dir(app: tauri::AppHandle) -> Result<(), CommandError> {
+    let db_path = db_path(&app)?;
     let dir = Path::new(&db_path)
         .parent()
         .ok_or_else(|| format!("'{db_path}' has no parent directory"))?;
-    open_directory(&app, dir, "db")
+    open_directory(&app, dir, "db").map_err(|err| CommandError::new("diagnostics", err))
 }
