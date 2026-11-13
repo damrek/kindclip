@@ -122,12 +122,14 @@ pub fn decode_bytes(bytes: &[u8]) -> String {
 
 fn utf16_to_string(bytes: &[u8], big_endian: bool) -> String {
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             if big_endian {
-                u16::from_be_bytes([pair[0], pair[1]])
+                u16::from_be_bytes(*pair)
             } else {
-                u16::from_le_bytes([pair[0], pair[1]])
+                u16::from_le_bytes(*pair)
             }
         })
         .collect();
@@ -520,10 +522,8 @@ fn time_token(text: &str) -> Option<(u32, u32, u32)> {
                             hour += 12;
                         }
                     }
-                    "am" | "a" => {
-                        if hour == 12 {
-                            hour = 0;
-                        }
+                    "am" | "a" if hour == 12 => {
+                        hour = 0;
                     }
                     _ => {}
                 }
