@@ -57,15 +57,10 @@
     withoutTagId,
   } from "./lib/library";
   import {
-    clippingSort as clippingSortOf,
-    emptyFilters,
-    fromStored,
+      fromStored,
     keepKnownTags,
-    toFilter,
     toStored,
-    toggleValue,
-    type FilterValues,
-  } from "./lib/filters";
+      } from "./lib/filters";
   import {
     sortBooks,
     type BookSortKey,
@@ -94,6 +89,7 @@
   import { ExportState, saveDialog } from "./lib/app/export.svelte";
   import { StatsState } from "./lib/app/stats.svelte";
   import { ClippingActions } from "./lib/app/actions.svelte";
+  import { FilterState } from "./lib/app/filters.svelte";
   import { escapeLayer } from "./lib/app/overlays";
 
   /** Run one data-layer call with the shared connection. */
@@ -113,7 +109,14 @@
   /** Set once the stored filter has been applied; gates load and save. */
   let prefsReady = $state(false);
 
-  let filters = $state<FilterValues>(emptyFilters());
+  const filters = new FilterState({
+    resetPage: () => {
+      list.page = 1;
+    },
+    persist: (state) => {
+      saveFilters(state);
+    },
+  });
   let sidebarOpen = $state(readSidebarOpen());
   let sidebarView = $state(readSidebarView());
   let searchExpanded = $state(false);
@@ -159,12 +162,12 @@
     count: (noun, value) => countText(prefs.locale, noun, value),
     refresh: async () => {
       await loadBooks();
-      await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
+      await list.reload(filters.filter, filters.values.pageSize, filters.sort);
       const port = await getDb();
       allTags = await listTags(port);
     },
     onTagRemoved: (tagId) => {
-      filters.tagIds = withoutTagId(filters.tagIds, tagId);
+      filters.values.tagIds = withoutTagId(filters.values.tagIds, tagId);
     },
     log: logger.error,
   });
@@ -204,8 +207,8 @@
     setLocale: (next) => prefs.setLocale(next),
   });
 
-  const filter = $derived(toFilter(filters));
-  const clippingSort = $derived(clippingSortOf(filters));
+  const filter = $derived(filters.filter);
+  const clippingSort = $derived(filters.sort);
 
   const imports = new ImportState({
     t,
@@ -215,7 +218,7 @@
       list.page = 1;
       await loadBooks();
       list.resetPage();
-      await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
+      await list.reload(filters.filter, filters.values.pageSize, filters.sort);
     },
     log: logger,
   });
@@ -224,7 +227,7 @@
     t,
     locale: () => prefs.locale,
     count: (noun, value) => countText(prefs.locale, noun, value),
-    bookId: () => filters.bookId,
+    bookId: () => filters.values.bookId,
     bookTitle: (bookId) => shelf.books.find((book) => book.id === bookId)?.title ?? null,
     canExport: () => list.result !== null && list.result.total > 0,
     now: () => new Date(),
@@ -259,10 +262,10 @@
   const actions = new ClippingActions({
     getPort: () => getDb(),
     list,
-    reload: () => list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters)),
-    favoritesOnly: () => filters.favoritesOnly,
-    editedOnly: () => filters.editedOnly,
-    selectedTagIds: () => filters.tagIds,
+    reload: () => list.reload(filters.filter, filters.values.pageSize, filters.sort),
+    favoritesOnly: () => filters.values.favoritesOnly,
+    editedOnly: () => filters.values.editedOnly,
+    selectedTagIds: () => filters.values.tagIds,
     readingRow: () => reading.current,
     setTags: (tags) => {
       allTags = tags;
@@ -281,13 +284,8 @@
       prefsOpen ||
       shortcutsOpen,
   );
-  const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.pageSize)));
+  const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.values.pageSize)));
 
-
-  const scheduleQuery = debounce((value: string) => {
-    filters.debouncedQuery = value;
-    list.page = 1;
-  }, 250);
 
   async function loadBooks(): Promise<void> {
     const failure = await shelf.reload();
@@ -295,9 +293,9 @@
       list.error = failure;
       return;
     }
-    if (filters.bookId !== null && !shelf.has(filters.bookId)) {
+    if (filters.values.bookId !== null && !shelf.has(filters.values.bookId)) {
       // Persisted book gone (fresh DB, re-import, …): fall back to all.
-      filters.bookId = null;
+      filters.values.bookId = null;
       list.resetPage();
     }
   }
@@ -316,10 +314,10 @@
           restored.tagIds,
           dbTags.map((tag) => tag.id),
         );
-        filters = restored;
-        list.page = 1;
+        filters.hydrate(restored);
       } else {
-        await persistFilterState(toStored(filters));
+        filters.hydrate(null);
+        await persistFilterState(toStored(filters.values));
       }
     } catch (error) {
       // Non-fatal: the app works with defaults and in-memory filters.
@@ -343,7 +341,7 @@
   }, 500);
 
   $effect(() => {
-    scheduleQuery(filters.query);
+    filters.scheduleQuery(filters.values.query);
   });
 
   // NOTE: $effect only tracks state read SYNCHRONOUSLY in its body.
@@ -351,12 +349,12 @@
   // pageSize are passed in from state read in this body.
   //
   // Waiting for prefsReady keeps the first load from running with the empty
-  // default filter: the stored filters.kinds must be applied first, or a list saved
+  // default filter: the stored filters.values.kinds must be applied first, or a list saved
   // as notes + highlights flashes every kind (bookmarks included) and a slow
   // cold start can leave that unfiltered page on screen.
   $effect(() => {
     if (!prefsReady) return;
-    void list.reload(filter, filters.pageSize, clippingSort);
+    void list.reload(filter, filters.values.pageSize, clippingSort);
   });
 
   $effect(() => {
@@ -370,7 +368,7 @@
   // One automatic snapshot per launch, after the first page is on screen:
   // the VACUUM runs in the background and never delays first paint. Waiting
   // for `loading` to settle also keeps it from competing with the first list
-  // filters.query for the same connection.
+  // filters.values.query for the same connection.
   $effect(() => {
     if (!prefsReady || list.loading || autoBackupStarted) return;
     autoBackupStarted = true;
@@ -385,7 +383,7 @@
   // over a filter the user already saved.
   $effect(() => {
     if (!prefsReady) return;
-    saveFilters(toStored(filters));
+    filters.save();
   });
 
   // A renamed or deleted author must not keep hiding the library (S6). Wait
@@ -393,9 +391,9 @@
   // empty default nor a cold-start race can silently clear the selection.
   $effect(() => {
     if (!prefsReady || !shelf.loaded) return;
-    const next = pruneAuthors(filters.authors, shelf.books);
-    if (next !== filters.authors) {
-      filters.authors = next;
+    const next = pruneAuthors(filters.values.authors, shelf.books);
+    if (next !== filters.values.authors) {
+      filters.values.authors = next;
       list.page = 1;
     }
   });
@@ -412,18 +410,9 @@
     }
   });
 
-  function selectBook(id: number | null): void {
-    filters.bookId = id;
-    list.page = 1;
-  }
-
-  function setBookSortBy(key: BookSortKey): void {
-    filters.bookSortBy = key;
-  }
-
-  function toggleBookSortDir(): void {
-    filters.bookSortDir = filters.bookSortDir === "asc" ? "desc" : "asc";
-  }
+  const selectBook = (id: number | null): void => filters.selectBook(id);
+  const setBookSortBy = (key: BookSortKey): void => filters.setBookSortBy(key);
+  const toggleBookSortDir = (): void => filters.toggleBookSortDir();
 
   function toggleSidebar(): void {
     sidebarOpen = !sidebarOpen;
@@ -448,8 +437,8 @@
     // The window handler closes overlays; the field owns this Escape.
     event.preventDefault();
     event.stopPropagation();
-    if (filters.query !== "") {
-      filters.query = "";
+    if (filters.values.query !== "") {
+      filters.values.query = "";
       return;
     }
     searchExpanded = false;
@@ -457,50 +446,23 @@
   }
 
   function onSearchBlur(): void {
-    if (filters.query === "") searchExpanded = false;
+    if (filters.values.query === "") searchExpanded = false;
   }
 
   function clearSearch(): void {
-    filters.query = "";
+    filters.values.query = "";
     searchExpanded = false;
   }
 
-  function toggleKind(next: ClippingKind): void {
-    filters.kinds = toggleValue(filters.kinds, next);
-    list.page = 1;
-  }
-
-  function toggleFavoritesOnly(): void {
-    filters.favoritesOnly = !filters.favoritesOnly;
-    list.page = 1;
-  }
-
-  function toggleEditedOnly(): void {
-    filters.editedOnly = !filters.editedOnly;
-    list.page = 1;
-  }
-
+  const toggleKind = (next: ClippingKind): void => filters.toggleKind(next);
+  const toggleFavoritesOnly = (): void => filters.toggleFavoritesOnly();
+  const toggleEditedOnly = (): void => filters.toggleEditedOnly();
   /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
-  function toggleAuthor(key: string): void {
-    filters.authors = toggleValue(filters.authors, key);
-    list.page = 1;
-  }
-
+  const toggleAuthor = (key: string): void => filters.toggleAuthor(key);
   /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
-  function toggleTag(id: number): void {
-    filters.tagIds = toggleValue(filters.tagIds, id);
-    list.page = 1;
-  }
-
+  const toggleTag = (id: number): void => filters.toggleTag(id);
   /** Value shape of the sort select: `<key>:<dir>` (e.g. `page:asc`). */
-  function setClippingSort(value: string): void {
-    const [key, dir] = value.split(":");
-    if (key !== "date" && key !== "title" && key !== "page") return;
-    if (dir !== "asc" && dir !== "desc") return;
-    filters.sortBy = key;
-    filters.sortDir = dir;
-    list.page = 1;
-  }
+  const setClippingSort = (value: string): void => filters.setSort(value);
 
   const copyContent = (id: number): Promise<void> => actions.copyContent(id);
   const copyQuote = (id: number): Promise<void> => actions.copyQuote(id);
@@ -512,10 +474,7 @@
     actions.removeTag(id, tagId);
   const editNote = (id: number, content: string): Promise<boolean> =>
     actions.editNote(id, content);
-  function changePageSize(size: number): void {
-    filters.pageSize = size;
-    list.page = 1;
-  }
+  const changePageSize = (size: number): void => filters.setPageSize(size);
 
   /** Open the reset confirmation dialog for a note (rendered at app root). */
   function requestReset(id: number): void {
@@ -727,7 +686,7 @@
         restore: snapshot.open,
         preferences: prefsOpen,
         filters: filtersOpen,
-        query: filters.query,
+        query: filters.values.query,
         searchExpanded,
         selection: selectedId !== null,
       });
@@ -764,7 +723,7 @@
           filtersOpen = false;
           return;
         case "query":
-          filters.query = "";
+          filters.values.query = "";
           return;
         case "search":
           searchExpanded = false;
@@ -813,15 +772,8 @@
   }
 
   function clearFilters(): void {
-    filters.query = "";
-    filters.debouncedQuery = "";
-    filters.favoritesOnly = false;
-    filters.editedOnly = false;
-    filters.authors = [];
-    filters.kinds = [];
-    filters.tagIds = [];
+    filters.clear();
     searchExpanded = false;
-    selectBook(null);
   }
 
   async function onImport(): Promise<void> {
@@ -930,7 +882,7 @@
   /** Reload every view the app can affect after a database swap. */
   async function refreshAfterLibraryChange(): Promise<void> {
     await loadBooks();
-    await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
+    await list.reload(filters.filter, filters.values.pageSize, filters.sort);
     await library.loadFiles();
     const port = await getDb();
     allTags = await listTags(port);
@@ -960,21 +912,21 @@
 
   const hasLibrary = $derived(shelf.books.length > 0);
   const libraryTotal = $derived(totalClippings(shelf.books));
-  const sortedBooks = $derived(sortBooks(shelf.books, filters.bookSortBy, filters.bookSortDir));
+  const sortedBooks = $derived(sortBooks(shelf.books, filters.values.bookSortBy, filters.values.bookSortDir));
   /** Author groups shared by the Filters menu, chips and the grouped sidebar. */
   const authorGroups = $derived(groupBooksByAuthor(sortedBooks));
   const hasActiveFilters = $derived(
-    filters.debouncedQuery.trim() !== "" ||
-      filters.bookId !== null ||
-      filters.authors.length > 0 ||
-      filters.kinds.length > 0 ||
-      filters.favoritesOnly ||
-      filters.editedOnly ||
-      filters.tagIds.length > 0,
+    filters.values.debouncedQuery.trim() !== "" ||
+      filters.values.bookId !== null ||
+      filters.values.authors.length > 0 ||
+      filters.values.kinds.length > 0 ||
+      filters.values.favoritesOnly ||
+      filters.values.editedOnly ||
+      filters.values.tagIds.length > 0,
   );
   /** Dialog scope: selected book title, else which view is being exported. */
   const exportScope = $derived(
-    shelf.books.find((book) => book.id === filters.bookId)?.title ??
+    shelf.books.find((book) => book.id === filters.values.bookId)?.title ??
       (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
   );
   /** Tooltip for the toolbar export button: what the next export would hold. */
@@ -984,23 +936,23 @@
   /** Row shown full-window; null while the reading.session view is closed. */
   const readingClipping = $derived(reading.current);
 
-  /** Selected filters.authors in selection order, for the removable chips under the bar. */
+  /** Selected filters.values.authors in selection order, for the removable chips under the bar. */
   const selectedAuthors = $derived(
-    filters.authors.flatMap((key) => {
+    filters.values.authors.flatMap((key) => {
       const group = authorGroups.find((item) => item.key === key);
       return group ? [group] : [];
     }),
   );
   /** Selected tags in selection order, for the removable chips under the bar. */
   const selectedTags = $derived(
-    filters.tagIds.flatMap((id) => {
+    filters.values.tagIds.flatMap((id) => {
       const tag = allTags.find((item) => item.id === id);
       return tag ? [tag] : [];
     }),
   );
   /** Filter checklist: orphans stay hidden unless already selected (S5). */
   const filterTags = $derived(
-    allTags.filter((tag) => tag.clipping_count > 0 || filters.tagIds.includes(tag.id)),
+    allTags.filter((tag) => tag.clipping_count > 0 || filters.values.tagIds.includes(tag.id)),
   );
 
   interface ActiveFilterChip {
@@ -1012,17 +964,17 @@
   /** Every active filter is visible and removable in the chip row, not just tags. */
   const activeChips = $derived.by((): ActiveFilterChip[] => {
     const chips: ActiveFilterChip[] = [];
-    for (const kind of filters.kinds) {
+    for (const kind of filters.values.kinds) {
       chips.push({
         key: `kind:${kind}`,
         label: t(`kind.${kind}`),
         remove: () => toggleKind(kind),
       });
     }
-    if (filters.favoritesOnly) {
+    if (filters.values.favoritesOnly) {
       chips.push({ key: "favorites", label: t("fav.toggle"), remove: toggleFavoritesOnly });
     }
-    if (filters.editedOnly) {
+    if (filters.values.editedOnly) {
       chips.push({ key: "edited", label: t("edit.toggle"), remove: toggleEditedOnly });
     }
     for (const group of selectedAuthors) {
@@ -1133,11 +1085,11 @@
           groups={authorGroups}
           view={sidebarView}
           onViewChange={setSidebarView}
-          selectedId={filters.bookId}
+          selectedId={filters.values.bookId}
           totalCount={libraryTotal}
           onSelect={selectBook}
-          sortBy={filters.bookSortBy}
-          sortDir={filters.bookSortDir}
+          sortBy={filters.values.bookSortBy}
+          sortDir={filters.values.bookSortDir}
           onSortBy={setBookSortBy}
           onSortDirToggle={toggleBookSortDir}
           onImport={onImport}
@@ -1153,7 +1105,7 @@
           class="flex flex-wrap items-center gap-2 border-b border-line px-6 py-3"
         >
           <div class="flex min-w-0 flex-1 items-center">
-            {#if searchExpanded || filters.query !== ""}
+            {#if searchExpanded || filters.values.query !== ""}
               <div class="relative w-full max-w-sm">
                 <span
                   class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-subtle"
@@ -1164,14 +1116,14 @@
                 <input
                   bind:this={searchInput}
                   type="search"
-                  bind:value={filters.query}
+                  bind:value={filters.values.query}
                   onkeydown={onSearchKeydown}
                   onblur={onSearchBlur}
                   placeholder={t("search.placeholder")}
                   aria-label={t("search.placeholder")}
                   class="w-full rounded-full border border-line bg-surface-inset py-2 pr-8 pl-9 text-sm outline-none placeholder:text-fg-subtle focus:border-line-strong"
                 />
-                {#if filters.query !== ""}
+                {#if filters.values.query !== ""}
                   <button
                     type="button"
                     onclick={clearSearch}
@@ -1198,12 +1150,12 @@
 
           <FilterMenu
             bind:open={filtersOpen}
-            authors={filters.authors}
+            authors={filters.values.authors}
             {authorGroups}
-            kinds={filters.kinds}
-            favoritesOnly={filters.favoritesOnly}
-            editedOnly={filters.editedOnly}
-            tagIds={filters.tagIds}
+            kinds={filters.values.kinds}
+            favoritesOnly={filters.values.favoritesOnly}
+            editedOnly={filters.values.editedOnly}
+            tagIds={filters.values.tagIds}
             tags={filterTags}
             onToggleAuthor={toggleAuthor}
             onToggleKind={toggleKind}
@@ -1217,7 +1169,7 @@
             <label>
               <span class="sr-only">{t("clippingSort.label")}</span>
               <select
-                value={`${filters.sortBy}:${filters.sortDir}`}
+                value={`${filters.values.sortBy}:${filters.values.sortDir}`}
                 onchange={(event) => setClippingSort(event.currentTarget.value)}
                 aria-label={t("clippingSort.label")}
                 class="cursor-pointer rounded-full border border-line bg-surface-raised px-3 py-2 text-sm text-fg outline-none focus:border-line-strong"
