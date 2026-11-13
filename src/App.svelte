@@ -84,7 +84,7 @@
     type TagCount,
   } from "./lib/db";
   import { runImportFlow, pickDroppedFile, runImportFromPath, tauriImportDeps, type ImportDeps, type ImportOutcome } from "./lib/importer";
-  import { logger } from "./lib/log";
+  import { describeError, logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
     AUTO_BACKUP_KEEP,
@@ -438,7 +438,7 @@
       page = last;
     } catch (error) {
       if (request === listRequest) {
-        loadError = error instanceof Error ? error.message : String(error);
+        loadError = describeError(error);
       }
       logger.error("list-load", error);
     } finally {
@@ -459,7 +459,7 @@
         page = 1;
       }
     } catch (error) {
-      loadError = error instanceof Error ? error.message : String(error);
+      loadError = describeError(error);
       logger.error("books-load", error);
     }
   }
@@ -809,7 +809,7 @@
       }
     } catch (error) {
       result = { ...result, items: applyFavoriteToggle(result.items, id, current.favorite) };
-      loadError = error instanceof Error ? error.message : String(error);
+      loadError = describeError(error);
     }
   }
 
@@ -856,7 +856,7 @@
       return true;
     } catch (error) {
       patchClippingTags(id, () => before);
-      loadError = error instanceof Error ? error.message : String(error);
+      loadError = describeError(error);
       return false;
     }
   }
@@ -878,7 +878,7 @@
       return true;
     } catch (error) {
       patchClippingTags(id, () => before);
-      loadError = error instanceof Error ? error.message : String(error);
+      loadError = describeError(error);
       return false;
     }
   }
@@ -900,7 +900,7 @@
       }
       return confirmed;
     } catch (error) {
-      loadError = error instanceof Error ? error.message : String(error);
+      loadError = describeError(error);
       return false;
     }
   }
@@ -922,7 +922,7 @@
       }
       return confirmed;
     } catch (error) {
-      loadError = error instanceof Error ? error.message : String(error);
+      loadError = describeError(error);
       return false;
     }
   }
@@ -1086,7 +1086,7 @@
     } catch (error) {
       if (request === statsRequest) {
         statsError = t("stats.error", {
-          message: error instanceof Error ? error.message : String(error),
+          message: describeError(error),
         });
       }
     } finally {
@@ -1322,7 +1322,7 @@
       reading = next;
     } catch (error) {
       if (request === readingRequest) {
-        readingError = error instanceof Error ? error.message : String(error);
+        readingError = describeError(error);
       }
     } finally {
       // Replacing the session on success must still release the busy flag.
@@ -1398,7 +1398,7 @@
       }
     } catch (error) {
       importStatus = t("import.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("import", error);
     } finally {
@@ -1538,7 +1538,7 @@
       closeExport();
     } catch (error) {
       exportStatus = t("export.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("export", error);
     } finally {
@@ -1553,7 +1553,7 @@
       await revealDbLocation(tauriDbLocationDeps());
     } catch (error) {
       importStatus = t("db.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("db-location", error);
     } finally {
@@ -1591,7 +1591,7 @@
       backupStatus = t("backup.done", { file: baseName(path) });
     } catch (error) {
       backupStatus = t("backup.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("backup", error);
     } finally {
@@ -1655,7 +1655,7 @@
       return t("restore.corrupt", { message: error.message });
     }
     return t("restore.error", {
-      message: error instanceof Error ? error.message : String(error),
+      message: describeError(error),
     });
   }
 
@@ -1667,7 +1667,7 @@
       autoBackups = await invoke<AutoBackup[]>("list_auto_backups");
     } catch (error) {
       autoBackupsError = t("restore.listError", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("restore-list", error);
     } finally {
@@ -1730,7 +1730,7 @@
       selected = typeof picked === "string" ? picked : null;
     } catch (error) {
       restoreError = t("restore.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("restore-pick", error);
       return;
@@ -1762,7 +1762,7 @@
       restoreError = t("restore.restartFailed");
     } catch (error) {
       restoreError = t("restore.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("restore", error);
       try {
@@ -1782,7 +1782,7 @@
       libraryFiles = await listImportedFiles(port);
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       logger.error("library-load", error);
     }
@@ -1822,7 +1822,7 @@
       return result;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return null;
     } finally {
@@ -1844,7 +1844,7 @@
       return true;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return false;
     } finally {
@@ -1863,7 +1863,7 @@
       return true;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return false;
     } finally {
@@ -1885,7 +1885,7 @@
       return true;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return false;
     } finally {
@@ -1909,7 +1909,7 @@
       return result;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return null;
     } finally {
@@ -1933,7 +1933,7 @@
       return true;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return false;
     } finally {
@@ -1954,7 +1954,7 @@
       return true;
     } catch (error) {
       libraryError = t("library.error", {
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
       return false;
     } finally {

@@ -4,6 +4,7 @@
   import { debounce, formatReference } from "../lib/library";
   import { searchClippings, countClippings, getDb } from "../lib/db";
   import { stepSelection } from "../lib/shortcuts";
+  import { describeError } from "../lib/errors";
   import { hasMoreBelow } from "../lib/scroll";
   import { focusOnMount, selectOnInteraction, trapFocus } from "../lib/focus";
   import type { ClippingRow } from "../lib/types";
@@ -75,7 +76,7 @@
       selectedId = null;
       pendingOpen = false;
       error = i18n.t("palette.error", {
-        message: cause instanceof Error ? cause.message : String(cause),
+        message: describeError(cause),
       });
     } finally {
       if (current === request) {

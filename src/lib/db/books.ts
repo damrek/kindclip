@@ -1,3 +1,4 @@
+import { describeError } from "../errors";
 import { foldText } from "../library";
 import type { Book, ClippingDto } from "../types";
 import type { DbPort } from "./port";
@@ -87,7 +88,7 @@ export async function renameBook(
     );
     return (result.rowsAffected ?? 0) > 0 ? { status: "renamed" } : { status: "missing" };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describeError(error);
     if (!message.includes("UNIQUE constraint failed")) {
       throw error;
     }

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import type { DbPort } from "./db";
+import { describeError } from "./errors";
 
 /** File extension offered by the native backup and restore dialogs. */
 export const BACKUP_EXTENSION = "db";
@@ -132,10 +133,6 @@ const REQUIRED_TABLES = [
   "_sqlx_migrations",
 ];
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function countRows(port: DbPort, table: string): Promise<number> {
   const rows = await port.select<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`);
   return Number(rows[0]?.n ?? 0);
@@ -164,7 +161,7 @@ export async function inspectBackup(
   try {
     integrity = await port.select<{ integrity_check: string }>("PRAGMA integrity_check");
   } catch (error) {
-    throw new BackupError("corrupt", messageOf(error));
+    throw new BackupError("corrupt", describeError(error));
   }
   if (integrity.length !== 1 || integrity[0]?.integrity_check !== "ok") {
     throw new BackupError(

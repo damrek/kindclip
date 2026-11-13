@@ -1,3 +1,4 @@
+import { describeError } from "../errors";
 import type { Tag } from "../types";
 import type { DbPort } from "./port";
 
@@ -63,7 +64,7 @@ export async function ensureTag(port: DbPort, name: string): Promise<number | nu
     ]);
     return result.lastInsertId ?? null;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describeError(error);
     if (!message.includes("UNIQUE constraint failed")) {
       throw error;
     }
@@ -93,7 +94,7 @@ export async function renameTag(
     ]);
     return (result.rowsAffected ?? 0) > 0 ? { status: "renamed" } : { status: "missing" };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describeError(error);
     if (!message.includes("UNIQUE constraint failed")) {
       throw error;
     }
