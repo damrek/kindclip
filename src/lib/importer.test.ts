@@ -22,7 +22,13 @@ function fakePort(): DbPort {
   let nextId = 1;
   return {
     select: async () => [],
-    execute: async () => ({ lastInsertId: nextId++, rowsAffected: 1 }),
+    execute: async (sql, params) => {
+      // A real SQLite reports the rows it inserted: 11 params per clipping row.
+      if (sql.startsWith("INSERT INTO clippings")) {
+        return { lastInsertId: nextId++, rowsAffected: (params?.length ?? 0) / 11 };
+      }
+      return { lastInsertId: nextId++, rowsAffected: 1 };
+    },
   };
 }
 

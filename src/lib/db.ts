@@ -558,6 +558,45 @@ export interface ImportInput {
   skipped: number;
 }
 
+/** Clippings are inserted in batches of this size: 500 rows stay well below
+ * SQLite's 32,766 bound-parameter limit (500 × 11 = 5,500). */
+const BATCH = 500;
+
+const bookKey = (clip: ClippingDto): string => JSON.stringify([clip.title, clip.author ?? ""]);
+
+/** Content hashes of one batch that already exist, via the unique index. */
+async function knownHashes(port: DbPort, rows: ClippingDto[]): Promise<Set<string>> {
+  const placeholders = rows.map((_, index) => `$${index + 1}`).join(", ");
+  const found = await port.select<{ content_hash: string }>(
+    `SELECT content_hash FROM clippings WHERE content_hash IN (${placeholders})`,
+    rows.map((row) => row.content_hash),
+  );
+  return new Set(found.map((row) => row.content_hash));
+}
+
+/** Book id for a (title, author) pair, creating the row when it is new. */
+async function resolveBookId(port: DbPort, clip: ClippingDto): Promise<number> {
+  const existing = await port.select<{ id: number }>(
+    "SELECT id FROM books WHERE title = $1 AND COALESCE(author, '') = COALESCE($2, '')",
+    [clip.title, clip.author],
+  );
+  if (existing.length > 0) {
+    return existing[0].id;
+  }
+  const created = await port.execute(
+    "INSERT INTO books (title, author, title_folded, author_folded) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+    [clip.title, clip.author, foldText(clip.title), foldText(clip.author ?? "")],
+  );
+  if (created.lastInsertId !== undefined && created.lastInsertId > 0) {
+    return created.lastInsertId;
+  }
+  const raced = await port.select<{ id: number }>(
+    "SELECT id FROM books WHERE title = $1 AND COALESCE(author, '') = COALESCE($2, '')",
+    [clip.title, clip.author],
+  );
+  return raced[0]?.id ?? -1;
+}
+
 export async function importParsedClippings(
   port: DbPort,
   input: ImportInput,
@@ -565,83 +604,63 @@ export async function importParsedClippings(
 ): Promise<ImportReport> {
   const total = input.clippings.length;
 
-  const knownFileRows = await port.select<{ id: number; file_hash: string }>(
-    "SELECT id, file_hash FROM files WHERE file_hash = $1",
+  const knownFileRows = await port.select<{ id: number }>(
+    "SELECT id FROM files WHERE file_hash = $1",
     [input.fileHash],
   );
   const knownFile = knownFileRows[0] ?? null;
-
-  const knownHashes = new Set(
-    (await port.select<{ content_hash: string }>("SELECT content_hash FROM clippings")).map(
-      (row) => row.content_hash,
-    ),
-  );
-  const seen = new Set<string>();
-  const fresh = input.clippings.filter((clip) => {
-    if (knownHashes.has(clip.content_hash) || seen.has(clip.content_hash)) {
-      return false;
-    }
-    seen.add(clip.content_hash);
-    return true;
-  });
-  const freshSet = new Set(fresh);
-
   const now = new Date().toISOString();
+
   let fileId: number;
   if (knownFile) {
     fileId = knownFile.id;
-    if (fresh.length > 0) {
-      await port.execute(
-        "UPDATE files SET path = $1, clipping_count = clipping_count + $2, imported_at = $3 WHERE id = $4",
-        [input.path, fresh.length, now, fileId],
-      );
-    }
   } else {
-    const fileResult = await port.execute(
-      "INSERT INTO files (path, file_hash, clipping_count, imported_at) VALUES ($1, $2, $3, $4)",
-      [input.path, input.fileHash, fresh.length, now],
+    const created = await port.execute(
+      "INSERT INTO files (path, file_hash, clipping_count, imported_at) VALUES ($1, $2, 0, $3) ON CONFLICT(file_hash) DO NOTHING",
+      [input.path, input.fileHash, now],
     );
-    fileId = fileResult.lastInsertId ?? -1;
-  }
-
-  // First pass: resolve all book ids for fresh clippings.
-  const bookIds = new Map<string, number>();
-  for (const clip of fresh) {
-    const key = JSON.stringify([clip.title, clip.author ?? ""]);
-    if (bookIds.has(key)) continue;
-    const rows = await port.select<{ id: number }>(
-      "SELECT id FROM books WHERE title = $1 AND COALESCE(author, '') = COALESCE($2, '')",
-      [clip.title, clip.author],
-    );
-    let bookId: number;
-    if (rows.length > 0) {
-      bookId = rows[0].id;
-    } else {
-      const created = await port.execute(
-        "INSERT INTO books (title, author, title_folded, author_folded) VALUES ($1, $2, $3, $4)",
-        [clip.title, clip.author, foldText(clip.title), foldText(clip.author ?? "")],
+    fileId = created.lastInsertId ?? -1;
+    if (fileId <= 0) {
+      // A concurrent import won the insert: reuse its row.
+      const raced = await port.select<{ id: number }>(
+        "SELECT id FROM files WHERE file_hash = $1",
+        [input.fileHash],
       );
-      bookId = created.lastInsertId ?? -1;
+      fileId = raced[0]?.id ?? -1;
     }
-    bookIds.set(key, bookId);
   }
 
-  // Second pass: batched multi-row INSERT for clippings, firing progress per clipping in file order.
-  const BATCH = 500;
+  const bookIds = new Map<string, number>();
   let inserted = 0;
+  let batch: ClippingDto[] = [];
 
-  /** One statement per chunk. Parameter numbers must advance with every row:
-   * sqlx binds `$N` by its numeric name, so reusing `$1..$11` in every row
-   * would feed the first row's values to the whole batch. */
-  const insertBatch = async (batch: ClippingDto[]): Promise<void> => {
+  /** One statement per batch. The unique content_hash rejects a duplicate row
+   * (already imported or repeated inside the batch) instead of failing, so a
+   * retried import converges. Parameter numbers advance with every row: sqlx
+   * binds `$N` by its numeric name, so reusing `$1..$11` would feed the first
+   * row's values to the whole batch. */
+  const flush = async (): Promise<void> => {
+    if (batch.length === 0) return;
+    const rows = batch;
+    batch = [];
+    const known = await knownHashes(port, rows);
+    const fresh = rows.filter((clip) => {
+      if (known.has(clip.content_hash)) return false;
+      known.add(clip.content_hash); // repeated inside the same batch
+      return true;
+    });
+    if (fresh.length === 0) return;
+    for (const clip of fresh) {
+      const key = bookKey(clip);
+      if (bookIds.has(key)) continue;
+      bookIds.set(key, await resolveBookId(port, clip));
+    }
     const values: unknown[] = [];
     const placeholders: string[] = [];
     let param = 1;
-    for (const clip of batch) {
-      const key = JSON.stringify([clip.title, clip.author ?? ""]);
-      const bookId = bookIds.get(key)!;
+    for (const clip of fresh) {
       const row = [
-        bookId,
+        bookIds.get(bookKey(clip)),
         fileId,
         clip.kind,
         clip.page,
@@ -656,31 +675,29 @@ export async function importParsedClippings(
       placeholders.push(`(${row.map(() => `$${param++}`).join(", ")})`);
       values.push(...row);
     }
-    await port.execute(
+    const result = await port.execute(
       "INSERT INTO clippings (book_id, file_id, kind, page, location, added_on_raw, added_on, content, content_hash, created_at, content_folded) " +
-        `VALUES ${placeholders.join(", ")}`,
+        `VALUES ${placeholders.join(", ")} ON CONFLICT(content_hash) DO NOTHING`,
       values,
     );
-    inserted += batch.length;
+    inserted += result.rowsAffected ?? fresh.length;
   };
 
-  let batch: ClippingDto[] = [];
   for (let index = 0; index < total; index += 1) {
-    const clip = input.clippings[index];
-    if (!freshSet.has(clip)) {
-      onProgress(index + 1, total);
-      continue;
-    }
-    batch.push(clip);
+    batch.push(input.clippings[index]);
     if (batch.length === BATCH) {
-      await insertBatch(batch);
-      batch = [];
+      await flush();
     }
     onProgress(index + 1, total);
   }
-  // Flush any remaining batch after the loop.
-  if (batch.length > 0) {
-    await insertBatch(batch);
+  await flush();
+
+  if (inserted > 0 || knownFile === null) {
+    // Derived count: a retried import cannot leave clipping_count behind.
+    await port.execute(
+      "UPDATE files SET clipping_count = (SELECT COUNT(*) FROM clippings WHERE file_id = $1), path = $2, imported_at = $3 WHERE id = $1",
+      [fileId, input.path, now],
+    );
   }
 
   return {

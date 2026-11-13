@@ -136,6 +136,70 @@ describe("importParsedClippings against real SQLite", () => {
     expect(port.count("SELECT COUNT(*) AS n FROM clippings")).toBe(2);
   });
 
+  it("dedupes through the unique index instead of reading every hash", async () => {
+    const port = new SqlitePort();
+    const clippings = [
+      clipping({ content_hash: "dup-a", content: "A" }),
+      clipping({ content_hash: "dup-b", content: "B" }),
+    ];
+    await importParsedClippings(
+      port,
+      { path: "/kindle/My Clippings.txt", fileHash: "file-1", clippings, skipped: 0 },
+      () => {},
+    );
+
+    // The lookup is bounded to the batch, never a full-table SELECT of hashes.
+    const hashReads = port.executedSql.filter(
+      (sql) => sql.includes("SELECT content_hash FROM clippings") && !sql.includes(" IN "),
+    );
+    expect(hashReads).toHaveLength(0);
+
+    // A repeated hash inside one batch is dropped, not inserted twice.
+    const again = await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-1",
+        clippings: [clippings[0], { ...clippings[0] }],
+        skipped: 0,
+      },
+      () => {},
+    );
+    expect(again.inserted).toBe(0);
+    expect(again.alreadyImported).toBe(true);
+  });
+
+  it("converges when a previous import stopped halfway", async () => {
+    const port = new SqlitePort();
+    const first = clipping({ content_hash: "half-1", content: "First" });
+    const second = clipping({ content_hash: "half-2", content: "Second" });
+
+    // Simulate an interrupted run: only one of the two clippings landed.
+    await importParsedClippings(
+      port,
+      { path: "/kindle/My Clippings.txt", fileHash: "file-half", clippings: [first], skipped: 0 },
+      () => {},
+    );
+    expect(port.count("SELECT clipping_count AS n FROM files")).toBe(1);
+
+    const retry = await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-half",
+        clippings: [first, second],
+        skipped: 0,
+      },
+      () => {},
+    );
+
+    expect(retry.inserted).toBe(1);
+    expect(retry.duplicates).toBe(1);
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings")).toBe(2);
+    // The stored count is derived from the rows, so the retry cannot leave it behind.
+    expect(port.count("SELECT clipping_count AS n FROM files")).toBe(2);
+  });
+
   it("splits more than 500 fresh clippings into two valid statements", async () => {
     const port = new SqlitePort();
     const clippings = Array.from({ length: 501 }, (_, index) =>
