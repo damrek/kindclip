@@ -17,34 +17,9 @@
   import { confirm, open, save } from "@tauri-apps/plugin-dialog";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
-  import {
-    I18N_CONTEXT_KEY,
-    isLocale,
-    loadLocale,
-    translate,
-    type I18nContext,
-    type I18nKey,
-    type Locale,
-    type TranslateParams,
-  } from "./lib/i18n";
-  import {
-    applyTheme,
-    isDarkPalette,
-    loadDarkPalette,
-    loadThemeMode,
-    resolveTheme,
-    saveDarkPalette,
-    saveThemeMode,
-    systemPrefersDark,
-    type DarkPalette,
-    type ThemeMode,
-  } from "./lib/theme";
-  import {
-    applyFontScale,
-    loadFontScale,
-    saveFontScale,
-    type FontScale,
-  } from "./lib/font";
+  import { I18N_CONTEXT_KEY, type I18nContext } from "./lib/i18n";
+  import { applyTheme, resolveTheme, systemPrefersDark } from "./lib/theme";
+  import { applyFontScale } from "./lib/font";
   import {
     readSidebarOpen,
     readSidebarView,
@@ -172,6 +147,7 @@
   } from "./lib/types";
   import { loadReadingStats, type ReadingStats } from "./lib/stats";
   import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
+  import { Preferences } from "./lib/app/preferences.svelte";
 
   /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
@@ -206,8 +182,6 @@
   let exportStatus = $state<string | null>(null);
   let backingUp = $state(false);
   let backupStatus = $state<string | null>(null);
-  /** Daily snapshot preference; on unless the user turned it off. */
-  let autoBackupEnabled = $state(true);
   /** One launch attempt only: set once the first library load finished. */
   let autoBackupStarted = false;
   /** Automatic snapshots shown in the restore dialog, newest first. */
@@ -262,10 +236,18 @@
   let modalOpener: HTMLElement | null = null;
   /** Note pending reset confirmation (dialog rendered at app root). */
   let resetTarget = $state<ClippingRow | null>(null);
-  let locale = $state<Locale>(loadLocale(readStoredLocale()));
-  let themeMode = $state<ThemeMode>(loadThemeMode());
-  let darkPalette = $state<DarkPalette>(loadDarkPalette());
-  let fontScale = $state<FontScale>(loadStoredFontScale());
+  const prefs = new Preferences({
+    getSetting: (key) => withPort((port) => getSetting(port, key)),
+    setSetting: (key, value) => withPort((port) => setSetting(port, key, value)),
+    applyTheme: (mode, palette) =>
+      applyTheme(
+        document.documentElement,
+        resolveTheme(mode, systemPrefersDark(), palette),
+      ),
+    applyFontScale: (scale) => applyFontScale(document.documentElement, scale),
+    log: logger.error,
+  });
+  const t = prefs.t;
 
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
@@ -281,104 +263,29 @@
   );
   const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.pageSize)));
 
-  function readStoredFontScale(): string | null {
-    try {
-      return localStorage.getItem("kindclip-font-scale");
-    } catch {
-      return null;
-    }
-  }
-
-  function loadStoredFontScale(): FontScale {
-    return loadFontScale(readStoredFontScale());
-  }
-
-  function readStoredLocale(): string | null {
-    try {
-      return localStorage.getItem("kindclip-locale");
-    } catch {
-      return null;
-    }
-  }
-
-  function t(key: I18nKey, params?: TranslateParams): string {
-    return translate(locale, key, params);
-  }
-
-  function setLocale(next: Locale): void {
-    locale = next;
-    try {
-      localStorage.setItem("kindclip-locale", next);
-    } catch {
-      // Non-fatal: the language simply won't persist.
-    }
-    void persistSetting(SETTINGS_KEYS.locale, next);
-  }
-
-  /** Best-effort DB write; preferences must never break the UI. */
-  async function persistSetting(key: string, value: string): Promise<void> {
-    try {
-      const port = await getDb();
-      await setSetting(port, key, value);
-    } catch {
-      // Non-fatal.
-    }
-  }
-
-  function setTheme(next: ThemeMode): void {
-    themeMode = next;
-    saveThemeMode(next); // fast cache for the pre-paint script
-    applyTheme(
-      document.documentElement,
-      resolveTheme(next, systemPrefersDark(), darkPalette),
-    );
-    void persistSetting(SETTINGS_KEYS.theme, next);
-  }
-
-  function setDarkPalette(next: DarkPalette): void {
-    darkPalette = next;
-    saveDarkPalette(next); // fast cache for the pre-paint script
-    applyTheme(
-      document.documentElement,
-      resolveTheme(themeMode, systemPrefersDark(), next),
-    );
-    void persistSetting(SETTINGS_KEYS.darkPalette, next);
-  }
-
-  function setFontScale(next: FontScale): void {
-    fontScale = next;
-    saveFontScale(next); // fast cache for the pre-paint script
-    applyFontScale(document.documentElement, next);
-    void persistSetting(SETTINGS_KEYS.fontScale, next);
-  }
-
-  function setAutoBackup(next: boolean): void {
-    autoBackupEnabled = next;
-    void persistSetting(SETTINGS_KEYS.autoBackup, next ? "1" : "0");
-  }
-
   /** Live system preference: the theme follows macOS while the choice is "system". */
   $effect(() => {
-    const mode = themeMode;
-    const palette = darkPalette;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = (): void =>
-      applyTheme(document.documentElement, resolveTheme(mode, media.matches, palette));
+    const apply = (): void => prefs.applyCurrentTheme();
     apply();
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   });
 
   $effect(() => {
-    applyFontScale(document.documentElement, fontScale);
+    prefs.applyCurrentFont();
+  });
+
+  $effect(() => {
+    document.documentElement.lang = prefs.locale;
   });
 
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
-      return locale;
+      return prefs.locale;
     },
     t,
-    setLocale,
+    setLocale: (next) => prefs.setLocale(next),
   });
 
   const filter = $derived(toFilter(filters));
@@ -405,58 +312,10 @@
   /** Once on startup: DB is the source of truth, caches seed it on first run. */
   async function loadPreferences(): Promise<void> {
     try {
+      await prefs.hydrate();
       const port = await getDb();
-      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbAutoBackup, dbFilter, dbTags] =
-        await Promise.all([
-          getSetting(port, SETTINGS_KEYS.locale),
-          getSetting(port, SETTINGS_KEYS.theme),
-          getSetting(port, SETTINGS_KEYS.darkPalette),
-          getSetting(port, SETTINGS_KEYS.fontScale),
-          getSetting(port, SETTINGS_KEYS.autoBackup),
-          loadFilterState(port),
-          listTags(port),
-        ]);
+      const [dbFilter, dbTags] = await Promise.all([loadFilterState(port), listTags(port)]);
       allTags = dbTags;
-      if (dbLocale && isLocale(dbLocale)) {
-        locale = dbLocale;
-      } else {
-        await setSetting(port, SETTINGS_KEYS.locale, locale);
-      }
-      if (isDarkPalette(dbPalette)) {
-        darkPalette = dbPalette;
-        saveDarkPalette(dbPalette);
-        applyTheme(
-          document.documentElement,
-          resolveTheme(themeMode, systemPrefersDark(), dbPalette),
-        );
-      } else {
-        await setSetting(port, SETTINGS_KEYS.darkPalette, darkPalette);
-      }
-      if (dbTheme === "light" || dbTheme === "dark" || dbTheme === "system") {
-        themeMode = dbTheme;
-        saveThemeMode(dbTheme);
-        applyTheme(
-          document.documentElement,
-          resolveTheme(dbTheme, systemPrefersDark(), darkPalette),
-        );
-      } else {
-        await setSetting(port, SETTINGS_KEYS.theme, themeMode);
-      }
-      if (dbFontScale === "small" || dbFontScale === "medium" || dbFontScale === "large") {
-        fontScale = dbFontScale;
-        saveFontScale(dbFontScale);
-        applyFontScale(document.documentElement, dbFontScale);
-      } else {
-        await setSetting(port, SETTINGS_KEYS.fontScale, fontScale);
-      }
-      if (dbAutoBackup === "0") {
-        autoBackupEnabled = false;
-      } else {
-        autoBackupEnabled = true;
-        if (dbAutoBackup === null) {
-          await setSetting(port, SETTINGS_KEYS.autoBackup, "1");
-        }
-      }
       if (dbFilter) {
         const restored = fromStored(dbFilter);
         // Drop ids whose tag is gone (same guard as the book id).
@@ -483,7 +342,7 @@
   }
 
   async function persistFilterState(state: StoredFilterState): Promise<void> {
-    await persistSetting(SETTINGS_KEYS.filter, JSON.stringify(state));
+    await prefs.persistSetting(SETTINGS_KEYS.filter, JSON.stringify(state));
   }
 
   const saveFilters = debounce((state: StoredFilterState) => {
@@ -522,7 +381,7 @@
   $effect(() => {
     if (!prefsReady || list.loading || autoBackupStarted) return;
     autoBackupStarted = true;
-    if (autoBackupEnabled) {
+    if (prefs.autoBackupEnabled) {
       void runAutoBackup();
     }
   });
@@ -549,7 +408,7 @@
   });
 
   $effect(() => {
-    document.documentElement.lang = locale;
+    document.documentElement.lang = prefs.locale;
   });
 
   /** A reload that drops the selected row (page, filter, delete) clears it. */
@@ -1381,7 +1240,7 @@
     const now = new Date();
     const files = groups.map((group, index) => ({
       name: names[index],
-      contents: serializeBookMarkdown(group.rows, { includeOriginal, locale, t, now }),
+      contents: serializeBookMarkdown(group.rows, { includeOriginal, locale: prefs.locale, t, now }),
     }));
     await invoke<number>("write_export_files", { dir: folder, files });
     logger.info(
@@ -1414,7 +1273,7 @@
       const fileName = exportFileName(format, bookTitle);
       const text =
         format === "markdown"
-          ? serializeMarkdown(rows, { includeOriginal, locale, t })
+          ? serializeMarkdown(rows, { includeOriginal, locale: prefs.locale, t })
           : format === "json"
             ? serializeJson(rows)
             : serializeCsv(rows);
@@ -2356,19 +2215,19 @@
 
 {#if prefsOpen}
   <PreferencesDialog
-    locale={locale}
-    theme={themeMode}
-    palette={darkPalette}
-    font={fontScale}
+    locale={prefs.locale}
+    theme={prefs.themeMode}
+    palette={prefs.darkPalette}
+    font={prefs.fontScale}
     dbBusy={locatingDb}
     backingUp={backingUp}
     backupStatus={backupStatus}
-    autoBackup={autoBackupEnabled}
-    onLocale={setLocale}
-    onTheme={setTheme}
-    onPalette={setDarkPalette}
-    onFont={setFontScale}
-    onAutoBackup={setAutoBackup}
+    autoBackup={prefs.autoBackupEnabled}
+    onLocale={(next) => prefs.setLocale(next)}
+    onTheme={prefs.setTheme}
+    onPalette={prefs.setDarkPalette}
+    onFont={prefs.setFontScale}
+    onAutoBackup={prefs.setAutoBackup}
     onOpenDb={openDbFromPreferences}
     onBackup={onBackup}
     onRestore={() => handOffFromPreferences(onRestoreRequest)}
