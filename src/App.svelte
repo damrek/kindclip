@@ -101,7 +101,7 @@
     ClippingRow,
     Tag,
   } from "./lib/types";
-  import { loadReadingStats, type ReadingStats } from "./lib/stats";
+  import { loadReadingStats } from "./lib/stats";
   import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
   import { Preferences } from "./lib/app/preferences.svelte";
   import { ReadingState } from "./lib/app/reading.svelte";
@@ -109,6 +109,7 @@
   import { SnapshotState, tauriSnapshotBackend } from "./lib/app/snapshot.svelte";
   import { ImportState, type ImportRunner } from "./lib/app/import.svelte";
   import { ExportState, saveDialog } from "./lib/app/export.svelte";
+  import { StatsState } from "./lib/app/stats.svelte";
   import { escapeLayer } from "./lib/app/overlays";
 
   /** Run one data-layer call with the shared connection. */
@@ -138,12 +139,6 @@
   let importStatus = $state<string | null>(null);
   /** Manual backup, automatic snapshot and restore live in one module. */
   let autoBackupStarted = false;
-  let statsOpen = $state(false);
-  let statsLoading = $state(false);
-  let statsData = $state<ReadingStats | null>(null);
-  let statsError = $state<string | null>(null);
-  /** Invalidates an in-flight stats load when the dialog closes or reopens. */
-  let statsRequest = 0;
   /** Which copy action just succeeded, for its 1.5 s check mark. */
   let copyFlash = $state<{ id: number; kind: "content" | "quote" } | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -273,6 +268,13 @@
     log: logger,
   });
 
+  const stats = new StatsState({
+    getPort: () => getDb(),
+    load: loadReadingStats,
+    t,
+    log: logger,
+  });
+
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
     reading.session !== null ||
@@ -280,7 +282,7 @@
       resetTarget !== null ||
       exports.open ||
       library.open ||
-      statsOpen ||
+      stats.open ||
       snapshot.open ||
       prefsOpen ||
       shortcutsOpen,
@@ -778,38 +780,15 @@
 
   /** S1: whole-library aggregates, fetched fresh each time the dialog opens. */
   async function openStats(): Promise<void> {
-    if (statsOpen) return;
+    if (stats.open) return;
     rememberOpener();
-    statsOpen = true;
-    statsData = null;
-    statsError = null;
-    statsLoading = true;
-    const request = ++statsRequest;
-    try {
-      const data = await loadReadingStats(await getDb());
-      if (request === statsRequest) {
-        statsData = data;
-      }
-    } catch (error) {
-      if (request === statsRequest) {
-        statsError = t("stats.error", {
-          message: describeError(error),
-        });
-      }
-    } finally {
-      if (request === statsRequest) {
-        statsLoading = false;
-      }
-    }
+    await stats.show();
   }
 
   function closeStats(): void {
-    if (!statsOpen) return;
-    statsRequest += 1;
-    statsOpen = false;
-    statsLoading = false;
-    statsError = null;
-    restoreOpener();
+    if (stats.close()) {
+      restoreOpener();
+    }
   }
 
   function openPreferences(): void {
@@ -914,7 +893,7 @@
         reset: resetTarget !== null,
         exportOpen: exports.open,
         library: library.open,
-        stats: statsOpen,
+        stats: stats.open,
         restore: snapshot.open,
         preferences: prefsOpen,
         filters: filtersOpen,
@@ -1580,11 +1559,11 @@
   />
 {/if}
 
-{#if statsOpen}
+{#if stats.open}
   <StatsDialog
-    stats={statsData}
-    loading={statsLoading}
-    error={statsError}
+    stats={stats.data}
+    loading={stats.loading}
+    error={stats.error}
     onClose={closeStats}
   />
 {/if}
