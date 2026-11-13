@@ -53,21 +53,6 @@
   import { describeError, logger } from "./lib/log";
   import { revealDbLocation, tauriDbLocationDeps } from "./lib/db-location";
   import {
-    AUTO_BACKUP_KEEP,
-    BACKUP_EXTENSION,
-    autoBackupDue,
-    backupFileName,
-    baseName,
-    inspectBackupFile,
-    isBackupError,
-    schemaVersion,
-    selectAutoBackupsToDelete,
-    type AutoBackup,
-    type AutoBackupPaths,
-    type AutoBackupPruneReport,
-    type BackupInfo,
-  } from "./lib/backup";
-  import {
     exportFileName,
     groupRowsByBook,
     planBookFileNames,
@@ -128,6 +113,7 @@
   import { Preferences } from "./lib/app/preferences.svelte";
   import { ReadingState } from "./lib/app/reading.svelte";
   import { LibraryPanel } from "./lib/app/library.svelte";
+  import { SnapshotState, tauriSnapshotBackend } from "./lib/app/snapshot.svelte";
   import { escapeLayer } from "./lib/app/overlays";
 
   /** Run one data-layer call with the shared connection. */
@@ -161,22 +147,8 @@
   let exportOpen = $state(false);
   let exporting = $state(false);
   let exportStatus = $state<string | null>(null);
-  let backingUp = $state(false);
-  let backupStatus = $state<string | null>(null);
-  /** One launch attempt only: set once the first library load finished. */
+  /** Manual backup, automatic snapshot and restore live in one module. */
   let autoBackupStarted = false;
-  /** Automatic snapshots shown in the restore dialog, newest first. */
-  let autoBackups = $state<AutoBackup[]>([]);
-  let autoBackupsLoading = $state(false);
-  let autoBackupsError = $state<string | null>(null);
-  let restoreOpen = $state(false);
-  let restoreBusy = $state(false);
-  let restoreChecking = $state(false);
-  let restorePath = $state<string | null>(null);
-  let restoreFile = $state("");
-  let restoreInfo = $state<BackupInfo | null>(null);
-  let restoreError = $state<string | null>(null);
-  let restoreRequest = 0;
   let statsOpen = $state(false);
   let statsLoading = $state(false);
   let statsData = $state<ReadingStats | null>(null);
@@ -232,6 +204,16 @@
     },
     log: logger.error,
   });
+  const snapshot = new SnapshotState({
+    getPort: () => getDb(),
+    closePort: async () => {
+      await closeDb();
+    },
+    t,
+    backend: tauriSnapshotBackend(),
+    refresh: () => refreshAfterLibraryChange(),
+    log: logger,
+  });
 
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
@@ -241,7 +223,7 @@
       exportOpen ||
       library.open ||
       statsOpen ||
-      restoreOpen ||
+      snapshot.open ||
       prefsOpen ||
       shortcutsOpen,
   );
@@ -366,7 +348,7 @@
     if (!prefsReady || list.loading || autoBackupStarted) return;
     autoBackupStarted = true;
     if (prefs.autoBackupEnabled) {
-      void runAutoBackup();
+      void snapshot.autoBackup();
     }
   });
 
@@ -908,7 +890,7 @@
         exportOpen,
         library: library.open,
         stats: statsOpen,
-        restore: restoreOpen,
+        restore: snapshot.open,
         preferences: prefsOpen,
         filters: filtersOpen,
         query: filters.query,
@@ -939,7 +921,7 @@
           closeStats();
           return;
         case "restore":
-          if (!restoreBusy) closeRestore();
+          if (!snapshot.busy) closeRestore();
           return;
         case "preferences":
           closePreferences();
@@ -1226,218 +1208,22 @@
     }
   }
 
-  /** Write a consistent SQLite snapshot (VACUUM INTO) to the picked path. */
-  async function onBackup(): Promise<void> {
-    if (backingUp) return;
-    backingUp = true;
-    backupStatus = t("backup.saving");
-    try {
-      const fileName = backupFileName();
-      let defaultPath = fileName;
-      try {
-        defaultPath = await invoke<string>("export_default_path", {
-          suggestedFileName: fileName,
-        });
-      } catch {
-        // Non-fatal: the bare file name is a valid default path.
-      }
-      const path = await save({
-        defaultPath,
-        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
-      });
-      if (path === null) {
-        backupStatus = null;
-        return;
-      }
-      await invoke("clear_backup_target", { path });
-      const port = await getDb();
-      await port.execute("VACUUM INTO $1", [path]);
-      logger.info(`backup: wrote ${baseName(path)}`);
-      backupStatus = t("backup.done", { file: baseName(path) });
-    } catch (error) {
-      backupStatus = t("backup.error", {
-        message: describeError(error),
-      });
-      logger.error("backup", error);
-    } finally {
-      backingUp = false;
-    }
+  function onBackup(): Promise<void> {
+    return snapshot.save();
   }
 
-  /**
-   * Daily rotating snapshot: copy-only, one attempt per launch.
-   *
-   * The snapshot is written next to the live database with `VACUUM INTO` and
-   * committed by Rust after checking the SQLite header, so a crash never
-   * leaves a damaged file under a backup name. Failures are logged and never
-   * interrupt startup (S7); retention runs only after a successful commit.
-   */
-  async function runAutoBackup(): Promise<void> {
-    try {
-      const finalName = backupFileName();
-      const existing = await invoke<AutoBackup[]>("list_auto_backups");
-      if (!autoBackupDue(existing.map((snapshot) => snapshot.name))) {
-        logger.info("auto-backup: today's snapshot already exists");
-        return;
-      }
-
-      const paths = await invoke<AutoBackupPaths>("prepare_auto_backup", { finalName });
-      const port = await getDb();
-      await port.execute("VACUUM INTO $1", [paths.tempPath]);
-      await invoke("commit_auto_backup", {
-        tempPath: paths.tempPath,
-        finalPath: paths.finalPath,
-      });
-      logger.info(`auto-backup: wrote ${finalName}`);
-
-      const snapshots = await invoke<AutoBackup[]>("list_auto_backups");
-      const doomed = new Set(
-        selectAutoBackupsToDelete(snapshots.map((snapshot) => snapshot.name)),
-      );
-      const candidates = snapshots
-        .filter((snapshot) => doomed.has(snapshot.name))
-        .map((snapshot) => snapshot.path);
-      // Prune after every successful commit, even with nothing to delete:
-      // the command also sweeps crash leftovers from earlier runs.
-      const report = await invoke<AutoBackupPruneReport>("prune_auto_backups", {
-        keep: AUTO_BACKUP_KEEP,
-        candidates,
-      });
-      logger.info(
-        `auto-backup: pruned ${report.deleted} snapshots (${report.failed} failed), ` +
-          `removed ${report.tempsDeleted} stale temp files`,
-      );
-    } catch (error) {
-      logger.error("auto-backup", error);
-    }
-  }
-
-  /** Map a rejected snapshot to the reason shown in the restore dialog. */
-  function restoreFailure(error: unknown): string {
-    if (isBackupError(error)) {
-      if (error.code === "not-kindclip") return t("restore.invalid");
-      if (error.code === "newer-version") return t("restore.newer");
-      return t("restore.corrupt", { message: error.message });
-    }
-    return t("restore.error", {
-      message: describeError(error),
-    });
-  }
-
-  /** Read the automatic snapshots each time the restore dialog opens. */
-  async function loadAutoBackups(): Promise<void> {
-    autoBackupsLoading = true;
-    autoBackupsError = null;
-    try {
-      autoBackups = await invoke<AutoBackup[]>("list_auto_backups");
-    } catch (error) {
-      autoBackupsError = t("restore.listError", {
-        message: describeError(error),
-      });
-      logger.error("restore-list", error);
-    } finally {
-      autoBackupsLoading = false;
-    }
-  }
-
-  /** Open the restore dialog with the automatic snapshots listed. */
   function onRestoreRequest(): void {
-    if (restoreBusy || backingUp) return;
     rememberOpener();
-    restoreRequest += 1;
-    restoreOpen = true;
-    restorePath = null;
-    restoreFile = "";
-    restoreInfo = null;
-    restoreError = null;
-    restoreChecking = false;
-    autoBackups = [];
-    autoBackupsError = null;
-    void loadAutoBackups();
+    void snapshot.openDialog();
   }
 
-  /** Inspect one snapshot (automatic entry or picked file) before restoring. */
-  async function inspectRestorePath(path: string): Promise<void> {
-    const request = ++restoreRequest;
-    restorePath = path;
-    restoreFile = baseName(path);
-    restoreInfo = null;
-    restoreError = null;
-    restoreChecking = true;
-    try {
-      const port = await getDb();
-      const current = await schemaVersion(port);
-      const info = await inspectBackupFile(path, current);
-      if (request === restoreRequest) {
-        restoreInfo = info;
-      }
-    } catch (error) {
-      if (request === restoreRequest) {
-        restoreError = restoreFailure(error);
-      }
-      logger.error("restore-inspect", error);
-    } finally {
-      if (request === restoreRequest) {
-        restoreChecking = false;
-      }
-    }
-  }
-
-  /** Native file picker inside the dialog: the manual flow is unchanged. */
-  async function chooseRestoreFile(): Promise<void> {
-    if (restoreBusy || restoreChecking) return;
-    let selected: string | null = null;
-    try {
-      const picked = await open({
-        multiple: false,
-        filters: [{ name: t("backup.filter"), extensions: [BACKUP_EXTENSION] }],
-      });
-      selected = typeof picked === "string" ? picked : null;
-    } catch (error) {
-      restoreError = t("restore.error", {
-        message: describeError(error),
-      });
-      logger.error("restore-pick", error);
-      return;
-    }
-    if (selected !== null) {
-      await inspectRestorePath(selected);
-    }
-  }
+  const inspectRestorePath = (path: string): Promise<void> => snapshot.inspect(path);
+  const chooseRestoreFile = (): Promise<void> => snapshot.chooseFile();
+  const confirmRestore = (): Promise<void> => snapshot.confirm();
 
   function closeRestore(): void {
-    if (restoreBusy) return;
-    restoreRequest += 1;
-    restoreOpen = false;
-    restoreChecking = false;
-    restoreOpener();
-  }
-
-  /** Close the pool, replace the database file and let Rust restart the app. */
-  async function confirmRestore(): Promise<void> {
-    if (restorePath === null || restoreInfo === null || restoreBusy) return;
-    restoreBusy = true;
-    restoreError = null;
-    try {
-      await closeDb();
-      await invoke("restore_database_file", { backupPath: restorePath });
-      // Rust restarts the app on success and never returns; reaching this
-      // point means the restart did not happen.
-      logger.warn("restore: the app did not restart after a successful restore");
-      restoreError = t("restore.restartFailed");
-    } catch (error) {
-      restoreError = t("restore.error", {
-        message: describeError(error),
-      });
-      logger.error("restore", error);
-      try {
-        await getDb();
-        await refreshAfterLibraryChange();
-      } catch {
-        // Keep the restore error on screen; the next launch retries the open.
-      }
-    } finally {
-      restoreBusy = false;
+    if (snapshot.close()) {
+      restoreOpener();
     }
   }
 
@@ -2001,16 +1787,16 @@
   />
 {/if}
 
-{#if restoreOpen}
+{#if snapshot.open}
   <RestoreDialog
-    fileName={restoreFile}
-    info={restoreInfo}
-    checking={restoreChecking}
-    busy={restoreBusy}
-    error={restoreError}
-    snapshots={autoBackups}
-    snapshotsLoading={autoBackupsLoading}
-    snapshotsError={autoBackupsError}
+    fileName={snapshot.file}
+    info={snapshot.info}
+    checking={snapshot.checking}
+    busy={snapshot.busy}
+    error={snapshot.error}
+    snapshots={snapshot.snapshots}
+    snapshotsLoading={snapshot.snapshotsLoading}
+    snapshotsError={snapshot.snapshotsError}
     onClose={closeRestore}
     onConfirm={confirmRestore}
     onChooseFile={chooseRestoreFile}
@@ -2025,8 +1811,8 @@
     palette={prefs.darkPalette}
     font={prefs.fontScale}
     dbBusy={locatingDb}
-    backingUp={backingUp}
-    backupStatus={backupStatus}
+    backingUp={snapshot.backup.busy}
+    backupStatus={snapshot.backup.status}
     autoBackup={prefs.autoBackupEnabled}
     onLocale={(next) => prefs.setLocale(next)}
     onTheme={prefs.setTheme}
