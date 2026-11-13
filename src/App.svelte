@@ -12,6 +12,7 @@
   import RestoreDialog from "./components/RestoreDialog.svelte";
   import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
   import StatsDialog from "./components/StatsDialog.svelte";
+  import { getVersion } from "@tauri-apps/api/app";
   import appIcon from "./assets/icon.png";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { setContext, tick } from "svelte";
@@ -84,6 +85,18 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 
   const prefs = createPreferences();
   const t = prefs.t;
+  /** Running version, shown beside the settings button; hidden outside Tauri. */
+  let appVersion = $state<string | null>(null);
+
+  $effect(() => {
+    getVersion()
+      .then((value) => {
+        appVersion = value;
+      })
+      .catch(() => {
+        // A plain browser has no app metadata: the label stays hidden.
+      });
+  });
   /** Dialog flags, the selection cursor and the opener focus returns to. */
   const overlays = new Overlays();
   const snapshot = createSnapshotState({
@@ -112,7 +125,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   let searchExpanded = $state(false);
   let searchInput = $state<HTMLInputElement | null>(null);
 
-  let locatingDb = $state(false);
   let importStatus = $state<string | null>(null);
   /** Full-window reading session; null when closed. */
   const reading = createReadingState();
@@ -338,10 +350,16 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     action();
   }
 
-  /** No dialog follows the reveal, so the gear takes focus back. */
-  function openDbFromPreferences(): void {
-    closePreferences();
-    onOpenDbLocation();
+  /** Reveal the database file, or its folder: the dialog stays open on failure
+   * so the message lands next to the button, exactly like the logs action. */
+  async function revealDatabase(): Promise<string | null> {
+    try {
+      await revealDbLocation(tauriDbLocationDeps());
+      return null;
+    } catch (error) {
+      logger.error("db-location", error);
+      return t("db.error", { message: describeError(error) });
+    }
   }
 
   /** Focus a visible card so it becomes the j/k, Enter, * and c target. */
@@ -549,21 +567,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     restoreOpener();
   }
 
-  async function onOpenDbLocation(): Promise<void> {
-    if (locatingDb) return;
-    locatingDb = true;
-    try {
-      await revealDbLocation(tauriDbLocationDeps());
-    } catch (error) {
-      importStatus = t("db.error", {
-        message: describeError(error),
-      });
-      logger.error("db-location", error);
-    } finally {
-      locatingDb = false;
-    }
-  }
-
   function onBackup(): Promise<void> {
     return snapshot.save();
   }
@@ -657,7 +660,12 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
         kindclip
       </h1>
     </div>
-    <div class="flex items-center gap-1">
+    <div class="flex items-center gap-2">
+      {#if appVersion}
+        <span class="text-xs tabular-nums text-fg-subtle">
+          {t("prefs.versionShort", { version: appVersion })}
+        </span>
+      {/if}
       <button
         type="button"
         onclick={openPreferences}
@@ -1094,7 +1102,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     theme={prefs.themeMode}
     palette={prefs.darkPalette}
     font={prefs.fontScale}
-    dbBusy={locatingDb}
     backingUp={snapshot.backup.busy}
     backupStatus={snapshot.backup.status}
     autoBackup={prefs.autoBackupEnabled}
@@ -1103,7 +1110,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     onPalette={prefs.setDarkPalette}
     onFont={prefs.setFontScale}
     onAutoBackup={prefs.setAutoBackup}
-    onOpenDb={openDbFromPreferences}
+    onOpenDb={revealDatabase}
     onBackup={onBackup}
     onRestore={() => handOffFromPreferences(onRestoreRequest)}
     onShortcuts={() => handOffFromPreferences(openShortcuts)}

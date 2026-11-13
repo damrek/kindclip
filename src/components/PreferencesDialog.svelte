@@ -1,6 +1,5 @@
 <script lang="ts">
   import { getContext } from "svelte";
-  import { getVersion } from "@tauri-apps/api/app";
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
   import Modal from "./Modal.svelte";
@@ -26,7 +25,6 @@
     theme: ThemeMode;
     palette: DarkPalette;
     font: FontScale;
-    dbBusy: boolean;
     backingUp: boolean;
     backupStatus: string | null;
     autoBackup: boolean;
@@ -35,7 +33,8 @@
     onPalette: (palette: DarkPalette) => void;
     onFont: (scale: FontScale) => void;
     onAutoBackup: (enabled: boolean) => void;
-    onOpenDb: () => void;
+    /** Resolves to the failure message, or null when the reveal worked. */
+    onOpenDb: () => Promise<string | null>;
     onBackup: () => void;
     onRestore: () => void;
     onShortcuts: () => void;
@@ -47,7 +46,6 @@
     theme,
     palette,
     font,
-    dbBusy,
     backingUp,
     backupStatus,
     autoBackup,
@@ -64,18 +62,21 @@
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
-  let version = $state<string | null>(null);
   let logsError = $state<string | null>(null);
+  let dbError = $state<string | null>(null);
+  let revealing = $state(false);
 
-  $effect(() => {
-    getVersion()
-      .then((value) => {
-        version = value;
-      })
-      .catch(() => {
-        // Outside the Tauri runtime (plain browser) the version stays hidden.
-      });
-  });
+  /** Reveal the database without closing: a failure is reported in place. */
+  async function revealDatabase(): Promise<void> {
+    if (revealing) return;
+    dbError = null;
+    revealing = true;
+    try {
+      dbError = await onOpenDb();
+    } finally {
+      revealing = false;
+    }
+  }
 
   /** Diagnostics: the dialog stays open so a failure can be reported in place. */
   async function openLogs(): Promise<void> {
@@ -228,7 +229,7 @@
         <h3 id="prefs-data" class="text-xs font-medium tracking-wide text-fg-muted uppercase">
           {i18n.t("prefs.data")}
         </h3>
-        <div class="mt-1 space-y-0.5">
+        <div class="mt-1 grid grid-cols-2 items-start gap-x-2 gap-y-0.5">
           <label
             class="flex items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted"
           >
@@ -243,7 +244,8 @@
           <button
             type="button"
             onclick={onBackup}
-            disabled={backingUp || dbBusy}
+            title={i18n.t("prefs.backup")}
+            disabled={backingUp}
             class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
           >
             <Icon name="backup" />
@@ -252,7 +254,8 @@
           <button
             type="button"
             onclick={onRestore}
-            disabled={backingUp || dbBusy}
+            title={i18n.t("prefs.restore")}
+            disabled={backingUp}
             class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
           >
             <Icon name="restore" />
@@ -260,15 +263,19 @@
           </button>
           <button
             type="button"
-            onclick={onOpenDb}
-            disabled={dbBusy}
+            onclick={revealDatabase}
+            title={i18n.t("db.open")}
+            disabled={revealing}
             class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
           >
             <Icon name="folder" />
             <span class="min-w-0 flex-1 truncate">{i18n.t("db.open")}</span>
           </button>
+          {#if dbError}
+            <p class="col-span-2 px-2 pt-1 text-xs text-danger" role="alert">{dbError}</p>
+          {/if}
           {#if backupStatus}
-            <p class="px-2 pt-1 text-xs text-fg-muted" role="status">
+            <p class="col-span-2 px-2 pt-1 text-xs text-fg-muted" role="status">
               {backupStatus}
             </p>
           {/if}
@@ -313,11 +320,6 @@
             ?
           </kbd>
         </button>
-        {#if version}
-          <p class="px-2 pt-2 text-xs text-fg-subtle">
-            {i18n.t("prefs.version", { version })}
-          </p>
-        {/if}
       </section>
     </div>
 </Modal>
