@@ -3,6 +3,7 @@
   import Icon from "./Icon.svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import type { AuthorGroup } from "../lib/library";
+  import type { BookSortDir, BookSortKey } from "../lib/sorting";
   import type { SidebarView } from "../lib/sidebar";
   import type { Book } from "../lib/types";
   import { hasMoreBelow } from "../lib/scroll";
@@ -16,9 +17,9 @@
     selectedId: number | null;
     totalCount: number;
     onSelect: (bookId: number | null) => void;
-    sortBy?: "title" | "author";
-    sortDir?: "asc" | "desc";
-    onSortBy?: (key: "title" | "author") => void;
+    sortBy?: BookSortKey;
+    sortDir?: BookSortDir;
+    onSortBy?: (key: BookSortKey) => void;
     onSortDirToggle?: () => void;
     onImport?: () => void;
     importing?: boolean;

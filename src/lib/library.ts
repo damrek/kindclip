@@ -127,69 +127,6 @@ export function pruneAuthors(authors: string[], books: Book[]): string[] {
   return next.length === authors.length ? authors : next;
 }
 
-export type BookSortKey = "title" | "author";
-export type BookSortDir = "asc" | "desc";
-
-function normalizeSortArgs(
-  sortBy?:
-    | BookSortKey
-    | {
-        sortBy?: BookSortKey;
-        sort?: BookSortKey;
-        field?: BookSortKey;
-        key?: BookSortKey;
-        dir?: BookSortDir;
-        direction?: BookSortDir;
-        order?: BookSortDir;
-      },
-  direction?: BookSortDir,
-): { key: BookSortKey; dir: BookSortDir } {
-  let key: BookSortKey = "title";
-  let dir: BookSortDir = "asc";
-  if (typeof sortBy === "string") {
-    key = sortBy === "author" ? "author" : "title";
-    if (direction === "desc") dir = "desc";
-  } else if (sortBy && typeof sortBy === "object") {
-    const o = sortBy as Record<string, unknown>;
-    const k = o.sortBy ?? o.sort ?? o.field ?? o.key;
-    if (k === "author") key = "author";
-    const d = o.dir ?? o.direction ?? o.order;
-    if (d === "desc") dir = "desc";
-  }
-  if (direction === "desc" && typeof sortBy === "string") dir = "desc";
-  if (direction === "asc" && typeof sortBy === "string") dir = "asc";
-  return { key, dir };
-}
-
-/** Sort a list of books by title or author, ascending or descending. */
-export function sortBooks(
-  books: Book[],
-  sortBy?:
-    | BookSortKey
-    | {
-        sortBy?: BookSortKey;
-        sort?: BookSortKey;
-        field?: BookSortKey;
-        key?: BookSortKey;
-        dir?: BookSortDir;
-        direction?: BookSortDir;
-        order?: BookSortDir;
-      },
-  direction?: BookSortDir,
-): Book[] {
-  const { key, dir } = normalizeSortArgs(sortBy, direction);
-  const value = (book: Book): string =>
-    key === "author" ? (book.author ?? "") : book.title;
-  return [...books].sort((a, b) => {
-    const result = value(a).localeCompare(value(b), undefined, { sensitivity: "base" });
-    return dir === "desc" ? -result : result;
-  });
-}
-
-/** Alias kept for callers that prefer a "by" suffix. */
-export const sortBooksBy = sortBooks;
-export const sortBooksByKey = sortBooks;
-
 export function totalPages(total: number, pageSize: number): number {
   return Math.ceil(total / pageSize);
 }

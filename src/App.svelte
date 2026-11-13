@@ -55,7 +55,6 @@
   import {
     addClippingTag,
     closeDb,
-    DEFAULT_CLIPPING_SORT,
     deleteBook,
     deleteTag,
     ensureTag,
@@ -78,9 +77,6 @@
     SETTINGS_KEYS,
     toggleFavorite,
     updateNote,
-    type ClippingSort,
-    type ClippingSortDir,
-    type ClippingSortKey,
     type ImportedFile,
     type RenameBookResult,
     type RenameTagResult,
@@ -123,16 +119,22 @@
     debounce,
     formatQuoteCitation,
     groupBooksByAuthor,
-    sortBooks,
     totalClippings,
     withTag,
     pruneAuthors,
     withoutTag,
     withoutTagId,
     emptyFilter,
-    type BookSortKey,
-    type BookSortDir,
   } from "./lib/library";
+  import {
+    DEFAULT_CLIPPING_SORT,
+    sortBooks,
+    type BookSortDir,
+    type BookSortKey,
+    type ClippingSort,
+    type ClippingSortDir,
+    type ClippingSortKey,
+  } from "./lib/sorting";
   import {
     advanceReading,
     canStep,

@@ -11,6 +11,14 @@ import type {
   Tag,
 } from "./types";
 import { PAGE_SIZES, emptyFilter, foldText } from "./library";
+import {
+  CLIPPING_SORT_DIRS,
+  CLIPPING_SORT_KEYS,
+  DEFAULT_CLIPPING_SORT,
+  type ClippingSort,
+  type ClippingSortDir,
+  type ClippingSortKey,
+} from "./sorting";
 import { searchTerms } from "./search";
 
 /** Minimal SQL surface the store needs; real (plugin) or fake (tests). */
@@ -115,18 +123,6 @@ export async function backfillSearchFolding(port: DbPort): Promise<void> {
 export function escapeLike(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
-
-/** Order of the clipping list: date, book title or reading position. */
-export type ClippingSortKey = "date" | "title" | "page";
-export type ClippingSortDir = "asc" | "desc";
-
-export interface ClippingSort {
-  key: ClippingSortKey;
-  dir: ClippingSortDir;
-}
-
-/** Newest first: the historical order, kept as the default. */
-export const DEFAULT_CLIPPING_SORT: ClippingSort = { key: "date", dir: "desc" };
 
 /** ORDER BY clause per sort key; `page` keeps unnumbered rows last both ways. */
 function buildOrderClause(sort: ClippingSort): string {
@@ -314,88 +310,16 @@ export async function exportClippings(filter: ClippingFilter): Promise<ClippingR
   return withTags(port, rows.map(mapClippingRow));
 }
 
-export type BookSortKey = "title" | "author";
-export type BookSortDir = "asc" | "desc";
-
-function normalizeBookSort(
-  sortBy?:
-    | BookSortKey
-    | {
-        sortBy?: BookSortKey;
-        sort?: BookSortKey;
-        field?: BookSortKey;
-        key?: BookSortKey;
-        dir?: BookSortDir;
-        direction?: BookSortDir;
-        order?: BookSortDir;
-      },
-  direction?: BookSortDir,
-): { key: BookSortKey; dir: BookSortDir } {
-  let key: BookSortKey = "title";
-  let dir: BookSortDir = "asc";
-  if (typeof sortBy === "string") {
-    key = sortBy === "author" ? "author" : "title";
-    dir = direction === "desc" ? "desc" : "asc";
-  } else if (sortBy && typeof sortBy === "object") {
-    const o = sortBy as Record<string, unknown>;
-    const k = o.sortBy ?? o.sort ?? o.field ?? o.key;
-    if (k === "author") key = "author";
-    const d = o.dir ?? o.direction ?? o.order;
-    if (d === "desc") dir = "desc";
-    if (d === "asc") dir = "asc";
-  }
-  if (typeof sortBy === "string" && direction) {
-    dir = direction === "desc" ? "desc" : "asc";
-  }
-  return { key, dir };
-}
-
-export function buildBooksQuery(
-  sortBy?:
-    | BookSortKey
-    | {
-        sortBy?: BookSortKey;
-        sort?: BookSortKey;
-        field?: BookSortKey;
-        key?: BookSortKey;
-        dir?: BookSortDir;
-        direction?: BookSortDir;
-        order?: BookSortDir;
-      },
-  direction?: BookSortDir,
-): { sql: string; params: unknown[] } {
-  const { key, dir } = normalizeBookSort(sortBy, direction);
-  const column = key === "author" ? "COALESCE(b.author, '')" : "b.title";
-  const sql =
-    "SELECT b.id, b.title, b.author, COUNT(c.id) AS clipping_count " +
-    "FROM books b JOIN clippings c ON c.book_id = b.id " +
-    "GROUP BY b.id, b.title, b.author " +
-    `ORDER BY ${column} COLLATE NOCASE ${dir.toUpperCase()}`;
-  return { sql, params: [] };
-}
-
 export const LIST_BOOKS_SQL =
   "SELECT b.id, b.title, b.author, COUNT(c.id) AS clipping_count " +
   "FROM books b JOIN clippings c ON c.book_id = b.id " +
   "GROUP BY b.id, b.title, b.author ORDER BY b.title COLLATE NOCASE";
 
-export async function listBooks(
-  sortBy?:
-    | BookSortKey
-    | {
-        sortBy?: BookSortKey;
-        sort?: BookSortKey;
-        field?: BookSortKey;
-        key?: BookSortKey;
-        dir?: BookSortDir;
-        direction?: BookSortDir;
-        order?: BookSortDir;
-      },
-  direction?: BookSortDir,
-): Promise<Book[]> {
+/** Every book with its clipping count. The sidebar sorts the result in memory
+ * (sortBooks), so SQL only fixes a deterministic base order. */
+export async function listBooks(): Promise<Book[]> {
   const port = await getDb();
-  const { sql } = buildBooksQuery(sortBy, direction);
-  return port.select<Book>(sql);
+  return port.select<Book>(LIST_BOOKS_SQL);
 }
 
 export async function toggleFavorite(port: DbPort, clippingId: number): Promise<boolean> {  const rows = await port.select<{ clipping_id: number }>(
@@ -972,9 +896,6 @@ export interface StoredFilterState {
 }
 
 const CLIPPING_KINDS: ClippingKind[] = ["highlight", "note", "bookmark"];
-const CLIPPING_SORT_KEYS: ClippingSortKey[] = ["date", "title", "page"];
-const CLIPPING_SORT_DIRS: ClippingSortDir[] = ["asc", "desc"];
-
 export async function saveFilterState(port: DbPort, state: StoredFilterState): Promise<void> {
   await setSetting(port, SETTINGS_KEYS.filter, JSON.stringify(state));
 }
