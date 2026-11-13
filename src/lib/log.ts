@@ -1,5 +1,8 @@
 /** Best-effort diagnostic logging: never throws, never blocks an action. */
 import { error, info, warn } from "@tauri-apps/plugin-log";
+import { describeError } from "./errors";
+
+export { describeError };
 
 export interface LogSink {
   info: (message: string) => Promise<void>;
@@ -11,12 +14,6 @@ export interface Logger {
   info: (message: string) => void;
   warn: (message: string) => void;
   error: (scope: string, error: unknown) => void;
-}
-
-/** Readable text for a thrown value; callers only pass messages, never content. */
-export function describeError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
 }
 
 /**

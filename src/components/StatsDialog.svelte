@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { focusOnMount, trapFocus } from "../lib/focus";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
+  import Modal from "./Modal.svelte";
   import type { ReadingStats } from "../lib/stats";
 
   interface Props {
@@ -28,21 +28,10 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-  <button
-    type="button"
-    aria-label={i18n.t("stats.close")}
-    onclick={onClose}
-    class="absolute inset-0 cursor-default bg-black/50"
-  ></button>
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-label={i18n.t("stats.title")}
-    tabindex="-1"
-    use:focusOnMount
-    use:trapFocus
-    class="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-line bg-surface-raised"
+<Modal
+    label={i18n.t("stats.title")}
+    onClose={onClose}
+    panel="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-line bg-surface-raised"
   >
     <header class="border-b border-line-subtle px-5 py-4">
       <h2 class="text-sm font-medium text-fg">
@@ -50,7 +39,10 @@
       </h2>
       {#if stats && !loading && !error}
         <p class="mt-1 text-sm text-fg-muted">
-          {i18n.t("stats.summary", { clippings: stats.total, books: stats.bookCount })}
+          {i18n.t("stats.summary", {
+            clippings: countText(i18n.locale, "clipping", stats.total),
+            books: countText(i18n.locale, "book", stats.bookCount),
+          })}
         </p>
       {/if}
     </header>
@@ -171,5 +163,4 @@
         {i18n.t("stats.dismiss")}
       </button>
     </footer>
-  </div>
-</div>
+</Modal>

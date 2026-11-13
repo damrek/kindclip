@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { focusOnMount, trapFocus } from "../lib/focus";
+  import Modal from "./Modal.svelte";
   import type { ExportFormat } from "../lib/exporter";
 
   interface Props {
@@ -29,22 +29,10 @@
   const summary = $derived(i18n.t("export.summary", { count, scope }));
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-  <button
-    type="button"
-    aria-label={i18n.t("card.cancel")}
-    disabled={busy}
-    onclick={onClose}
-    class="absolute inset-0 cursor-default bg-black/50"
-  ></button>
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-label={i18n.t("export.title")}
-    tabindex="-1"
-    use:focusOnMount
-    use:trapFocus
-    class="relative w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
+<Modal
+    label={i18n.t("export.title")}
+    onClose={onClose} busy={busy}
+    panel="w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
   >
     <h2 class="text-sm font-medium text-fg">
       {i18n.t("export.title")}
@@ -112,5 +100,4 @@
         {i18n.t("export.button")}
       </button>
     </div>
-  </div>
-</div>
+</Modal>

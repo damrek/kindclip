@@ -31,5 +31,14 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-  test: isTauri ? undefined : { environment: "node" },
+  test: isTauri
+    ? undefined
+    : {
+        environment: "node",
+        // Threads start cheaper than the default forks for a suite this small.
+        pool: "threads",
+        // Persist transformed modules between runs. The cache lives inside
+        // node_modules, so reinstalling dependencies invalidates it naturally.
+        fsModuleCache: true,
+      },
 }));

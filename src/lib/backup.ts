@@ -1,15 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import Database from "@tauri-apps/plugin-sql";
 import type { DbPort } from "./db";
+import { describeError } from "./errors";
 
 /** File extension offered by the native backup and restore dialogs. */
 export const BACKUP_EXTENSION = "db";
 
-/** `kindclip-backup-YYYY-MM-DD.db` in the local timezone. */
-export function backupFileName(now: Date = new Date()): string {
+/** Local calendar date as `YYYY-MM-DD`.
+ *
+ * The file name itself belongs to Rust (`backup_file_name`), so the frontend
+ * can never compose a name the backend would reject. */
+export function backupDate(now: Date = new Date()): string {
   const pad2 = (value: number): string => String(value).padStart(2, "0");
-  const date = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-  return `kindclip-backup-${date}.${BACKUP_EXTENSION}`;
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
 }
 
 /** Last segment of a path, supporting both `/` and `\` separators. */
@@ -18,15 +21,8 @@ export function baseName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
-/** Folder next to `kindclip.db` that holds the automatic snapshots. */
-export const AUTO_BACKUP_DIR = "backups";
-
 /** How many automatic snapshots survive pruning (the newest ones). */
 export const AUTO_BACKUP_KEEP = 7;
-
-/** In-flight `VACUUM INTO` targets, removed when stale after a crash. */
-export const AUTO_BACKUP_TEMP_PREFIX = "kindclip-auto-";
-export const AUTO_BACKUP_TEMP_SUFFIX = ".tmp";
 
 /** One automatic snapshot as listed by Rust, newest first. */
 export interface AutoBackup {
@@ -61,8 +57,8 @@ export function isAutoBackupName(name: string): boolean {
  * already there counts, including a manual backup the user saved into the
  * automatic folder.
  */
-export function autoBackupDue(names: string[], now: Date = new Date()): boolean {
-  return !names.includes(backupFileName(now));
+export function autoBackupDue(names: string[], today: string): boolean {
+  return !names.includes(today);
 }
 
 /**
@@ -132,10 +128,6 @@ const REQUIRED_TABLES = [
   "_sqlx_migrations",
 ];
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function countRows(port: DbPort, table: string): Promise<number> {
   const rows = await port.select<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`);
   return Number(rows[0]?.n ?? 0);
@@ -164,7 +156,7 @@ export async function inspectBackup(
   try {
     integrity = await port.select<{ integrity_check: string }>("PRAGMA integrity_check");
   } catch (error) {
-    throw new BackupError("corrupt", messageOf(error));
+    throw new BackupError("corrupt", describeError(error));
   }
   if (integrity.length !== 1 || integrity[0]?.integrity_check !== "ok") {
     throw new BackupError(

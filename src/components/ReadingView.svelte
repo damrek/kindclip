@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext, onMount } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { formatAddedOn, formatReference } from "../lib/library";
+  import { formatAddedOn, referenceText } from "../lib/format";
   import type { ClippingRow } from "../lib/types";
   import HighlightedText from "./HighlightedText.svelte";
   import Icon from "./Icon.svelte";
@@ -47,7 +47,7 @@
 
   const displayContent = $derived(clipping.content_edited ?? clipping.content);
   const kindLabel = $derived(i18n.t(`kind.${clipping.kind}`));
-  const reference = $derived(formatReference(clipping.page, clipping.location));
+  const reference = $derived(referenceText(i18n.t, clipping.page, clipping.location));
   const addedOnLabel = $derived(
     formatAddedOn(clipping.added_on, clipping.added_on_raw, i18n.locale),
   );

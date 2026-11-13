@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { focusOnMount, trapFocus } from "../lib/focus";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
+  import Modal from "./Modal.svelte";
   import {
     autoBackupDate,
     formatBackupSize,
@@ -41,22 +41,10 @@
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-  <button
-    type="button"
-    aria-label={i18n.t("restore.close")}
-    disabled={busy}
-    onclick={onClose}
-    class="absolute inset-0 cursor-default bg-black/50"
-  ></button>
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-label={i18n.t("restore.title")}
-    tabindex="-1"
-    use:focusOnMount
-    use:trapFocus
-    class="relative w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
+<Modal
+    label={i18n.t("restore.title")}
+    onClose={onClose} busy={busy}
+    panel="w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
   >
     <h2 class="text-sm font-medium text-fg">
       {i18n.t("restore.title")}
@@ -81,9 +69,9 @@
       <p class="mt-1 text-sm text-fg-muted">
         {i18n.t("restore.summary", {
           file: fileName,
-          clippings: info.clippings,
-          books: info.books,
-          tags: info.tags,
+          clippings: countText(i18n.locale, "clipping", info.clippings),
+          books: countText(i18n.locale, "book", info.books),
+          tags: countText(i18n.locale, "tag", info.tags),
         })}
       </p>
       <p class="mt-3 text-sm text-accent-text">{i18n.t("restore.warning")}</p>
@@ -162,5 +150,4 @@
         </button>
       </div>
     {/if}
-  </div>
-</div>
+</Modal>

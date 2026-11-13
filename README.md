@@ -78,8 +78,9 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
   Full-text search covers content, title and author, accent- and
   case-insensitive; every word must match and hits are highlighted in the list
   and the reading view. Combine with book, multi-select author/type/status/tag
-  filters; click a card's type or **Edited** badge to toggle it. Pagination
-  20/50/100.
+  filters; the author and tag lists have their own search and a five-row scroll
+  window with a bottom fade; click a card's type or **Edited** badge to toggle
+  it. Pagination 20/50/100.
 - **Sorting**: books by title or author (↑/↓); clippings by newest/oldest, book
   title (A–Z/Z–A) or page. All persisted.
 
@@ -106,9 +107,10 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Collapsible shell**: sidebar toggle (remembered), and the sidebar switches
   between the flat book list and collapsible author groups (remembered); search
   collapses to an icon until clicked or filled.
-- **Grouped chrome**: the top bar keeps only the sidebar toggle and the
-  settings gear; search, filters, sort and export sit above the list they act
-  on; the sidebar footer carries import, library management and statistics.
+- **Grouped chrome**: the top bar keeps the sidebar toggle, the running version
+  and the settings gear; search, filters, sort and export sit above the list
+  they act on; the sidebar footer carries import, library management and
+  statistics.
 - **Preferences dialog**: language, system/light/dark theme with four dark
   palettes — Atom One Dark, Darcula, Nord and Solarized Dark — text size S/M/L,
   DB location, logs folder and shortcuts.
@@ -131,7 +133,7 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 
 ## Development
 
-**Requirements**: Node.js 20+ and a stable Rust toolchain.
+**Requirements**: Node.js 22.5+ and a stable Rust toolchain.
 
 **Linux deps** (Ubuntu):
 ```bash
@@ -150,6 +152,7 @@ npx tauri build    # bundles land in target/release/bundle
 ```bash
 npm test           # vitest (frontend)
 npm run check      # svelte-check
+npm run lint       # eslint (flat config)
 npm run build      # vite build
 cargo test --workspace
 cargo clippy --workspace --all-targets
@@ -174,7 +177,9 @@ and this app has no such channel.
 
 ```
 src/                        # Svelte 5 + Tailwind v4 frontend
-  lib/                      # db, backup, exporter, importer, stats, i18n, theme, types
+  App.svelte                # shell: layout, dialogs and list orchestration
+  lib/                      # domain modules (filters, sorting, library, reading, …)
+    db/                     # data layer split by entity (clippings, books, tags, files, settings)
   components/               # BookSidebar, ClippingCard, FilterMenu, dialogs, ...
   assets/icon.png
 src-tauri/

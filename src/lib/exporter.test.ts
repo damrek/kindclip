@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   exportFileName,
+  formatReference,
   groupRowsByBook,
   planBookFileNames,
   serializeBookMarkdown,
@@ -8,7 +9,7 @@ import {
   serializeJson,
   serializeMarkdown,
 } from "./exporter";
-import { formatAddedOn } from "./library";
+import { formatAddedOn } from "./format";
 import type { ClippingRow, Tag } from "./types";
 
 function tag(name: string): Tag {
@@ -260,6 +261,15 @@ describe("serializeCsv", () => {
   it("quotes a tags cell that holds a comma", () => {
     const csv = serializeCsv([row({ tags: [tag("a,b"), tag("c")] })]);
     expect(csv.split("\r\n")[1]).toContain('"a,b;c"');
+  });
+});
+
+describe("formatReference", () => {
+  it("combines page and location in the stable export vocabulary", () => {
+    expect(formatReference(12, "234-236")).toBe("p. 12 · pos. 234-236");
+    expect(formatReference(null, "100-101")).toBe("pos. 100-101");
+    expect(formatReference(3, null)).toBe("p. 3");
+    expect(formatReference(null, null)).toBe("");
   });
 });
 

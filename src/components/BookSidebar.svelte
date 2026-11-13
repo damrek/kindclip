@@ -1,8 +1,10 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import Icon from "./Icon.svelte";
-  import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
+  import { SvelteSet } from "svelte/reactivity";
+  import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import type { AuthorGroup } from "../lib/library";
+  import type { BookSortDir, BookSortKey } from "../lib/sorting";
   import type { SidebarView } from "../lib/sidebar";
   import type { Book } from "../lib/types";
   import { hasMoreBelow } from "../lib/scroll";
@@ -16,9 +18,9 @@
     selectedId: number | null;
     totalCount: number;
     onSelect: (bookId: number | null) => void;
-    sortBy?: "title" | "author";
-    sortDir?: "asc" | "desc";
-    onSortBy?: (key: "title" | "author") => void;
+    sortBy?: BookSortKey;
+    sortDir?: BookSortDir;
+    onSortBy?: (key: BookSortKey) => void;
     onSortDirToggle?: () => void;
     onImport?: () => void;
     importing?: boolean;
@@ -53,7 +55,7 @@
   /** More books below the fold, so the fade is only drawn then. */
   let moreBelow = $state(false);
   /** Author groups collapsed in this session (S7). */
-  let collapsed = $state<Set<string>>(new Set());
+  const collapsed = new SvelteSet<string>();
 
   function measureFade(): void {
     const element = listEl;
@@ -61,21 +63,22 @@
   }
 
   function toggleGroup(key: string): void {
-    const next = new Set(collapsed);
-    if (next.has(key)) {
-      next.delete(key);
+    if (collapsed.has(key)) {
+      collapsed.delete(key);
     } else {
-      next.add(key);
+      collapsed.add(key);
     }
-    collapsed = next;
   }
 
   function expandAllGroups(): void {
-    collapsed = new Set();
+    collapsed.clear();
   }
 
   function collapseAllGroups(): void {
-    collapsed = new Set(groups.map((group) => group.key));
+    collapsed.clear();
+    for (const group of groups) {
+      collapsed.add(group.key);
+    }
   }
 
   // Re-measure whenever the scroller is resized or the sidebar is toggled in.
@@ -93,7 +96,7 @@
     void books;
     void groups;
     void view;
-    void collapsed;
+    void collapsed.size;
     void listEl;
     measureFade();
   });
@@ -250,13 +253,15 @@
               class="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-surface-hover"
             >
               <span class="min-w-0">
-                <span class="block truncate font-medium text-fg">
+                <span
+                  class="block truncate text-[0.7rem] leading-4 font-semibold tracking-[0.08em] uppercase text-fg-muted"
+                >
                   {group.name ?? i18n.t("filters.unknownAuthor")}
                 </span>
-                <span class="block truncate text-xs text-fg-subtle">
+                <span class="block truncate text-[0.65rem] leading-4 text-fg-subtle">
                   {i18n.t("sidebar.groupCounts", {
-                    books: group.bookCount,
-                    clippings: group.clippingCount,
+                    books: countText(i18n.locale, "book", group.bookCount),
+                    clippings: countText(i18n.locale, "clipping", group.clippingCount),
                   })}
                 </span>
               </span>
@@ -270,7 +275,7 @@
             <div
               id={`author-group-${index}`}
               hidden={collapsed.has(group.key)}
-              class="space-y-0.5"
+              class="ml-3 space-y-0.5 border-l border-line-subtle pl-2"
             >
               {#each group.books as book (book.id)}
                 {@render bookRow(book, false)}

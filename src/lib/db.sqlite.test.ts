@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { importParsedClippings, buildCountQuery, buildListQuery, buildSearchQuery, type DbPort } from "./db";
+import {
+  deleteBook,
+  importParsedClippings,
+  mergeBooks,
+  removeImportedFile,
+  buildCountQuery,
+  buildListQuery,
+  buildSearchQuery,
+  type DbPort,
+} from "./db";
 import { emptyFilter } from "./library";
 import { loadReadingStats, TOP_BOOKS } from "./stats";
 import type { ClippingDto, ClippingFilter } from "./types";
@@ -21,6 +30,17 @@ function schema(): string {
   ).join("\n");
 }
 
+/** A value node:sqlite accepts, normalized the way sqlx binds parameters. */
+type BoundValue = string | number | null;
+
+function boundValue(raw: unknown): BoundValue {
+  return typeof raw === "number" || typeof raw === "string"
+    ? raw
+    : raw === null || raw === undefined
+      ? null
+      : String(raw);
+}
+
 /**
  * `DbPort` over a real in-memory SQLite. Placeholders are bound the same way
  * sqlx does in tauri-plugin-sql: `$N` names resolve to the N-th supplied value,
@@ -34,32 +54,45 @@ class SqlitePort implements DbPort {
     this.db.exec(schema());
   }
 
+  /**
+   * `sqlx` binds `$N` by name, so a name repeated in the SQL receives a single
+   * value. node:sqlite resolves a large named-parameter object extremely
+   * slowly, so when the names are exactly 1..N in ascending order — the shape
+   * of every batched INSERT — the placeholders are rewritten to `?` and bound
+   * positionally, which is equivalent and orders of magnitude faster. Anything
+   * else keeps the named object and the `$N` reuse semantics intact.
+   */
   private bind(
     sql: string,
     params?: unknown[],
-  ): Record<string, string | number | null> | undefined {
-    if (!params || params.length === 0) return undefined;
+  ): { sql: string; arg?: BoundValue[] | Record<string, BoundValue> } {
+    if (!params || params.length === 0) return { sql };
     const names = [...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1]));
-    if (names.length === 0) return undefined;
-    const bound: Record<string, string | number | null> = {};
+    if (names.length === 0) return { sql };
+    if (names.every((name, index) => name === index + 1)) {
+      return {
+        sql: sql.replace(/\$\d+/g, "?"),
+        arg: names.map((name) => boundValue(params[name - 1])),
+      };
+    }
+    const arg: Record<string, BoundValue> = {};
     // SQLite counts each distinct name once; only the declared names are bound.
     for (let index = 1; index <= Math.max(...names); index += 1) {
-      const value = params[index - 1];
-      bound[String(index)] =
-        typeof value === "number" || typeof value === "string"
-          ? value
-          : value === null || value === undefined
-            ? null
-            : String(value);
+      arg[String(index)] = boundValue(params[index - 1]);
     }
-    return bound;
+    return { sql, arg };
   }
 
   async select<T>(sql: string, params?: unknown[]): Promise<T[]> {
     this.executedSql.push(sql);
-    const statement = this.db.prepare(sql);
     const bound = this.bind(sql, params);
-    const rows = bound === undefined ? statement.all() : statement.all(bound);
+    const statement = this.db.prepare(bound.sql);
+    const rows =
+      bound.arg === undefined
+        ? statement.all()
+        : Array.isArray(bound.arg)
+          ? statement.all(...bound.arg)
+          : statement.all(bound.arg);
     return rows as T[];
   }
 
@@ -68,9 +101,14 @@ class SqlitePort implements DbPort {
     params?: unknown[],
   ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
     this.executedSql.push(sql);
-    const statement = this.db.prepare(sql);
     const bound = this.bind(sql, params);
-    const result = bound === undefined ? statement.run() : statement.run(bound);
+    const statement = this.db.prepare(bound.sql);
+    const result =
+      bound.arg === undefined
+        ? statement.run()
+        : Array.isArray(bound.arg)
+          ? statement.run(...bound.arg)
+          : statement.run(bound.arg);
     return {
       lastInsertId: Number(result.lastInsertRowid),
       rowsAffected: Number(result.changes),
@@ -96,6 +134,14 @@ function clipping(overrides: Partial<ClippingDto> = {}): ClippingDto {
     ...overrides,
   };
 }
+
+describe("SqlitePort parameter binding", () => {
+  it("binds a repeated $N to one value, like sqlx", async () => {
+    const port = new SqlitePort();
+    const rows = await port.select<{ a: number; b: number }>("SELECT $1 AS a, $1 AS b", [7]);
+    expect(rows[0]).toEqual({ a: 7, b: 7 });
+  });
+});
 
 describe("importParsedClippings against real SQLite", () => {
   it("inserts every fresh clipping through one multi-row statement", async () => {
@@ -136,6 +182,70 @@ describe("importParsedClippings against real SQLite", () => {
     expect(port.count("SELECT COUNT(*) AS n FROM clippings")).toBe(2);
   });
 
+  it("dedupes through the unique index instead of reading every hash", async () => {
+    const port = new SqlitePort();
+    const clippings = [
+      clipping({ content_hash: "dup-a", content: "A" }),
+      clipping({ content_hash: "dup-b", content: "B" }),
+    ];
+    await importParsedClippings(
+      port,
+      { path: "/kindle/My Clippings.txt", fileHash: "file-1", clippings, skipped: 0 },
+      () => {},
+    );
+
+    // The lookup is bounded to the batch, never a full-table SELECT of hashes.
+    const hashReads = port.executedSql.filter(
+      (sql) => sql.includes("SELECT content_hash FROM clippings") && !sql.includes(" IN "),
+    );
+    expect(hashReads).toHaveLength(0);
+
+    // A repeated hash inside one batch is dropped, not inserted twice.
+    const again = await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-1",
+        clippings: [clippings[0], { ...clippings[0] }],
+        skipped: 0,
+      },
+      () => {},
+    );
+    expect(again.inserted).toBe(0);
+    expect(again.alreadyImported).toBe(true);
+  });
+
+  it("converges when a previous import stopped halfway", async () => {
+    const port = new SqlitePort();
+    const first = clipping({ content_hash: "half-1", content: "First" });
+    const second = clipping({ content_hash: "half-2", content: "Second" });
+
+    // Simulate an interrupted run: only one of the two clippings landed.
+    await importParsedClippings(
+      port,
+      { path: "/kindle/My Clippings.txt", fileHash: "file-half", clippings: [first], skipped: 0 },
+      () => {},
+    );
+    expect(port.count("SELECT clipping_count AS n FROM files")).toBe(1);
+
+    const retry = await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-half",
+        clippings: [first, second],
+        skipped: 0,
+      },
+      () => {},
+    );
+
+    expect(retry.inserted).toBe(1);
+    expect(retry.duplicates).toBe(1);
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings")).toBe(2);
+    // The stored count is derived from the rows, so the retry cannot leave it behind.
+    expect(port.count("SELECT clipping_count AS n FROM files")).toBe(2);
+  });
+
   it("splits more than 500 fresh clippings into two valid statements", async () => {
     const port = new SqlitePort();
     const clippings = Array.from({ length: 501 }, (_, index) =>
@@ -160,6 +270,103 @@ describe("importParsedClippings against real SQLite", () => {
     // 500 rows * 11 columns = 5,500 parameters, below SQLite's 32,766 limit.
     const firstChunkNames = [...statements[0].matchAll(/\$(\d+)/g)];
     expect(Math.max(...firstChunkNames.map((match) => Number(match[1])))).toBe(5_500);
+  });
+});
+
+/** Wraps a port and fails one `execute` after `failAfter` successful ones,
+ * simulating a statement that dies halfway through a multi-step write. */
+class FlakyPort implements DbPort {
+  private calls = 0;
+
+  constructor(
+    private readonly inner: SqlitePort,
+    private readonly failAfter: number,
+  ) {}
+
+  select<T>(sql: string, params?: unknown[]): Promise<T[]> {
+    return this.inner.select<T>(sql, params);
+  }
+
+  async execute(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
+    this.calls += 1;
+    if (this.calls === this.failAfter + 1) {
+      throw new Error("disk I/O error");
+    }
+    return this.inner.execute(sql, params);
+  }
+
+  count(sql: string): number {
+    return this.inner.count(sql);
+  }
+}
+
+describe("interrupted destructive writes converge on retry", () => {
+  async function seeded(): Promise<SqlitePort> {
+    const port = new SqlitePort();
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-1",
+        skipped: 0,
+        clippings: [
+          clipping({ title: "Book A", content: "a1", content_hash: "a1" }),
+          clipping({ title: "Book A", content: "a2", content_hash: "a2" }),
+          clipping({ title: "Book B", content: "b1", content_hash: "b1" }),
+        ],
+      },
+      () => {},
+    );
+    return port;
+  }
+
+  it("deleteBook completes the intent when its middle statement fails", async () => {
+    const port = await seeded();
+    const bookA = port.count("SELECT id AS n FROM books WHERE title = 'Book A'");
+
+    // favorites delete succeeds, the clippings delete fails.
+    const flaky = new FlakyPort(port, 1);
+    await expect(deleteBook(flaky, bookA)).rejects.toThrow("disk I/O error");
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookA)).toBe(2);
+
+    await expect(deleteBook(port, bookA)).resolves.toBe(2);
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookA)).toBe(0);
+    expect(port.count("SELECT COUNT(*) AS n FROM books")).toBe(1);
+  });
+
+  it("mergeBooks converges when the source delete fails", async () => {
+    const port = await seeded();
+    const bookA = port.count("SELECT id AS n FROM books WHERE title = 'Book A'");
+    const bookB = port.count("SELECT id AS n FROM books WHERE title = 'Book B'");
+
+    // The reparenting UPDATE succeeds, the source DELETE fails.
+    const flaky = new FlakyPort(port, 1);
+    await expect(mergeBooks(flaky, bookA, bookB)).rejects.toThrow("disk I/O error");
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookA)).toBe(0);
+
+    const retry = await mergeBooks(port, bookA, bookB);
+    expect(retry).toEqual({ status: "merged", moved: 0 });
+    expect(port.count("SELECT COUNT(*) AS n FROM books")).toBe(1);
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookB)).toBe(3);
+  });
+
+  it("removeImportedFile converges when the file row delete fails", async () => {
+    const port = await seeded();
+    const fileId = port.count("SELECT id AS n FROM files");
+
+    // favorites, clippings and empty books are gone; the files row remains.
+    const flaky = new FlakyPort(port, 2);
+    await expect(removeImportedFile(flaky, fileId)).rejects.toThrow("disk I/O error");
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings")).toBe(0);
+    expect(port.count("SELECT COUNT(*) AS n FROM files")).toBe(1);
+
+    // The retry reports the rows it actually removed: the clippings were
+    // already gone, the two books it left empty are removed now.
+    await expect(removeImportedFile(port, fileId)).resolves.toEqual({ clippings: 0, books: 2 });
+    expect(port.count("SELECT COUNT(*) AS n FROM files")).toBe(0);
   });
 });
 

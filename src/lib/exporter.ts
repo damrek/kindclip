@@ -1,11 +1,12 @@
-import { formatAddedOn, formatReference } from "./library";
+import { formatAddedOn } from "./format";
 import type { I18nKey, TranslateParams } from "./i18n";
 import type { ClippingRow } from "./types";
 
 /** Formats offered by the export dialog (S1). */
 export type ExportFormat = "markdown" | "json" | "csv";
 
-const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
+/** File extension per format; the single source for dialogs and names. */
+export const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
   markdown: "md",
   json: "json",
   csv: "csv",
@@ -45,6 +46,19 @@ export interface MarkdownOptions {
   includeOriginal: boolean;
   locale: string;
   t: (key: I18nKey, params?: TranslateParams) => string;
+}
+
+/** Stable English reference line for exported documents: "p. 12 · pos. 234".
+ * The on-screen version is translated (format.ts); exports keep one vocabulary. */
+export function formatReference(page: number | null, location: string | null): string {
+  const parts: string[] = [];
+  if (page !== null) {
+    parts.push(`p. ${page}`);
+  }
+  if (location !== null && location !== "") {
+    parts.push(`pos. ${location}`);
+  }
+  return parts.join(" · ");
 }
 
 function quoteBlock(text: string): string {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  countText,
   DICTIONARIES,
   isLocale,
   loadLocale,
@@ -127,41 +128,42 @@ describe("import skipped keys", () => {
     }
   });
 
-  it("interpolates the done summary with the skipped count", () => {
-    const params = { inserted: 2, total: 5, duplicates: 1, skipped: 2, books: 3 };
-    expect(translate("es", "import.doneSkipped", params)).toBe(
-      "Importados 2 de 5 (1 duplicados, 2 omitidos, 3 libros).",
-    );
-    expect(translate("en", "import.doneSkipped", params)).toBe(
-      "Imported 2 of 5 (1 duplicates, 2 skipped, 3 books).",
-    );
-    expect(translate("fr", "import.doneSkipped", params)).toBe(
-      "Importés 2 sur 5 (1 doublons, 2 ignorés, 3 livres).",
-    );
-    expect(translate("de", "import.doneSkipped", params)).toBe(
-      "2 von 5 importiert (1 Duplikate, 2 übersprungen, 3 Bücher).",
-    );
-    expect(translate("it", "import.doneSkipped", params)).toBe(
-      "Importati 2 di 5 (1 duplicati, 2 ignorati, 3 libri).",
-    );
+  it("interpolates the done summary with each locale's noun phrases", () => {
+    const line = (locale: Locale): string =>
+      translate(locale, "import.doneSkipped", {
+        inserted: 2,
+        total: 5,
+        duplicates: countText(locale, "duplicate", 1),
+        skipped: countText(locale, "skipped", 2),
+        books: countText(locale, "book", 3),
+      });
+
+    expect(line("es")).toBe("Importados 2 de 5 (1 duplicado, 2 omitidos, 3 libros).");
+    expect(line("en")).toBe("Imported 2 of 5 (1 duplicate, 2 skipped, 3 books).");
+    expect(line("fr")).toBe("Importés 2 sur 5 (1 doublon, 2 ignorés, 3 livres).");
+    expect(line("de")).toBe("2 von 5 importiert (1 Duplikat, 2 übersprungen, 3 Bücher).");
+    expect(line("it")).toBe("Importati 2 di 5 (1 duplicato, 2 saltati, 3 libri).");
   });
 
-  it("interpolates the empty message with the skipped count", () => {
-    const params = { path: "/tmp/My Clippings.txt", skipped: 3 };
-    expect(translate("es", "import.emptySkipped", params)).toBe(
-      "Sin clippings legibles en /tmp/My Clippings.txt (3 omitidos).",
-    );
-    expect(translate("en", "import.emptySkipped", params)).toBe(
-      "No readable clippings in /tmp/My Clippings.txt (3 skipped).",
-    );
-    expect(translate("fr", "import.emptySkipped", params)).toBe(
-      "Aucun clipping lisible dans /tmp/My Clippings.txt (3 ignorés).",
-    );
-    expect(translate("de", "import.emptySkipped", params)).toBe(
-      "Keine lesbaren Clippings in /tmp/My Clippings.txt (3 übersprungen).",
-    );
-    expect(translate("it", "import.emptySkipped", params)).toBe(
-      "Nessun clipping leggibile in /tmp/My Clippings.txt (3 ignorati).",
+  it("interpolates the empty message with the skipped phrase", () => {
+    expect(
+      translate("en", "import.emptySkipped", {
+        path: "/tmp/My Clippings.txt",
+        skipped: countText("en", "skipped", 3),
+      }),
+    ).toBe("No readable clippings in /tmp/My Clippings.txt (3 skipped).");
+  });
+
+  it("picks the plural variant declared for the locale", () => {
+    for (const locale of LOCALES) {
+      expect(translate(locale, "library.clippingCount", { count: 1 })).toContain("1 ");
+      expect(translate(locale, "library.clippingCount", { count: 2 })).toContain("2 ");
+    }
+    expect(translate("en", "library.clippingCount", { count: 1 })).toBe("1 clipping");
+    expect(translate("en", "library.clippingCount", { count: 2 })).toBe("2 clippings");
+    expect(translate("de", "library.clippingCount", { count: 2 })).toBe("2 Clippings");
+    expect(translate("es", "export.overwrite", { count: 1 })).toBe(
+      "¿Reemplazar 1 archivo existente?",
     );
   });
 });
@@ -193,12 +195,12 @@ describe("reading view keys", () => {
   });
 });
 
-describe("prefs.version", () => {
+describe("prefs.versionShort", () => {
   it("interpolates the app version in every locale", () => {
-    expect(translate("es", "prefs.version", { version: "1.9.0" })).toBe("Versión 1.9.0");
-    expect(translate("en", "prefs.version", { version: "1.9.0" })).toBe("Version 1.9.0");
-    expect(translate("fr", "prefs.version", { version: "1.9.0" })).toBe("Version 1.9.0");
-    expect(translate("de", "prefs.version", { version: "1.9.0" })).toBe("Version 1.9.0");
-    expect(translate("it", "prefs.version", { version: "1.9.0" })).toBe("Versione 1.9.0");
+    expect(translate("es", "prefs.versionShort", { version: "1.9.0" })).toBe("v1.9.0");
+    expect(translate("en", "prefs.versionShort", { version: "1.9.0" })).toBe("v1.9.0");
+    expect(translate("fr", "prefs.versionShort", { version: "1.9.0" })).toBe("v1.9.0");
+    expect(translate("de", "prefs.versionShort", { version: "1.9.0" })).toBe("v1.9.0");
+    expect(translate("it", "prefs.versionShort", { version: "1.9.0" })).toBe("v1.9.0");
   });
 });

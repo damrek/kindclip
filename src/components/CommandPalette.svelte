@@ -1,9 +1,11 @@
 <script lang="ts">
   import { getContext, onMount } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { debounce, formatReference } from "../lib/library";
-  import { searchClippings, countClippings } from "../lib/db";
+  import { referenceText } from "../lib/format";
+  import { debounce } from "../lib/library";
+  import { searchClippings, countClippings, getDb } from "../lib/db";
   import { stepSelection } from "../lib/shortcuts";
+  import { describeError } from "../lib/errors";
   import { hasMoreBelow } from "../lib/scroll";
   import { focusOnMount, selectOnInteraction, trapFocus } from "../lib/focus";
   import type { ClippingRow } from "../lib/types";
@@ -50,9 +52,10 @@
     loading = true;
     error = null;
     try {
+      const port = await getDb();
       const [rows, count] = await Promise.all([
-        searchClippings(value, limit + 1),
-        countClippings(value),
+        searchClippings(port, value, limit + 1),
+        countClippings(port, value),
       ]);
       if (current !== request || destroyed) return;
       results = rows.slice(0, limit);
@@ -74,7 +77,7 @@
       selectedId = null;
       pendingOpen = false;
       error = i18n.t("palette.error", {
-        message: cause instanceof Error ? cause.message : String(cause),
+        message: describeError(cause),
       });
     } finally {
       if (current === request) {
@@ -235,7 +238,7 @@
         class="max-h-[58vh] space-y-0.5 overflow-y-auto p-2"
       >
         {#each results as item (item.id)}
-          {@const reference = formatReference(item.page, item.location)}
+          {@const reference = referenceText(i18n.t, item.page, item.location)}
           <li
             id={`palette-option-${item.id}`}
             role="option"

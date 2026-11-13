@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { PAGE_SIZES, pageWindow } from "../lib/library";
+  import { PAGE_SIZES, pageWindow } from "../lib/pagination";
 
   interface Props {
     page: number;
