@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { importParsedClippings, buildCountQuery, buildListQuery, buildSearchQuery, type DbPort } from "./db";
+import {
+  deleteBook,
+  importParsedClippings,
+  mergeBooks,
+  removeImportedFile,
+  buildCountQuery,
+  buildListQuery,
+  buildSearchQuery,
+  type DbPort,
+} from "./db";
 import { emptyFilter } from "./library";
 import { loadReadingStats, TOP_BOOKS } from "./stats";
 import type { ClippingDto, ClippingFilter } from "./types";
@@ -224,6 +233,103 @@ describe("importParsedClippings against real SQLite", () => {
     // 500 rows * 11 columns = 5,500 parameters, below SQLite's 32,766 limit.
     const firstChunkNames = [...statements[0].matchAll(/\$(\d+)/g)];
     expect(Math.max(...firstChunkNames.map((match) => Number(match[1])))).toBe(5_500);
+  });
+});
+
+/** Wraps a port and fails one `execute` after `failAfter` successful ones,
+ * simulating a statement that dies halfway through a multi-step write. */
+class FlakyPort implements DbPort {
+  private calls = 0;
+
+  constructor(
+    private readonly inner: SqlitePort,
+    private readonly failAfter: number,
+  ) {}
+
+  select<T>(sql: string, params?: unknown[]): Promise<T[]> {
+    return this.inner.select<T>(sql, params);
+  }
+
+  async execute(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
+    this.calls += 1;
+    if (this.calls === this.failAfter + 1) {
+      throw new Error("disk I/O error");
+    }
+    return this.inner.execute(sql, params);
+  }
+
+  count(sql: string): number {
+    return this.inner.count(sql);
+  }
+}
+
+describe("interrupted destructive writes converge on retry", () => {
+  async function seeded(): Promise<SqlitePort> {
+    const port = new SqlitePort();
+    await importParsedClippings(
+      port,
+      {
+        path: "/kindle/My Clippings.txt",
+        fileHash: "file-1",
+        skipped: 0,
+        clippings: [
+          clipping({ title: "Book A", content: "a1", content_hash: "a1" }),
+          clipping({ title: "Book A", content: "a2", content_hash: "a2" }),
+          clipping({ title: "Book B", content: "b1", content_hash: "b1" }),
+        ],
+      },
+      () => {},
+    );
+    return port;
+  }
+
+  it("deleteBook completes the intent when its middle statement fails", async () => {
+    const port = await seeded();
+    const bookA = port.count("SELECT id AS n FROM books WHERE title = 'Book A'");
+
+    // favorites delete succeeds, the clippings delete fails.
+    const flaky = new FlakyPort(port, 1);
+    await expect(deleteBook(flaky, bookA)).rejects.toThrow("disk I/O error");
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookA)).toBe(2);
+
+    await expect(deleteBook(port, bookA)).resolves.toBe(2);
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookA)).toBe(0);
+    expect(port.count("SELECT COUNT(*) AS n FROM books")).toBe(1);
+  });
+
+  it("mergeBooks converges when the source delete fails", async () => {
+    const port = await seeded();
+    const bookA = port.count("SELECT id AS n FROM books WHERE title = 'Book A'");
+    const bookB = port.count("SELECT id AS n FROM books WHERE title = 'Book B'");
+
+    // The reparenting UPDATE succeeds, the source DELETE fails.
+    const flaky = new FlakyPort(port, 1);
+    await expect(mergeBooks(flaky, bookA, bookB)).rejects.toThrow("disk I/O error");
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookA)).toBe(0);
+
+    const retry = await mergeBooks(port, bookA, bookB);
+    expect(retry).toEqual({ status: "merged", moved: 0 });
+    expect(port.count("SELECT COUNT(*) AS n FROM books")).toBe(1);
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings WHERE book_id = " + bookB)).toBe(3);
+  });
+
+  it("removeImportedFile converges when the file row delete fails", async () => {
+    const port = await seeded();
+    const fileId = port.count("SELECT id AS n FROM files");
+
+    // favorites, clippings and empty books are gone; the files row remains.
+    const flaky = new FlakyPort(port, 2);
+    await expect(removeImportedFile(flaky, fileId)).rejects.toThrow("disk I/O error");
+    expect(port.count("SELECT COUNT(*) AS n FROM clippings")).toBe(0);
+    expect(port.count("SELECT COUNT(*) AS n FROM files")).toBe(1);
+
+    // The retry reports the rows it actually removed: the clippings were
+    // already gone, the two books it left empty are removed now.
+    await expect(removeImportedFile(port, fileId)).resolves.toEqual({ clippings: 0, books: 2 });
+    expect(port.count("SELECT COUNT(*) AS n FROM files")).toBe(0);
   });
 });
 

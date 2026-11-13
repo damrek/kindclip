@@ -77,6 +77,7 @@
     SETTINGS_KEYS,
     toggleFavorite,
     updateNote,
+    type DbPort,
     type ImportedFile,
     type RenameBookResult,
     type RenameTagResult,
@@ -127,13 +128,20 @@
     emptyFilter,
   } from "./lib/library";
   import {
+    clippingSort as clippingSortOf,
+    emptyFilters,
+    fromStored,
+    keepKnownTags,
+    toFilter,
+    toStored,
+    toggleValue,
+    type FilterValues,
+  } from "./lib/filters";
+  import {
     DEFAULT_CLIPPING_SORT,
     sortBooks,
-    type BookSortDir,
     type BookSortKey,
     type ClippingSort,
-    type ClippingSortDir,
-    type ClippingSortKey,
   } from "./lib/sorting";
   import {
     advanceReading,
@@ -185,24 +193,12 @@
   /** Set once the stored filter has been applied; gates load and save. */
   let prefsReady = $state(false);
 
-  let query = $state("");
-  let debouncedQuery = $state("");
-  let bookId = $state<number | null>(null);
-  let kinds = $state<ClippingKind[]>([]);
-  let favoritesOnly = $state(false);
-  let editedOnly = $state(false);
-  let authors = $state<string[]>([]);
-  let tagIds = $state<number[]>([]);
+  let filters = $state<FilterValues>(emptyFilters());
   let sidebarOpen = $state(readSidebarOpen());
   let sidebarView = $state<SidebarView>(readSidebarView());
   let searchExpanded = $state(false);
   let searchInput = $state<HTMLInputElement | null>(null);
-  let bookSortBy = $state<BookSortKey>("title");
-  let bookSortDir = $state<BookSortDir>("asc");
-  let sortBy = $state<ClippingSortKey>(DEFAULT_CLIPPING_SORT.key);
-  let sortDir = $state<ClippingSortDir>(DEFAULT_CLIPPING_SORT.dir);
   let page = $state(1);
-  let pageSize = $state(20);
 
   let importing = $state(false);
   /** Files are being dragged over the window (native Tauri drag & drop). */
@@ -287,7 +283,7 @@
       prefsOpen ||
       shortcutsOpen,
   );
-  const pages = $derived(Math.max(1, Math.ceil((result?.total ?? 0) / pageSize)));
+  const pages = $derived(Math.max(1, Math.ceil((result?.total ?? 0) / filters.pageSize)));
 
   function readStoredFontScale(): string | null {
     try {
@@ -369,12 +365,12 @@
   $effect(() => {
     const mode = themeMode;
     const palette = darkPalette;
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = (): void =>
-      applyTheme(document.documentElement, resolveTheme(mode, query.matches, palette));
+      applyTheme(document.documentElement, resolveTheme(mode, media.matches, palette));
     apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   });
 
   $effect(() => {
@@ -389,20 +385,11 @@
     setLocale,
   });
 
-  const filter = $derived<ClippingFilter>({
-    query: debouncedQuery,
-    bookId,
-    authors,
-    kinds,
-    favoritesOnly,
-    editedOnly,
-    tagIds,
-  });
-
-  const clippingSort = $derived<ClippingSort>({ key: sortBy, dir: sortDir });
+  const filter = $derived(toFilter(filters));
+  const clippingSort = $derived(clippingSortOf(filters));
 
   const scheduleQuery = debounce((value: string) => {
-    debouncedQuery = value;
+    filters.debouncedQuery = value;
     page = 1;
   }, 250);
 
@@ -453,9 +440,9 @@
       const port = await getDb();
       books = await listBooks(port);
       booksLoaded = true;
-      if (bookId !== null && !books.some((book) => book.id === bookId)) {
+      if (filters.bookId !== null && !books.some((book) => book.id === filters.bookId)) {
         // Persisted book gone (fresh DB, re-import, …): fall back to all.
-        bookId = null;
+        filters.bookId = null;
         page = 1;
       }
     } catch (error) {
@@ -520,38 +507,16 @@
         }
       }
       if (dbFilter) {
-        query = dbFilter.query;
-        debouncedQuery = dbFilter.query;
-        bookId = dbFilter.bookId;
-        authors = dbFilter.authors ?? [];
-        kinds = dbFilter.kinds;
-        favoritesOnly = dbFilter.favoritesOnly;
-        editedOnly = dbFilter.editedOnly;
+        const restored = fromStored(dbFilter);
         // Drop ids whose tag is gone (same guard as the book id).
-        tagIds = (dbFilter.tagIds ?? []).filter((id) =>
-          dbTags.some((tag) => tag.id === id),
+        restored.tagIds = keepKnownTags(
+          restored.tagIds,
+          dbTags.map((tag) => tag.id),
         );
-        pageSize = dbFilter.pageSize;
-        bookSortBy = dbFilter.bookSortBy ?? "title";
-        bookSortDir = dbFilter.bookSortDir ?? "asc";
-        sortBy = dbFilter.sortBy ?? DEFAULT_CLIPPING_SORT.key;
-        sortDir = dbFilter.sortDir ?? DEFAULT_CLIPPING_SORT.dir;
+        filters = restored;
         page = 1;
       } else {
-        await persistFilterState({
-          query: debouncedQuery,
-          bookId,
-          authors,
-          kinds,
-          favoritesOnly,
-          editedOnly,
-          tagIds,
-          pageSize,
-          bookSortBy,
-          bookSortDir,
-          sortBy,
-          sortDir,
-        });
+        await persistFilterState(toStored(filters));
       }
     } catch (error) {
       // Non-fatal: the app works with defaults and in-memory filters.
@@ -575,21 +540,21 @@
   }, 500);
 
   $effect(() => {
-    scheduleQuery(query);
+    scheduleQuery(filters.query);
   });
 
   // NOTE: $effect only tracks state read SYNCHRONOUSLY in its body.
-  // loadList reads filter/page/pageSize after an await, so they must be
+  // loadList reads filter/page/filters.pageSize after an await, so they must be
   // passed as arguments here — otherwise the list loads once on mount
   // and filters/pagination/sidebar silently stop working.
   //
   // Waiting for prefsReady keeps the first load from running with the empty
-  // default filter: the stored kinds must be applied first, or a list saved
+  // default filter: the stored filters.kinds must be applied first, or a list saved
   // as notes + highlights flashes every kind (bookmarks included) and a slow
   // cold start can leave that unfiltered page on screen.
   $effect(() => {
     if (!prefsReady) return;
-    void loadList(filter, page, pageSize, clippingSort);
+    void loadList(filter, page, filters.pageSize, clippingSort);
   });
 
   $effect(() => {
@@ -603,7 +568,7 @@
   // One automatic snapshot per launch, after the first page is on screen:
   // the VACUUM runs in the background and never delays first paint. Waiting
   // for `loading` to settle also keeps it from competing with the first list
-  // query for the same connection.
+  // filters.query for the same connection.
   $effect(() => {
     if (!prefsReady || loading || autoBackupStarted) return;
     autoBackupStarted = true;
@@ -618,20 +583,7 @@
   // over a filter the user already saved.
   $effect(() => {
     if (!prefsReady) return;
-    saveFilters({
-      query: debouncedQuery,
-      bookId,
-      authors,
-      kinds,
-      favoritesOnly,
-      editedOnly,
-      tagIds,
-      pageSize,
-      bookSortBy,
-      bookSortDir,
-      sortBy,
-      sortDir,
-    });
+    saveFilters(toStored(filters));
   });
 
   // A renamed or deleted author must not keep hiding the library (S6). Wait
@@ -639,9 +591,9 @@
   // empty default nor a cold-start race can silently clear the selection.
   $effect(() => {
     if (!prefsReady || !booksLoaded) return;
-    const next = pruneAuthors(authors, books);
-    if (next !== authors) {
-      authors = next;
+    const next = pruneAuthors(filters.authors, books);
+    if (next !== filters.authors) {
+      filters.authors = next;
       page = 1;
     }
   });
@@ -659,16 +611,16 @@
   });
 
   function selectBook(id: number | null): void {
-    bookId = id;
+    filters.bookId = id;
     page = 1;
   }
 
   function setBookSortBy(key: BookSortKey): void {
-    bookSortBy = key;
+    filters.bookSortBy = key;
   }
 
   function toggleBookSortDir(): void {
-    bookSortDir = bookSortDir === "asc" ? "desc" : "asc";
+    filters.bookSortDir = filters.bookSortDir === "asc" ? "desc" : "asc";
   }
 
   function toggleSidebar(): void {
@@ -688,14 +640,14 @@
     searchInput?.focus();
   }
 
-  /** Escape clears the query first, then folds the field away. */
+  /** Escape clears the search text first, then folds the field away. */
   function onSearchKeydown(event: KeyboardEvent): void {
     if (event.key !== "Escape") return;
     // The window handler closes overlays; the field owns this Escape.
     event.preventDefault();
     event.stopPropagation();
-    if (query !== "") {
-      query = "";
+    if (filters.query !== "") {
+      filters.query = "";
       return;
     }
     searchExpanded = false;
@@ -703,42 +655,38 @@
   }
 
   function onSearchBlur(): void {
-    if (query === "") searchExpanded = false;
+    if (filters.query === "") searchExpanded = false;
   }
 
   function clearSearch(): void {
-    query = "";
+    filters.query = "";
     searchExpanded = false;
   }
 
   function toggleKind(next: ClippingKind): void {
-    kinds = kinds.includes(next) ? kinds.filter((kind) => kind !== next) : [...kinds, next];
+    filters.kinds = toggleValue(filters.kinds, next);
     page = 1;
   }
 
   function toggleFavoritesOnly(): void {
-    favoritesOnly = !favoritesOnly;
+    filters.favoritesOnly = !filters.favoritesOnly;
     page = 1;
   }
 
   function toggleEditedOnly(): void {
-    editedOnly = !editedOnly;
+    filters.editedOnly = !filters.editedOnly;
     page = 1;
   }
 
   /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
   function toggleAuthor(key: string): void {
-    authors = authors.includes(key)
-      ? authors.filter((author) => author !== key)
-      : [...authors, key];
+    filters.authors = toggleValue(filters.authors, key);
     page = 1;
   }
 
   /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
   function toggleTag(id: number): void {
-    tagIds = tagIds.includes(id)
-      ? tagIds.filter((tagId) => tagId !== id)
-      : [...tagIds, id];
+    filters.tagIds = toggleValue(filters.tagIds, id);
     page = 1;
   }
 
@@ -747,8 +695,8 @@
     const [key, dir] = value.split(":");
     if (key !== "date" && key !== "title" && key !== "page") return;
     if (dir !== "asc" && dir !== "desc") return;
-    sortBy = key;
-    sortDir = dir;
+    filters.sortBy = key;
+    filters.sortDir = dir;
     page = 1;
   }
 
@@ -803,9 +751,9 @@
       const port = await getDb();
       const confirmed = await toggleFavorite(port, id);
       result = { ...result, items: applyFavoriteToggle(result.items, id, confirmed) };
-      if (favoritesOnly && !confirmed) {
+      if (filters.favoritesOnly && !confirmed) {
         // The unstarred card no longer belongs to this view.
-        await loadList(filter, page, pageSize, clippingSort);
+        await loadList(filter, page, filters.pageSize, clippingSort);
       }
     } catch (error) {
       result = { ...result, items: applyFavoriteToggle(result.items, id, current.favorite) };
@@ -814,7 +762,7 @@
   }
 
   function changePageSize(size: number): void {
-    pageSize = size;
+    filters.pageSize = size;
     page = 1;
   }
 
@@ -871,9 +819,9 @@
       const port = await getDb();
       await removeClippingTag(port, id, tagId);
       allTags = await listTags(port);
-      if (tagIds.includes(tagId)) {
+      if (filters.tagIds.includes(tagId)) {
         // The card no longer carries every selected tag.
-        await loadList(filter, page, pageSize, clippingSort);
+        await loadList(filter, page, filters.pageSize, clippingSort);
       }
       return true;
     } catch (error) {
@@ -915,9 +863,9 @@
           ...result,
           items: applyNoteEdit(result.items, id, { content_edited: null, edited_at: null }),
         };
-        if (editedOnly) {
+        if (filters.editedOnly) {
           // The reset note no longer belongs to this view.
-          await loadList(filter, page, pageSize, clippingSort);
+          await loadList(filter, page, filters.pageSize, clippingSort);
         }
       }
       return confirmed;
@@ -1247,9 +1195,9 @@
         filtersOpen = false;
         return;
       }
-      if (query !== "") {
+      if (filters.query !== "") {
         event.preventDefault();
-        query = "";
+        filters.query = "";
         return;
       }
       if (searchExpanded) {
@@ -1315,8 +1263,8 @@
     readingError = null;
     try {
       const port = await getDb();
-      const next = await advanceReading(session, dir, (page, pageSize) =>
-        listClippings(port, source.filter, { page, pageSize }, source.sort),
+      const next = await advanceReading(session, dir, (page, size) =>
+        listClippings(port, source.filter, { page, pageSize: size }, source.sort),
       );
       if (request !== readingRequest) return; // Closed or reopened while loading.
       reading = next;
@@ -1333,13 +1281,13 @@
   }
 
   function clearFilters(): void {
-    query = "";
-    debouncedQuery = "";
-    favoritesOnly = false;
-    editedOnly = false;
-    authors = [];
-    kinds = [];
-    tagIds = [];
+    filters.query = "";
+    filters.debouncedQuery = "";
+    filters.favoritesOnly = false;
+    filters.editedOnly = false;
+    filters.authors = [];
+    filters.kinds = [];
+    filters.tagIds = [];
     searchExpanded = false;
     selectBook(null);
   }
@@ -1394,7 +1342,7 @@
                 });
         page = 1;
         await loadBooks();
-        await loadList(filter, 1, pageSize, clippingSort);
+        await loadList(filter, 1, filters.pageSize, clippingSort);
       }
     } catch (error) {
       importStatus = t("import.error", {
@@ -1510,7 +1458,7 @@
         await exportOneFilePerBook(rows, includeOriginal);
         return;
       }
-      const bookTitle = books.find((book) => book.id === bookId)?.title ?? null;
+      const bookTitle = books.find((book) => book.id === filters.bookId)?.title ?? null;
       const fileName = exportFileName(format, bookTitle);
       const text =
         format === "markdown"
@@ -1799,10 +1747,28 @@
   /** Refresh every view the dialog can affect: books, list, imports and tags. */
   async function refreshAfterLibraryChange(): Promise<void> {
     await loadBooks();
-    await loadList(filter, page, pageSize, clippingSort);
+    await loadList(filter, page, filters.pageSize, clippingSort);
     await loadLibraryFiles();
     const port = await getDb();
     allTags = await listTags(port);
+  }
+
+  /** One policy for library mutations: busy flag, translated error, and a
+   * reload after a failure so a partially applied multi-step write shows the
+   * real state instead of the pre-click one. */
+  async function runLibraryAction<T>(action: (port: DbPort) => Promise<T>): Promise<T | null> {
+    libraryBusy = true;
+    libraryError = null;
+    try {
+      const port = await getDb();
+      return await action(port);
+    } catch (error) {
+      libraryError = t("library.error", { message: describeError(error) });
+      await refreshAfterLibraryChange();
+      return null;
+    } finally {
+      libraryBusy = false;
+    }
   }
 
   async function libraryRename(
@@ -1810,175 +1776,103 @@
     title: string,
     author: string,
   ): Promise<RenameBookResult | null> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      const result = await renameBook(port, bookId, title, author);
-      if (result.status === "renamed") {
-        libraryStatus = t("library.statusRenamed");
-        await refreshAfterLibraryChange();
-      }
-      return result;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
-      return null;
-    } finally {
-      libraryBusy = false;
+    const result = await runLibraryAction((port) => renameBook(port, bookId, title, author));
+    if (result?.status === "renamed") {
+      libraryStatus = t("library.statusRenamed");
+      await refreshAfterLibraryChange();
     }
+    return result;
   }
 
   async function libraryMerge(sourceId: number, targetId: number): Promise<boolean> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      const result = await mergeBooks(port, sourceId, targetId);
-      if (result.status !== "merged") {
-        return false;
-      }
-      libraryStatus = t("library.statusMerged", { count: result.moved });
-      await refreshAfterLibraryChange();
-      return true;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
+    const result = await runLibraryAction((port) => mergeBooks(port, sourceId, targetId));
+    if (result?.status !== "merged") {
       return false;
-    } finally {
-      libraryBusy = false;
     }
+    libraryStatus = t("library.statusMerged", { count: result.moved });
+    await refreshAfterLibraryChange();
+    return true;
   }
 
   async function libraryDeleteBook(book: Book): Promise<boolean> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      const removed = await deleteBook(port, book.id);
-      libraryStatus = t("library.statusDeleted", { count: removed });
-      await refreshAfterLibraryChange();
-      return true;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
+    const removed = await runLibraryAction((port) => deleteBook(port, book.id));
+    if (removed === null) {
       return false;
-    } finally {
-      libraryBusy = false;
     }
+    libraryStatus = t("library.statusDeleted", { count: removed });
+    await refreshAfterLibraryChange();
+    return true;
   }
 
   async function libraryRemoveFile(file: ImportedFile): Promise<boolean> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      const result = await removeImportedFile(port, file.id);
-      libraryStatus = t("library.statusRemoved", {
-        clippings: result.clippings,
-        books: result.books,
-      });
-      await refreshAfterLibraryChange();
-      return true;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
+    const result = await runLibraryAction((port) => removeImportedFile(port, file.id));
+    if (result === null) {
       return false;
-    } finally {
-      libraryBusy = false;
     }
+    libraryStatus = t("library.statusRemoved", {
+      clippings: result.clippings,
+      books: result.books,
+    });
+    await refreshAfterLibraryChange();
+    return true;
   }
 
   async function libraryRenameTag(
     tagId: number,
     name: string,
   ): Promise<RenameTagResult | null> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      const result = await renameTag(port, tagId, name);
-      if (result.status === "renamed") {
-        libraryStatus = t("library.statusTagRenamed");
-        await refreshAfterLibraryChange();
-      }
-      return result;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
-      return null;
-    } finally {
-      libraryBusy = false;
+    const result = await runLibraryAction((port) => renameTag(port, tagId, name));
+    if (result?.status === "renamed") {
+      libraryStatus = t("library.statusTagRenamed");
+      await refreshAfterLibraryChange();
     }
+    return result;
   }
 
   async function libraryMergeTags(sourceId: number, targetId: number): Promise<boolean> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      const result = await mergeTags(port, sourceId, targetId);
-      if (result.status !== "merged") {
-        return false;
-      }
-      libraryStatus = t("library.statusTagsMerged", { count: result.moved });
-      // The source tag is gone: it must leave the active filter too.
-      tagIds = withoutTagId(tagIds, sourceId);
-      await refreshAfterLibraryChange();
-      return true;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
+    const result = await runLibraryAction((port) => mergeTags(port, sourceId, targetId));
+    if (result?.status !== "merged") {
       return false;
-    } finally {
-      libraryBusy = false;
     }
+    libraryStatus = t("library.statusTagsMerged", { count: result.moved });
+    // The source tag is gone: it must leave the active filter too.
+    filters.tagIds = withoutTagId(filters.tagIds, sourceId);
+    await refreshAfterLibraryChange();
+    return true;
   }
 
   async function libraryDeleteTag(tag: TagCount): Promise<boolean> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
+    const done = await runLibraryAction(async (port) => {
       await deleteTag(port, tag.id);
-      libraryStatus = t("library.statusTagDeleted");
-      // A deleted tag must leave the active filter too.
-      tagIds = withoutTagId(tagIds, tag.id);
-      await refreshAfterLibraryChange();
       return true;
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
+    });
+    if (done === null) {
       return false;
-    } finally {
-      libraryBusy = false;
     }
+    libraryStatus = t("library.statusTagDeleted");
+    // A deleted tag must leave the active filter too.
+    filters.tagIds = withoutTagId(filters.tagIds, tag.id);
+    await refreshAfterLibraryChange();
+    return true;
   }
 
   const hasLibrary = $derived(books.length > 0);
   const libraryTotal = $derived(totalClippings(books));
-  const sortedBooks = $derived(sortBooks(books, bookSortBy, bookSortDir));
+  const sortedBooks = $derived(sortBooks(books, filters.bookSortBy, filters.bookSortDir));
   /** Author groups shared by the Filters menu, chips and the grouped sidebar. */
   const authorGroups = $derived(groupBooksByAuthor(sortedBooks));
   const hasActiveFilters = $derived(
-    debouncedQuery.trim() !== "" ||
-      bookId !== null ||
-      authors.length > 0 ||
-      kinds.length > 0 ||
-      favoritesOnly ||
-      editedOnly ||
-      tagIds.length > 0,
+    filters.debouncedQuery.trim() !== "" ||
+      filters.bookId !== null ||
+      filters.authors.length > 0 ||
+      filters.kinds.length > 0 ||
+      filters.favoritesOnly ||
+      filters.editedOnly ||
+      filters.tagIds.length > 0,
   );
   /** Dialog scope: selected book title, else which view is being exported. */
   const exportScope = $derived(
-    books.find((book) => book.id === bookId)?.title ??
+    books.find((book) => book.id === filters.bookId)?.title ??
       (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
   );
   /** Tooltip for the toolbar export button: what the next export would hold. */
@@ -1994,23 +1888,23 @@
     csv: "csv",
   };
 
-  /** Selected authors in selection order, for the removable chips under the bar. */
+  /** Selected filters.authors in selection order, for the removable chips under the bar. */
   const selectedAuthors = $derived(
-    authors.flatMap((key) => {
+    filters.authors.flatMap((key) => {
       const group = authorGroups.find((item) => item.key === key);
       return group ? [group] : [];
     }),
   );
   /** Selected tags in selection order, for the removable chips under the bar. */
   const selectedTags = $derived(
-    tagIds.flatMap((id) => {
+    filters.tagIds.flatMap((id) => {
       const tag = allTags.find((item) => item.id === id);
       return tag ? [tag] : [];
     }),
   );
   /** Filter checklist: orphans stay hidden unless already selected (S5). */
   const filterTags = $derived(
-    allTags.filter((tag) => tag.clipping_count > 0 || tagIds.includes(tag.id)),
+    allTags.filter((tag) => tag.clipping_count > 0 || filters.tagIds.includes(tag.id)),
   );
 
   interface ActiveFilterChip {
@@ -2022,17 +1916,17 @@
   /** Every active filter is visible and removable in the chip row, not just tags. */
   const activeChips = $derived.by((): ActiveFilterChip[] => {
     const chips: ActiveFilterChip[] = [];
-    for (const kind of kinds) {
+    for (const kind of filters.kinds) {
       chips.push({
         key: `kind:${kind}`,
         label: t(`kind.${kind}`),
         remove: () => toggleKind(kind),
       });
     }
-    if (favoritesOnly) {
+    if (filters.favoritesOnly) {
       chips.push({ key: "favorites", label: t("fav.toggle"), remove: toggleFavoritesOnly });
     }
-    if (editedOnly) {
+    if (filters.editedOnly) {
       chips.push({ key: "edited", label: t("edit.toggle"), remove: toggleEditedOnly });
     }
     for (const group of selectedAuthors) {
@@ -2143,11 +2037,11 @@
           groups={authorGroups}
           view={sidebarView}
           onViewChange={setSidebarView}
-          selectedId={bookId}
+          selectedId={filters.bookId}
           totalCount={libraryTotal}
           onSelect={selectBook}
-          sortBy={bookSortBy}
-          sortDir={bookSortDir}
+          sortBy={filters.bookSortBy}
+          sortDir={filters.bookSortDir}
           onSortBy={setBookSortBy}
           onSortDirToggle={toggleBookSortDir}
           onImport={onImport}
@@ -2163,7 +2057,7 @@
           class="flex flex-wrap items-center gap-2 border-b border-line px-6 py-3"
         >
           <div class="flex min-w-0 flex-1 items-center">
-            {#if searchExpanded || query !== ""}
+            {#if searchExpanded || filters.query !== ""}
               <div class="relative w-full max-w-sm">
                 <span
                   class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-subtle"
@@ -2174,14 +2068,14 @@
                 <input
                   bind:this={searchInput}
                   type="search"
-                  bind:value={query}
+                  bind:value={filters.query}
                   onkeydown={onSearchKeydown}
                   onblur={onSearchBlur}
                   placeholder={t("search.placeholder")}
                   aria-label={t("search.placeholder")}
                   class="w-full rounded-full border border-line bg-surface-inset py-2 pr-8 pl-9 text-sm outline-none placeholder:text-fg-subtle focus:border-line-strong"
                 />
-                {#if query !== ""}
+                {#if filters.query !== ""}
                   <button
                     type="button"
                     onclick={clearSearch}
@@ -2208,12 +2102,12 @@
 
           <FilterMenu
             bind:open={filtersOpen}
-            {authors}
+            authors={filters.authors}
             {authorGroups}
-            {kinds}
-            {favoritesOnly}
-            {editedOnly}
-            {tagIds}
+            kinds={filters.kinds}
+            favoritesOnly={filters.favoritesOnly}
+            editedOnly={filters.editedOnly}
+            tagIds={filters.tagIds}
             tags={filterTags}
             onToggleAuthor={toggleAuthor}
             onToggleKind={toggleKind}
@@ -2227,7 +2121,7 @@
             <label>
               <span class="sr-only">{t("clippingSort.label")}</span>
               <select
-                value={`${sortBy}:${sortDir}`}
+                value={`${filters.sortBy}:${filters.sortDir}`}
                 onchange={(event) => setClippingSort(event.currentTarget.value)}
                 aria-label={t("clippingSort.label")}
                 class="cursor-pointer rounded-full border border-line bg-surface-raised px-3 py-2 text-sm text-fg outline-none focus:border-line-strong"
