@@ -30,6 +30,17 @@ function schema(): string {
   ).join("\n");
 }
 
+/** A value node:sqlite accepts, normalized the way sqlx binds parameters. */
+type BoundValue = string | number | null;
+
+function boundValue(raw: unknown): BoundValue {
+  return typeof raw === "number" || typeof raw === "string"
+    ? raw
+    : raw === null || raw === undefined
+      ? null
+      : String(raw);
+}
+
 /**
  * `DbPort` over a real in-memory SQLite. Placeholders are bound the same way
  * sqlx does in tauri-plugin-sql: `$N` names resolve to the N-th supplied value,
@@ -43,32 +54,45 @@ class SqlitePort implements DbPort {
     this.db.exec(schema());
   }
 
+  /**
+   * `sqlx` binds `$N` by name, so a name repeated in the SQL receives a single
+   * value. node:sqlite resolves a large named-parameter object extremely
+   * slowly, so when the names are exactly 1..N in ascending order — the shape
+   * of every batched INSERT — the placeholders are rewritten to `?` and bound
+   * positionally, which is equivalent and orders of magnitude faster. Anything
+   * else keeps the named object and the `$N` reuse semantics intact.
+   */
   private bind(
     sql: string,
     params?: unknown[],
-  ): Record<string, string | number | null> | undefined {
-    if (!params || params.length === 0) return undefined;
+  ): { sql: string; arg?: BoundValue[] | Record<string, BoundValue> } {
+    if (!params || params.length === 0) return { sql };
     const names = [...sql.matchAll(/\$(\d+)/g)].map((match) => Number(match[1]));
-    if (names.length === 0) return undefined;
-    const bound: Record<string, string | number | null> = {};
+    if (names.length === 0) return { sql };
+    if (names.every((name, index) => name === index + 1)) {
+      return {
+        sql: sql.replace(/\$\d+/g, "?"),
+        arg: names.map((name) => boundValue(params[name - 1])),
+      };
+    }
+    const arg: Record<string, BoundValue> = {};
     // SQLite counts each distinct name once; only the declared names are bound.
     for (let index = 1; index <= Math.max(...names); index += 1) {
-      const value = params[index - 1];
-      bound[String(index)] =
-        typeof value === "number" || typeof value === "string"
-          ? value
-          : value === null || value === undefined
-            ? null
-            : String(value);
+      arg[String(index)] = boundValue(params[index - 1]);
     }
-    return bound;
+    return { sql, arg };
   }
 
   async select<T>(sql: string, params?: unknown[]): Promise<T[]> {
     this.executedSql.push(sql);
-    const statement = this.db.prepare(sql);
     const bound = this.bind(sql, params);
-    const rows = bound === undefined ? statement.all() : statement.all(bound);
+    const statement = this.db.prepare(bound.sql);
+    const rows =
+      bound.arg === undefined
+        ? statement.all()
+        : Array.isArray(bound.arg)
+          ? statement.all(...bound.arg)
+          : statement.all(bound.arg);
     return rows as T[];
   }
 
@@ -77,9 +101,14 @@ class SqlitePort implements DbPort {
     params?: unknown[],
   ): Promise<{ lastInsertId?: number; rowsAffected?: number }> {
     this.executedSql.push(sql);
-    const statement = this.db.prepare(sql);
     const bound = this.bind(sql, params);
-    const result = bound === undefined ? statement.run() : statement.run(bound);
+    const statement = this.db.prepare(bound.sql);
+    const result =
+      bound.arg === undefined
+        ? statement.run()
+        : Array.isArray(bound.arg)
+          ? statement.run(...bound.arg)
+          : statement.run(bound.arg);
     return {
       lastInsertId: Number(result.lastInsertRowid),
       rowsAffected: Number(result.changes),
@@ -105,6 +134,14 @@ function clipping(overrides: Partial<ClippingDto> = {}): ClippingDto {
     ...overrides,
   };
 }
+
+describe("SqlitePort parameter binding", () => {
+  it("binds a repeated $N to one value, like sqlx", async () => {
+    const port = new SqlitePort();
+    const rows = await port.select<{ a: number; b: number }>("SELECT $1 AS a, $1 AS b", [7]);
+    expect(rows[0]).toEqual({ a: 7, b: 7 });
+  });
+});
 
 describe("importParsedClippings against real SQLite", () => {
   it("inserts every fresh clipping through one multi-row statement", async () => {
