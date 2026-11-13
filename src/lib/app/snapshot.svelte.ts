@@ -165,9 +165,9 @@ export class SnapshotState {
       this.deps.log.info(`auto-backup: wrote ${finalName}`);
 
       const snapshots = await this.deps.backend.list();
-      const doomed = new Set(selectAutoBackupsToDelete(snapshots.map((snapshot) => snapshot.name)));
+      const doomed = selectAutoBackupsToDelete(snapshots.map((snapshot) => snapshot.name));
       const candidates = snapshots
-        .filter((snapshot) => doomed.has(snapshot.name))
+        .filter((snapshot) => doomed.includes(snapshot.name))
         .map((snapshot) => snapshot.path);
       // Prune after every successful commit, even with nothing to delete:
       // the command also sweeps crash leftovers from earlier runs.
@@ -240,7 +240,7 @@ export class SnapshotState {
   /** Native file picker inside the dialog: the manual flow is unchanged. */
   async chooseFile(): Promise<void> {
     if (this.busy || this.checking) return;
-    let selected: string | null = null;
+    let selected: string | null;
     try {
       selected = await this.deps.backend.openDialog(this.deps.t("backup.filter"));
     } catch (error) {

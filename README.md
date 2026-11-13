@@ -150,6 +150,7 @@ npx tauri build    # bundles land in target/release/bundle
 ```bash
 npm test           # vitest (frontend)
 npm run check      # svelte-check
+npm run lint       # eslint (flat config)
 npm run build      # vite build
 cargo test --workspace
 cargo clippy --workspace --all-targets

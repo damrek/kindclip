@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import Icon from "./Icon.svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import type { AuthorGroup } from "../lib/library";
   import type { BookSortDir, BookSortKey } from "../lib/sorting";
@@ -54,7 +55,7 @@
   /** More books below the fold, so the fade is only drawn then. */
   let moreBelow = $state(false);
   /** Author groups collapsed in this session (S7). */
-  let collapsed = $state<Set<string>>(new Set());
+  const collapsed = new SvelteSet<string>();
 
   function measureFade(): void {
     const element = listEl;
@@ -62,21 +63,22 @@
   }
 
   function toggleGroup(key: string): void {
-    const next = new Set(collapsed);
-    if (next.has(key)) {
-      next.delete(key);
+    if (collapsed.has(key)) {
+      collapsed.delete(key);
     } else {
-      next.add(key);
+      collapsed.add(key);
     }
-    collapsed = next;
   }
 
   function expandAllGroups(): void {
-    collapsed = new Set();
+    collapsed.clear();
   }
 
   function collapseAllGroups(): void {
-    collapsed = new Set(groups.map((group) => group.key));
+    collapsed.clear();
+    for (const group of groups) {
+      collapsed.add(group.key);
+    }
   }
 
   // Re-measure whenever the scroller is resized or the sidebar is toggled in.
@@ -94,7 +96,7 @@
     void books;
     void groups;
     void view;
-    void collapsed;
+    void collapsed.size;
     void listEl;
     measureFade();
   });

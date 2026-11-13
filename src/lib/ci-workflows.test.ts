@@ -66,7 +66,7 @@ describe("release and CI workflow invariants", () => {
 describe("release workflow: one release object per tag", () => {
   it("creates the release once, before the build matrix", () => {
     expect(releaseWorkflow.match(/gh release create/g)).toHaveLength(1);
-    expect(releaseWorkflow).toMatch(/\n  create-release:\n/);
+    expect(releaseWorkflow).toMatch(/\n {2}create-release:\n/);
     expect(releaseWorkflow).toMatch(/needs: \[prepare, create-release\]/);
   });
 
