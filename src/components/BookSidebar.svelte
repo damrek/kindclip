@@ -253,10 +253,12 @@
               class="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-surface-hover"
             >
               <span class="min-w-0">
-                <span class="block truncate font-medium text-fg">
+                <span
+                  class="block truncate text-[0.7rem] leading-4 font-semibold tracking-[0.08em] uppercase text-fg-muted"
+                >
                   {group.name ?? i18n.t("filters.unknownAuthor")}
                 </span>
-                <span class="block truncate text-xs text-fg-subtle">
+                <span class="block truncate text-[0.65rem] leading-4 text-fg-subtle">
                   {i18n.t("sidebar.groupCounts", {
                     books: countText(i18n.locale, "book", group.bookCount),
                     clippings: countText(i18n.locale, "clipping", group.clippingCount),
@@ -273,7 +275,7 @@
             <div
               id={`author-group-${index}`}
               hidden={collapsed.has(group.key)}
-              class="space-y-0.5"
+              class="ml-3 space-y-0.5 border-l border-line-subtle pl-2"
             >
               {#each group.books as book (book.id)}
                 {@render bookRow(book, false)}
