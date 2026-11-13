@@ -259,11 +259,11 @@ async function withTags(
 }
 
 export async function listClippings(
+  port: DbPort,
   filter: ClippingFilter,
   page: PageRequest,
   sort: ClippingSort = DEFAULT_CLIPPING_SORT,
 ): Promise<PagedResult<ClippingRow>> {
-  const port = await getDb();
   const list = buildListQuery(filter, page, sort);
   const count = buildCountQuery(filter);
   const rows = await port.select<ClippingRowRaw>(list.sql, list.params);
@@ -280,10 +280,10 @@ export async function listClippings(
 /** Global palette rows: every book, no list filters, newest first. Tags are
  * left empty because the palette does not render them. */
 export async function searchClippings(
+  port: DbPort,
   query: string,
   limit = 50,
 ): Promise<ClippingRow[]> {
-  const port = await getDb();
   const { sql, params } = buildSearchQuery(query, limit);
   const rows = await port.select<ClippingRowRaw>(sql, params);
   return rows.map(mapClippingRow);
@@ -291,8 +291,7 @@ export async function searchClippings(
 
 /** How many clippings the palette query matches in total, so the dialog can
  * say "20 of 1,284" instead of implying the shown rows are everything. */
-export async function countClippings(query: string): Promise<number> {
-  const port = await getDb();
+export async function countClippings(port: DbPort, query: string): Promise<number> {
   const { sql, params } = buildCountQuery({ ...emptyFilter(), query });
   const rows = await port.select<{ total: number }>(sql, params);
   return rows[0]?.total ?? 0;
@@ -300,8 +299,10 @@ export async function countClippings(query: string): Promise<number> {
 
 /** Every row matching the filter (the whole filtered view, S2), unpaginated
  * for export: same SELECT as the list, ordered by book and then chronology. */
-export async function exportClippings(filter: ClippingFilter): Promise<ClippingRow[]> {
-  const port = await getDb();
+export async function exportClippings(
+  port: DbPort,
+  filter: ClippingFilter,
+): Promise<ClippingRow[]> {
   const { sql: where, params } = buildWhere(filter);
   const sql =
     `${LIST_SELECT}${LIST_FROM}${where === "" ? "" : ` ${where}`} ` +
@@ -317,8 +318,7 @@ export const LIST_BOOKS_SQL =
 
 /** Every book with its clipping count. The sidebar sorts the result in memory
  * (sortBooks), so SQL only fixes a deterministic base order. */
-export async function listBooks(): Promise<Book[]> {
-  const port = await getDb();
+export async function listBooks(port: DbPort): Promise<Book[]> {
   return port.select<Book>(LIST_BOOKS_SQL);
 }
 

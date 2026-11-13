@@ -511,7 +511,7 @@ describe("exportClippings", () => {
       editedOnly: true,
     });
 
-    const rows = await exportClippings(criteria);
+    const rows = await exportClippings(plugin.port!, criteria);
 
     const call = port.selectCalls.at(-1);
     expect(call?.sql).toContain(
@@ -553,7 +553,7 @@ describe("exportClippings", () => {
       }),
     ];
 
-    await expect(exportClippings(filter())).resolves.toEqual([
+    await expect(exportClippings(plugin.port!, filter())).resolves.toEqual([
       {
         id: 9,
         title: "Some Book",
@@ -587,7 +587,7 @@ describe("exportClippings", () => {
       { clipping_id: 2, id: 5, name: "habits" },
     ];
 
-    const rows = await exportClippings(filter());
+    const rows = await exportClippings(plugin.port!, filter());
 
     expect(rows.map((row) => row.tags)).toEqual([
       [
@@ -610,7 +610,7 @@ describe("listClippings", () => {
     port.clippingRows = [rawRow({ id: 1 }), rawRow({ id: 2, favorite: 1 })];
     port.tagRows = [{ clipping_id: 2, id: 7, name: "habits" }];
 
-    const page = await listClippings(filter(), { page: 1, pageSize: 20 });
+    const page = await listClippings(plugin.port!, filter(), { page: 1, pageSize: 20 });
 
     expect(page.total).toBe(2);
     expect(page.items.map((row) => row.tags)).toEqual([
@@ -627,7 +627,7 @@ describe("listClippings", () => {
     plugin.port = port;
     port.clippingRows = [];
 
-    const page = await listClippings(filter(), { page: 1, pageSize: 20 });
+    const page = await listClippings(plugin.port!, filter(), { page: 1, pageSize: 20 });
 
     expect(page.items).toEqual([]);
     expect(port.tagCalls).toHaveLength(0);
@@ -640,7 +640,7 @@ describe("countClippings", () => {
     plugin.port = port;
     port.total = 1284;
 
-    await expect(countClippings("stoic  Aurora")).resolves.toBe(1284);
+    await expect(countClippings(plugin.port!, "stoic  Aurora")).resolves.toBe(1284);
 
     const call = port.countCalls.at(-1);
     expect(call?.sql).not.toContain("b.id = $");
@@ -661,7 +661,7 @@ describe("countClippings", () => {
     plugin.port = port;
     port.total = 0;
 
-    await expect(countClippings("nothing")).resolves.toBe(0);
+    await expect(countClippings(plugin.port!, "nothing")).resolves.toBe(0);
   });
 });
 
@@ -703,7 +703,7 @@ describe("searchClippings", () => {
     plugin.port = port;
     port.clippingRows = [rawRow({ id: 2, favorite: 1 }), rawRow({ id: 1 })];
 
-    const rows = await searchClippings("stoic", 2);
+    const rows = await searchClippings(plugin.port!, "stoic", 2);
 
     expect(rows.map((row) => row.id)).toEqual([2, 1]);
     expect(rows[0].favorite).toBe(true);

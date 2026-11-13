@@ -2,7 +2,7 @@
   import { getContext, onMount } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { debounce, formatReference } from "../lib/library";
-  import { searchClippings, countClippings } from "../lib/db";
+  import { searchClippings, countClippings, getDb } from "../lib/db";
   import { stepSelection } from "../lib/shortcuts";
   import { hasMoreBelow } from "../lib/scroll";
   import { focusOnMount, selectOnInteraction, trapFocus } from "../lib/focus";
@@ -50,9 +50,10 @@
     loading = true;
     error = null;
     try {
+      const port = await getDb();
       const [rows, count] = await Promise.all([
-        searchClippings(value, limit + 1),
-        countClippings(value),
+        searchClippings(port, value, limit + 1),
+        countClippings(port, value),
       ]);
       if (current !== request || destroyed) return;
       results = rows.slice(0, limit);

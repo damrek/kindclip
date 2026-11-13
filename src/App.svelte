@@ -416,12 +416,14 @@
     loading = true;
     loadError = null;
     try {
-      await getDb();
-      const first = await listClippings(f, { page: p, pageSize: s }, sort);
+      const port = await getDb();
+      const first = await listClippings(port, f, { page: p, pageSize: s }, sort);
       if (request !== listRequest) return; // Superseded by a newer filter or page.
       const last = clampPage(p, first.total, s);
       const next =
-        last === p ? first : await listClippings(f, { page: last, pageSize: s }, sort);
+        last === p
+          ? first
+          : await listClippings(port, f, { page: last, pageSize: s }, sort);
       if (request !== listRequest) return;
       // Commit rows and the filter that produced them together: the reading
       // view must never fetch a page with a filter other than this one.
@@ -448,8 +450,8 @@
 
   async function loadBooks(): Promise<void> {
     try {
-      await getDb();
-      books = await listBooks();
+      const port = await getDb();
+      books = await listBooks(port);
       booksLoaded = true;
       if (bookId !== null && !books.some((book) => book.id === bookId)) {
         // Persisted book gone (fresh DB, re-import, …): fall back to all.
@@ -1312,8 +1314,9 @@
     readingLoading = true;
     readingError = null;
     try {
+      const port = await getDb();
       const next = await advanceReading(session, dir, (page, pageSize) =>
-        listClippings(source.filter, { page, pageSize }, source.sort),
+        listClippings(port, source.filter, { page, pageSize }, source.sort),
       );
       if (request !== readingRequest) return; // Closed or reopened while loading.
       reading = next;
@@ -1501,7 +1504,8 @@
     if (exporting) return;
     exporting = true;
     try {
-      const rows = await exportClippings(filter);
+      const port = await getDb();
+      const rows = await exportClippings(port, filter);
       if (format === "markdown" && perBook) {
         await exportOneFilePerBook(rows, includeOriginal);
         return;
