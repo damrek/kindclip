@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
-  import { focusOnMount, trapFocus } from "../lib/focus";
+  import Modal from "./Modal.svelte";
   import { filterBooks } from "../lib/library";
   import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
   import type { Book } from "../lib/types";
@@ -250,22 +250,10 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-  <button
-    type="button"
-    aria-label={i18n.t("library.cancel")}
-    disabled={working}
-    onclick={onClose}
-    class="absolute inset-0 cursor-default bg-black/50"
-  ></button>
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-label={i18n.t("library.title")}
-    tabindex="-1"
-    use:focusOnMount
-    use:trapFocus
-    class="relative flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-line bg-surface-raised p-5"
+<Modal
+    label={i18n.t("library.title")}
+    onClose={onClose} busy={working}
+    panel="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-line bg-surface-raised p-5"
   >
     <div class="flex items-start justify-between gap-4">
       <h2 class="text-sm font-medium text-fg">
@@ -767,5 +755,4 @@
         </div>
       </div>
     {/if}
-  </div>
-</div>
+</Modal>

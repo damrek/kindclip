@@ -3,8 +3,8 @@
   import { getVersion } from "@tauri-apps/api/app";
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
+  import Modal from "./Modal.svelte";
   import { describeError, logger } from "../lib/log";
-  import { focusOnMount, trapFocus } from "../lib/focus";
   import {
     I18N_CONTEXT_KEY,
     LOCALES,
@@ -90,21 +90,10 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-  <button
-    type="button"
-    aria-label={i18n.t("prefs.close")}
-    onclick={onClose}
-    class="absolute inset-0 cursor-default bg-black/50"
-  ></button>
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-label={i18n.t("prefs.title")}
-    tabindex="-1"
-    use:focusOnMount
-    use:trapFocus
-    class="relative flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-line bg-surface-raised p-5"
+<Modal
+    label={i18n.t("prefs.title")}
+    onClose={onClose}
+    panel="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-line bg-surface-raised p-5"
   >
     <div class="flex items-start justify-between gap-4">
       <h2 class="text-sm font-medium text-fg">
@@ -331,5 +320,4 @@
         {/if}
       </section>
     </div>
-  </div>
-</div>
+</Modal>
