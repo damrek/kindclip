@@ -25,10 +25,6 @@ export const AUTO_BACKUP_DIR = "backups";
 /** How many automatic snapshots survive pruning (the newest ones). */
 export const AUTO_BACKUP_KEEP = 7;
 
-/** In-flight `VACUUM INTO` targets, removed when stale after a crash. */
-export const AUTO_BACKUP_TEMP_PREFIX = "kindclip-auto-";
-export const AUTO_BACKUP_TEMP_SUFFIX = ".tmp";
-
 /** One automatic snapshot as listed by Rust, newest first. */
 export interface AutoBackup {
   name: string;
