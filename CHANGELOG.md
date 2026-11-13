@@ -10,6 +10,35 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-11-13
+
+### Added
+
+- **Searchable author and tag filters**: the author and tag lists in the Filters
+  menu get their own search, accent- and case-insensitive (a leading `#` is
+  optional for tags), and scroll inside a five-row window with a bottom fade
+  instead of one long checkbox wall. Section headers carry a count pill, and the
+  search and end-of-list state reset when the menu closes.
+
+### Changed
+
+- **Sidebar by author**: authors read as a label — small, uppercase, tracked —
+  with the book and clipping counts underneath, and their books sit behind a
+  left rail, so each group reads as one author with its titles instead of a flat
+  list of rows.
+- **Preferences**: the Data section lays out in two columns, and the running
+  version moved out of the dialog to the top bar, beside the settings button.
+
+### Fixed
+
+- Counts follow each language's plural rules, so no locale renders “1 clippings”
+  anymore.
+- Re-importing after an interrupted import converges instead of leaving book
+  clipping counts behind.
+- **Open database location** keeps Preferences open and reports a failure in the
+  dialog. It used to close the dialog, and the error was only visible in the
+  status bar behind it.
+
 ## [1.18.0] - 2026-11-12
 
 ### Added
