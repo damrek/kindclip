@@ -113,20 +113,9 @@
   import {
     sortBooks,
     type BookSortKey,
-    type ClippingSort,
   } from "./lib/sorting";
   import {
-    advanceReading,
-    canStep,
-    openReadingSession,
-    openWindowSession,
-    pageToLoad,
-    readingCurrent,
-    readingPage,
-    readingPosition,
-    stepWithinWindow,
     type ReadingDirection,
-    type ReadingSession,
   } from "./lib/reading";
   import {
     isInteractiveTarget,
@@ -140,7 +129,6 @@
   import { focusOnMount, trapFocus } from "./lib/focus";
   import type {
     Book,
-    ClippingFilter,
     ClippingKind,
     ClippingRow,
     Tag,
@@ -148,6 +136,7 @@
   import { loadReadingStats, type ReadingStats } from "./lib/stats";
   import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
   import { Preferences } from "./lib/app/preferences.svelte";
+  import { ReadingState } from "./lib/app/reading.svelte";
 
   /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
@@ -210,19 +199,12 @@
   /** Which copy action just succeeded, for its 1.5 s check mark. */
   let copyFlash = $state<{ id: number; kind: "content" | "quote" } | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Full-window reading session; null when closed. */
-  let reading = $state<ReadingSession | null>(null);
-  let readingLoading = $state(false);
-  let readingError = $state<string | null>(null);
-  /** Invalidates an in-flight page load when the session closes or restarts. */
-  let readingRequest = 0;
-  /** Filter/sort snapshot the reading window fetches adjacent pages with. */
-  let readingSource = $state<{ filter: ClippingFilter; sort: ClippingSort } | null>(null);
-  /** Search text the reading view highlights; from the list or the palette. */
-  let readingQuery = $state("");
-  /** Element that opened the reading view; focus returns to it on close. */
-  let readingOpener: HTMLElement | null = null;
-  /** Scroller holding the cards; the focus fallback when the opener is gone. */
+  /** Full-window reading.session session; null when closed. */
+  const reading = new ReadingState(
+    (filterState, page, sort) => withPort((port) => listClippings(port, filterState, page, sort)),
+    logger.error,
+  );
+  /** Element that opened the reading.session view; focus returns to it on close. */
   let listRegion = $state<HTMLElement | null>(null);
   /** Card selected with j/k; the target of Enter, * and c. */
   let selectedId = $state<number | null>(null);
@@ -251,7 +233,7 @@
 
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
-    reading !== null ||
+    reading.session !== null ||
       paletteOpen ||
       resetTarget !== null ||
       exportOpen ||
@@ -698,72 +680,36 @@
     }
   }
 
-  /** Mount a reading session and remember the source its arrows may fetch from. */
-  function mountReading(
-    session: ReadingSession,
-    source: { filter: ClippingFilter; sort: ClippingSort } | null,
-    opener: HTMLElement | null,
-    query: string,
-  ): void {
-    readingRequest += 1;
-    readingError = null;
-    readingLoading = false;
-    readingSource = source;
-    readingQuery = query;
-    readingOpener = opener;
-    reading = session;
-  }
-
-  /** Open the full-window reading view on one visible row. */
+  /** Open the full-window reading.session view on one visible row. */
   function startReading(id: number): void {
     if (!list.result) return;
-    const session = openReadingSession(list.result, id);
-    if (!session) return;
     const opener =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    mountReading(
-      session,
+    reading.openList(
+      list.result,
+      id,
       { filter: list.resultFilter, sort: list.resultSort },
       opener,
-      list.resultFilter.query,
     );
   }
 
-  /** Global palette result: the matches become the reading window. */
+  /** Global palette result: the matches become the reading.session window. */
   function openPaletteResult(items: ClippingRow[], id: number, query: string): void {
-    const session = openWindowSession(items, id);
-    if (!session) return;
     const opener = modalOpener;
     paletteOpen = false;
     modalOpener = null;
-    mountReading(session, null, opener, query);
+    reading.openWindow(items, id, opener, query);
   }
 
-  /** Close and leave the list on the page where reading stopped. */
-  async function closeReading(): Promise<void> {
-    if (!reading) return;
-    // Palette windows are not part of the list, so they never move its page.
-    const fromList = readingSource !== null;
-    const targetPage = fromList ? readingPage(reading) : list.page;
-    const opener = readingOpener;
-    readingRequest += 1;
-    reading = null;
-    readingLoading = false;
-    readingError = null;
-    readingSource = null;
-    readingQuery = "";
-    readingOpener = null;
-    const pageChanged = targetPage !== list.page;
-    if (pageChanged) {
-      list.page = targetPage;
-    }
-    // Hand focus back. On the same page the opener is still mounted, so focus
-    // returns to it; a page change reloads the list and unmounts it, so focus
-    // parks on the list itself instead of dropping to <body>.
-    await tick();
-    const target =
-      !pageChanged && opener !== null && opener.isConnected ? opener : listRegion;
-    target?.focus();
+  /** Close and leave the list on the page where reading.session stopped. */
+  function closeReading(): Promise<void> {
+    return reading.close(
+      (target) => {
+        list.page = target;
+      },
+      list.page,
+      listRegion,
+    );
   }
 
   /** Remember where focus was before a modal opened. A dialog opened from
@@ -958,8 +904,8 @@
     if (event.defaultPrevented) return;
 
     if (event.key === "Escape") {
-      // The reading view owns its own Escape and arrows.
-      if (reading !== null) return;
+      // The reading.session view owns its own Escape and arrows.
+      if (reading.session !== null) return;
       if (paletteOpen) {
         event.preventDefault();
         closePalette();
@@ -1055,39 +1001,8 @@
   }
 
   /** Step one row; fetch the adjacent page only when the window runs out. */
-  async function stepReading(dir: ReadingDirection): Promise<void> {
-    const session = reading;
-    if (!session || readingLoading) return;
-    const moved = stepWithinWindow(session, dir);
-    if (moved) {
-      // A successful step dismisses a banner left over from a failed fetch.
-      readingError = null;
-      reading = moved;
-      return;
-    }
-    // A window-only session (palette results) has no adjacent pages.
-    const source = readingSource;
-    if (!source || pageToLoad(session, dir) === null) return;
-    const request = ++readingRequest;
-    readingLoading = true;
-    readingError = null;
-    try {
-      const port = await getDb();
-      const next = await advanceReading(session, dir, (page, size) =>
-        listClippings(port, source.filter, { page, pageSize: size }, source.sort),
-      );
-      if (request !== readingRequest) return; // Closed or reopened while loading.
-      reading = next;
-    } catch (error) {
-      if (request === readingRequest) {
-        readingError = describeError(error);
-      }
-    } finally {
-      // Replacing the session on success must still release the busy flag.
-      if (request === readingRequest) {
-        readingLoading = false;
-      }
-    }
+  function stepReading(dir: ReadingDirection): Promise<void> {
+    return reading.step(dir);
   }
 
   function clearFilters(): void {
@@ -1690,8 +1605,8 @@
   const exportSummary = $derived(
     t("export.summary", { count: list.result?.total ?? 0, scope: exportScope }),
   );
-  /** Row shown full-window; null while the reading view is closed. */
-  const readingClipping = $derived(reading ? readingCurrent(reading) : null);
+  /** Row shown full-window; null while the reading.session view is closed. */
+  const readingClipping = $derived(reading.current);
 
   const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
     markdown: "md",
@@ -2086,16 +2001,16 @@
   <CommandPalette onClose={closePalette} onOpen={openPaletteResult} />
 {/if}
 
-{#if reading && readingClipping}
+{#if reading.session && readingClipping}
   <ReadingView
     clipping={readingClipping}
-    query={readingQuery}
-    position={readingPosition(reading)}
-    total={reading.total}
-    canPrev={canStep(reading, "prev")}
-    canNext={canStep(reading, "next")}
-    loading={readingLoading}
-    error={readingError}
+    query={reading.query}
+    position={reading.position}
+    total={reading.session.total}
+    canPrev={reading.canStep("prev")}
+    canNext={reading.canStep("next")}
+    loading={reading.loading}
+    error={reading.error}
     quoted={copyFlash?.id === readingClipping.id && copyFlash.kind === "quote"}
     onCopyQuote={copyReadingQuote}
     onPrev={() => void stepReading("prev")}
