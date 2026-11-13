@@ -394,9 +394,21 @@ mod tests {
     }
 
     #[test]
+    fn auto_backup_name_owns_the_format_and_rejects_bad_dates() {
+        assert_eq!(
+            auto_backup_name("2026-11-12").unwrap(),
+            "kindclip-backup-2026-11-12.db"
+        );
+        assert!(auto_backup_name("2026-11-12.db").is_err());
+        assert!(auto_backup_name("2026-13-01").is_err());
+        assert!(auto_backup_name("2026-11-32").is_err());
+        assert!(auto_backup_name("12-11-2026").is_err());
+    }
+
+    #[test]
     fn prepare_auto_backup_at_creates_the_folder_and_the_final_path() {
         let dir = auto_dir("auto-prepare");
-        let paths = prepare_auto_backup_at(&dir, "kindclip-backup-2026-11-12.db").unwrap();
+        let paths = prepare_auto_backup_at(&dir, "2026-11-12").unwrap();
 
         assert!(dir.is_dir());
         assert_eq!(
@@ -411,16 +423,16 @@ mod tests {
     #[test]
     fn prepare_auto_backup_at_rejects_a_foreign_name() {
         let dir = auto_dir("auto-prepare-bad");
-        let error = prepare_auto_backup_at(&dir, "kindclip.db").unwrap_err();
+        let error = prepare_auto_backup_at(&dir, "not-a-date").unwrap_err();
 
-        assert!(error.contains("automatic backup name"), "{error}");
+        assert!(error.contains("YYYY-MM-DD"), "{error}");
     }
 
     #[test]
     fn prepare_auto_backup_at_gives_each_run_its_own_temp_file() {
         let dir = auto_dir("auto-prepare-temp");
-        let first = prepare_auto_backup_at(&dir, "kindclip-backup-2026-11-12.db").unwrap();
-        let second = prepare_auto_backup_at(&dir, "kindclip-backup-2026-11-13.db").unwrap();
+        let first = prepare_auto_backup_at(&dir, "2026-11-12").unwrap();
+        let second = prepare_auto_backup_at(&dir, "2026-11-13").unwrap();
 
         assert_ne!(first.temp_path, second.temp_path);
         std::fs::remove_dir_all(dir.parent().unwrap()).ok();

@@ -4,7 +4,7 @@ import {
   BackupError,
   autoBackupDate,
   autoBackupDue,
-  backupFileName,
+  backupDate,
   baseName,
   formatBackupSize,
   inspectBackup,
@@ -78,10 +78,10 @@ function errorCode(error: unknown): string {
   return (error as BackupError).code;
 }
 
-describe("backupFileName", () => {
+describe("backupDate", () => {
   it("uses the local date and the .db extension", () => {
-    expect(backupFileName(new Date(2026, 10, 3))).toBe("kindclip-backup-2026-11-03.db");
-    expect(backupFileName(new Date(2026, 0, 9))).toBe("kindclip-backup-2026-01-09.db");
+    expect(backupDate(new Date(2026, 10, 3))).toBe("2026-11-03");
+    expect(backupDate(new Date(2026, 0, 9))).toBe("2026-01-09");
   });
 });
 
@@ -226,24 +226,21 @@ describe("isAutoBackupName", () => {
 });
 
 describe("autoBackupDue", () => {
-  const now = new Date(2026, 10, 3);
+  const today = "kindclip-backup-2026-11-03.db";
 
   it("is due when today's snapshot is missing", () => {
-    expect(autoBackupDue([], now)).toBe(true);
-    expect(autoBackupDue(["kindclip-backup-2026-11-02.db"], now)).toBe(true);
+    expect(autoBackupDue([], today)).toBe(true);
+    expect(autoBackupDue(["kindclip-backup-2026-11-02.db"], today)).toBe(true);
   });
 
   it("is not due when today's snapshot already exists", () => {
     expect(
-      autoBackupDue(
-        ["kindclip-backup-2026-11-02.db", "kindclip-backup-2026-11-03.db"],
-        now,
-      ),
+      autoBackupDue(["kindclip-backup-2026-11-02.db", "kindclip-backup-2026-11-03.db"], today),
     ).toBe(false);
   });
 
   it("ignores unrelated files in the folder", () => {
-    expect(autoBackupDue(["kindclip-backup.db", "notes.txt"], now)).toBe(true);
+    expect(autoBackupDue(["kindclip-backup.db", "notes.txt"], today)).toBe(true);
   });
 });
 

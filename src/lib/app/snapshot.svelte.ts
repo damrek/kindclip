@@ -11,7 +11,7 @@ import {
   AUTO_BACKUP_KEEP,
   BACKUP_EXTENSION,
   autoBackupDue,
-  backupFileName,
+  backupDate,
   baseName,
   inspectBackupFile,
   isBackupError,
@@ -35,7 +35,9 @@ export interface SnapshotBackend {
   openDialog: (filterName: string) => Promise<string | null>;
   /** Platform default directory for a suggested file name. */
   defaultPath: (fileName: string) => Promise<string>;
-  prepare: (finalName: string) => Promise<AutoBackupPaths>;
+  /** Rust composes `kindclip-backup-<date>.db`; TS only supplies the date. */
+  fileName: (date: string) => Promise<string>;
+  prepare: (date: string) => Promise<AutoBackupPaths>;
   commit: (paths: AutoBackupPaths) => Promise<void>;
   list: () => Promise<AutoBackup[]>;
   prune: (candidates: string[]) => Promise<AutoBackupPruneReport>;
@@ -68,7 +70,8 @@ export function tauriSnapshotBackend(): SnapshotBackend {
         return fileName;
       }
     },
-    prepare: (finalName) => invoke<AutoBackupPaths>("prepare_auto_backup", { finalName }),
+    fileName: (date) => invoke<string>("backup_file_name", { date }),
+    prepare: (date) => invoke<AutoBackupPaths>("prepare_auto_backup", { date }),
     commit: (paths) =>
       invoke("commit_auto_backup", { tempPath: paths.tempPath, finalPath: paths.finalPath }),
     list: () => invoke<AutoBackup[]>("list_auto_backups"),
@@ -117,7 +120,7 @@ export class SnapshotState {
   /** Write a consistent snapshot (VACUUM INTO) to the picked path. */
   async save(): Promise<void> {
     await this.backup.run(async () => {
-      const fileName = backupFileName();
+      const fileName = await this.deps.backend.fileName(backupDate());
       const defaultPath = await this.deps.backend.defaultPath(fileName);
       const path = await this.deps.backend.saveDialog(defaultPath, this.deps.t("backup.filter"));
       if (path === null) {
@@ -147,14 +150,15 @@ export class SnapshotState {
    */
   async autoBackup(): Promise<void> {
     try {
-      const finalName = backupFileName();
+      const date = backupDate();
+      const finalName = await this.deps.backend.fileName(date);
       const existing = await this.deps.backend.list();
-      if (!autoBackupDue(existing.map((snapshot) => snapshot.name))) {
+      if (!autoBackupDue(existing.map((snapshot) => snapshot.name), finalName)) {
         this.deps.log.info("auto-backup: today's snapshot already exists");
         return;
       }
 
-      const paths = await this.deps.backend.prepare(finalName);
+      const paths = await this.deps.backend.prepare(date);
       const port = await this.deps.getPort();
       await port.execute("VACUUM INTO $1", [paths.tempPath]);
       await this.deps.backend.commit(paths);

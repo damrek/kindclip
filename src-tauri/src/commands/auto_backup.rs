@@ -49,6 +49,33 @@ pub(crate) fn auto_backup_dir_at(config_dir: &Path) -> PathBuf {
     config_dir.join("backups")
 }
 
+/// Whether a date is the `YYYY-MM-DD` shape the name contract accepts.
+fn is_iso_date(date: &str) -> bool {
+    let bytes = date.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return false;
+    }
+    if !bytes
+        .iter()
+        .enumerate()
+        .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
+    {
+        return false;
+    }
+    let month = date[5..7].parse::<u32>().unwrap_or(0);
+    let day = date[8..10].parse::<u32>().unwrap_or(0);
+    (1..=12).contains(&month) && (1..=31).contains(&day)
+}
+
+/// `kindclip-backup-YYYY-MM-DD.db` from a local calendar date. This is the
+/// only place the automatic name is composed; the frontend supplies the date.
+pub(crate) fn auto_backup_name(date: &str) -> Result<String, String> {
+    if !is_iso_date(date) {
+        return Err(format!("'{date}' is not a YYYY-MM-DD date"));
+    }
+    Ok(format!("{AUTO_BACKUP_PREFIX}{date}{AUTO_BACKUP_SUFFIX}"))
+}
+
 /// `kindclip-backup-YYYY-MM-DD.db`; the only name retention may touch.
 pub(crate) fn is_auto_backup_name(name: &str) -> bool {
     let Some(rest) = name.strip_prefix(AUTO_BACKUP_PREFIX) else {
@@ -72,13 +99,8 @@ pub(crate) fn path_string(path: &Path) -> String {
 }
 
 /// Resolve the snapshot folder and the two paths of this launch's attempt.
-pub(crate) fn prepare_auto_backup_at(
-    dir: &Path,
-    final_name: &str,
-) -> Result<AutoBackupPaths, String> {
-    if !is_auto_backup_name(final_name) {
-        return Err(format!("'{final_name}' is not an automatic backup name"));
-    }
+pub(crate) fn prepare_auto_backup_at(dir: &Path, date: &str) -> Result<AutoBackupPaths, String> {
+    let final_name = auto_backup_name(date)?;
     std::fs::create_dir_all(dir)
         .map_err(|err| format!("cannot create '{}': {err}", dir.display()))?;
     let stamp = SystemTime::now()
@@ -91,7 +113,7 @@ pub(crate) fn prepare_auto_backup_at(
     );
     Ok(AutoBackupPaths {
         dir: path_string(dir),
-        final_path: path_string(&dir.join(final_name)),
+        final_path: path_string(&dir.join(&final_name)),
         temp_path: path_string(&dir.join(temp_name)),
     })
 }
@@ -242,18 +264,22 @@ pub(crate) fn prune_auto_backups_in(
     report
 }
 
+/// `kindclip-backup-YYYY-MM-DD.db` for a local date; the frontend never
+/// composes the name, so TS and Rust cannot disagree about it.
+#[tauri::command]
+pub fn backup_file_name(date: String) -> Result<String, String> {
+    auto_backup_name(&date)
+}
+
 /// Resolve/create the snapshot folder and return this launch's target paths.
 #[tauri::command]
-pub fn prepare_auto_backup(
-    app: tauri::AppHandle,
-    final_name: String,
-) -> Result<AutoBackupPaths, String> {
+pub fn prepare_auto_backup(app: tauri::AppHandle, date: String) -> Result<AutoBackupPaths, String> {
     use tauri::Manager;
     let dir = app
         .path()
         .app_config_dir()
         .map_err(|err| format!("cannot resolve app config dir: {err}"))?;
-    prepare_auto_backup_at(&auto_backup_dir_at(&dir), &final_name)
+    prepare_auto_backup_at(&auto_backup_dir_at(&dir), &date)
 }
 
 /// List the automatic snapshots for the restore dialog, newest first.

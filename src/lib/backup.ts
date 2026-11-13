@@ -6,11 +6,13 @@ import { describeError } from "./errors";
 /** File extension offered by the native backup and restore dialogs. */
 export const BACKUP_EXTENSION = "db";
 
-/** `kindclip-backup-YYYY-MM-DD.db` in the local timezone. */
-export function backupFileName(now: Date = new Date()): string {
+/** Local calendar date as `YYYY-MM-DD`.
+ *
+ * The file name itself belongs to Rust (`backup_file_name`), so the frontend
+ * can never compose a name the backend would reject. */
+export function backupDate(now: Date = new Date()): string {
   const pad2 = (value: number): string => String(value).padStart(2, "0");
-  const date = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-  return `kindclip-backup-${date}.${BACKUP_EXTENSION}`;
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
 }
 
 /** Last segment of a path, supporting both `/` and `\` separators. */
@@ -18,9 +20,6 @@ export function baseName(path: string): string {
   const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return index >= 0 ? path.slice(index + 1) : path;
 }
-
-/** Folder next to `kindclip.db` that holds the automatic snapshots. */
-export const AUTO_BACKUP_DIR = "backups";
 
 /** How many automatic snapshots survive pruning (the newest ones). */
 export const AUTO_BACKUP_KEEP = 7;
@@ -58,8 +57,8 @@ export function isAutoBackupName(name: string): boolean {
  * already there counts, including a manual backup the user saved into the
  * automatic folder.
  */
-export function autoBackupDue(names: string[], now: Date = new Date()): boolean {
-  return !names.includes(backupFileName(now));
+export function autoBackupDue(names: string[], today: string): boolean {
+  return !names.includes(today);
 }
 
 /**

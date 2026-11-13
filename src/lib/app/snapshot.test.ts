@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BackupError, backupFileName, type AutoBackup } from "../backup";
+import { BackupError, backupDate, type AutoBackup } from "../backup";
 import type { DbPort } from "../db";
 import type { I18nKey, TranslateParams } from "../i18n";
 import {
@@ -11,7 +11,7 @@ import {
 const t = (key: I18nKey, params?: TranslateParams): string =>
   params === undefined ? key : `${key} ${JSON.stringify(params)}`;
 
-const today = backupFileName();
+const today = `kindclip-backup-${backupDate()}.db`;
 
 function snapshot(name: string): AutoBackup {
   return { name, path: `/backups/${name}`, size: 1024 };
@@ -33,8 +33,10 @@ function makeDeps(overrides: Partial<SnapshotBackend> = {}) {
     saveDialog: async () => "/tmp/out.db",
     openDialog: async () => null,
     defaultPath: async (fileName) => `/tmp/${fileName}`,
-    prepare: async (finalName) => {
-      visited.push(`prepare ${finalName}`);
+    fileName: async (date) => `kindclip-backup-${date}.db`,
+    prepare: async (date) => {
+      const finalName = `kindclip-backup-${date}.db`;
+      visited.push(`prepare ${date}`);
       return {
         dir: "/backups",
         finalPath: `/backups/${finalName}`,
@@ -136,7 +138,7 @@ describe("SnapshotState", () => {
 
     await state.autoBackup();
 
-    expect(visited).toEqual([`prepare ${today}`, "commit", "prune"]);
+    expect(visited).toEqual([`prepare ${backupDate()}`, "commit", "prune"]);
     expect(executed).toEqual(["VACUUM INTO $1 /backups/in-flight.tmp"]);
   });
 

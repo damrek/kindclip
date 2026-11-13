@@ -125,6 +125,7 @@ pub fn run() {
             commands::validate_backup_file,
             commands::clear_backup_target,
             commands::restore_database_file,
+            commands::backup_file_name,
             commands::prepare_auto_backup,
             commands::list_auto_backups,
             commands::commit_auto_backup,
