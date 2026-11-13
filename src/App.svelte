@@ -115,7 +115,6 @@
   import {
     applyFavoriteToggle,
     applyNoteEdit,
-    clampPage,
     copyClippingContent,
     debounce,
     formatQuoteCitation,
@@ -125,7 +124,6 @@
     pruneAuthors,
     withoutTag,
     withoutTagId,
-    emptyFilter,
   } from "./lib/library";
   import {
     clippingSort as clippingSortOf,
@@ -138,7 +136,6 @@
     type FilterValues,
   } from "./lib/filters";
   import {
-    DEFAULT_CLIPPING_SORT,
     sortBooks,
     type BookSortKey,
     type ClippingSort,
@@ -171,34 +168,33 @@
     ClippingFilter,
     ClippingKind,
     ClippingRow,
-    PagedResult,
     Tag,
   } from "./lib/types";
   import { loadReadingStats, type ReadingStats } from "./lib/stats";
+  import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
 
-  let books = $state<Book[]>([]);
-  /** Set after the first successful book load; gates author pruning. */
-  let booksLoaded = $state(false);
+  /** Run one data-layer call with the shared connection. */
+  async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
+    return run(await getDb());
+  }
+
+  const list = new ClippingList(
+    (filter, page, sort) => withPort((port) => listClippings(port, filter, page, sort)),
+    logger.error,
+  );
+  const shelf = new BookShelf(
+    () => withPort((port) => listBooks(port)),
+    logger.error,
+  );
   let allTags = $state<TagCount[]>([]);
-  let result = $state<PagedResult<ClippingRow> | null>(null);
-  /** True from boot: the stored filter is applied before the first list load. */
-  let loading = $state(true);
-  let loadError = $state<string | null>(null);
-  /** Invalidates an in-flight list load when a newer one starts. */
-  let listRequest = 0;
-  /** Filter and sort that produced `result`, committed atomically with it.
-   * Reactive because the cards and the reading view highlight its query. */
-  let resultFilter = $state<ClippingFilter>(emptyFilter());
-  let resultSort: ClippingSort = DEFAULT_CLIPPING_SORT;
   /** Set once the stored filter has been applied; gates load and save. */
   let prefsReady = $state(false);
 
   let filters = $state<FilterValues>(emptyFilters());
   let sidebarOpen = $state(readSidebarOpen());
-  let sidebarView = $state<SidebarView>(readSidebarView());
+  let sidebarView = $state(readSidebarView());
   let searchExpanded = $state(false);
   let searchInput = $state<HTMLInputElement | null>(null);
-  let page = $state(1);
 
   let importing = $state(false);
   /** Files are being dragged over the window (native Tauri drag & drop). */
@@ -283,7 +279,7 @@
       prefsOpen ||
       shortcutsOpen,
   );
-  const pages = $derived(Math.max(1, Math.ceil((result?.total ?? 0) / filters.pageSize)));
+  const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.pageSize)));
 
   function readStoredFontScale(): string | null {
     try {
@@ -390,64 +386,19 @@
 
   const scheduleQuery = debounce((value: string) => {
     filters.debouncedQuery = value;
-    page = 1;
+    list.page = 1;
   }, 250);
 
-  async function loadList(
-    f: ClippingFilter,
-    p: number,
-    s: number,
-    sort: ClippingSort,
-  ): Promise<void> {
-    const request = ++listRequest;
-    loading = true;
-    loadError = null;
-    try {
-      const port = await getDb();
-      const first = await listClippings(port, f, { page: p, pageSize: s }, sort);
-      if (request !== listRequest) return; // Superseded by a newer filter or page.
-      const last = clampPage(p, first.total, s);
-      const next =
-        last === p
-          ? first
-          : await listClippings(port, f, { page: last, pageSize: s }, sort);
-      if (request !== listRequest) return;
-      // Commit rows and the filter that produced them together: the reading
-      // view must never fetch a page with a filter other than this one.
-      result = next;
-      resultFilter = {
-        ...f,
-        authors: [...f.authors],
-        kinds: [...f.kinds],
-        tagIds: [...f.tagIds],
-      };
-      resultSort = sort;
-      page = last;
-    } catch (error) {
-      if (request === listRequest) {
-        loadError = describeError(error);
-      }
-      logger.error("list-load", error);
-    } finally {
-      if (request === listRequest) {
-        loading = false;
-      }
-    }
-  }
-
   async function loadBooks(): Promise<void> {
-    try {
-      const port = await getDb();
-      books = await listBooks(port);
-      booksLoaded = true;
-      if (filters.bookId !== null && !books.some((book) => book.id === filters.bookId)) {
-        // Persisted book gone (fresh DB, re-import, …): fall back to all.
-        filters.bookId = null;
-        page = 1;
-      }
-    } catch (error) {
-      loadError = describeError(error);
-      logger.error("books-load", error);
+    const failure = await shelf.reload();
+    if (failure !== null) {
+      list.error = failure;
+      return;
+    }
+    if (filters.bookId !== null && !shelf.has(filters.bookId)) {
+      // Persisted book gone (fresh DB, re-import, …): fall back to all.
+      filters.bookId = null;
+      list.resetPage();
     }
   }
 
@@ -514,7 +465,7 @@
           dbTags.map((tag) => tag.id),
         );
         filters = restored;
-        page = 1;
+        list.page = 1;
       } else {
         await persistFilterState(toStored(filters));
       }
@@ -544,9 +495,8 @@
   });
 
   // NOTE: $effect only tracks state read SYNCHRONOUSLY in its body.
-  // loadList reads filter/page/filters.pageSize after an await, so they must be
-  // passed as arguments here — otherwise the list loads once on mount
-  // and filters/pagination/sidebar silently stop working.
+  // list.reload reads page synchronously, so this effect tracks it; filter and
+  // pageSize are passed in from state read in this body.
   //
   // Waiting for prefsReady keeps the first load from running with the empty
   // default filter: the stored filters.kinds must be applied first, or a list saved
@@ -554,7 +504,7 @@
   // cold start can leave that unfiltered page on screen.
   $effect(() => {
     if (!prefsReady) return;
-    void loadList(filter, page, filters.pageSize, clippingSort);
+    void list.reload(filter, filters.pageSize, clippingSort);
   });
 
   $effect(() => {
@@ -570,14 +520,14 @@
   // for `loading` to settle also keeps it from competing with the first list
   // filters.query for the same connection.
   $effect(() => {
-    if (!prefsReady || loading || autoBackupStarted) return;
+    if (!prefsReady || list.loading || autoBackupStarted) return;
     autoBackupStarted = true;
     if (autoBackupEnabled) {
       void runAutoBackup();
     }
   });
 
-  // Snapshot passed synchronously (see the loadList NOTE above): the debounced
+  // Snapshot passed synchronously (see the reload NOTE above): the debounced
   // write itself runs outside tracking, but the state snapshot is captured here.
   // Gated until the stored filter is applied, so the defaults are never written
   // over a filter the user already saved.
@@ -590,11 +540,11 @@
   // for the stored filter and the first successful book load, so neither the
   // empty default nor a cold-start race can silently clear the selection.
   $effect(() => {
-    if (!prefsReady || !booksLoaded) return;
-    const next = pruneAuthors(filters.authors, books);
+    if (!prefsReady || !shelf.loaded) return;
+    const next = pruneAuthors(filters.authors, shelf.books);
     if (next !== filters.authors) {
       filters.authors = next;
-      page = 1;
+      list.page = 1;
     }
   });
 
@@ -605,14 +555,14 @@
   /** A reload that drops the selected row (page, filter, delete) clears it. */
   $effect(() => {
     if (selectedId === null) return;
-    if (result === null || !result.items.some((item) => item.id === selectedId)) {
+    if (list.result === null || !list.result.items.some((item) => item.id === selectedId)) {
       selectedId = null;
     }
   });
 
   function selectBook(id: number | null): void {
     filters.bookId = id;
-    page = 1;
+    list.page = 1;
   }
 
   function setBookSortBy(key: BookSortKey): void {
@@ -665,29 +615,29 @@
 
   function toggleKind(next: ClippingKind): void {
     filters.kinds = toggleValue(filters.kinds, next);
-    page = 1;
+    list.page = 1;
   }
 
   function toggleFavoritesOnly(): void {
     filters.favoritesOnly = !filters.favoritesOnly;
-    page = 1;
+    list.page = 1;
   }
 
   function toggleEditedOnly(): void {
     filters.editedOnly = !filters.editedOnly;
-    page = 1;
+    list.page = 1;
   }
 
   /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
   function toggleAuthor(key: string): void {
     filters.authors = toggleValue(filters.authors, key);
-    page = 1;
+    list.page = 1;
   }
 
   /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
   function toggleTag(id: number): void {
     filters.tagIds = toggleValue(filters.tagIds, id);
-    page = 1;
+    list.page = 1;
   }
 
   /** Value shape of the sort select: `<key>:<dir>` (e.g. `page:asc`). */
@@ -697,7 +647,7 @@
     if (dir !== "asc" && dir !== "desc") return;
     filters.sortBy = key;
     filters.sortDir = dir;
-    page = 1;
+    list.page = 1;
   }
 
   function flashCopied(id: number, kind: "content" | "quote"): void {
@@ -712,7 +662,7 @@
   }
 
   async function copyContent(id: number): Promise<void> {
-    const target = result?.items.find((item) => item.id === id);
+    const target = list.result?.items.find((item) => item.id === id);
     const text = target ? (target.content_edited ?? target.content) : null;
     if (!text) return;
     const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
@@ -725,7 +675,7 @@
   /** Markdown quote with author, book and page, for the clipboard. */
   async function copyQuote(id: number): Promise<void> {
     const target =
-      result?.items.find((item) => item.id === id) ??
+      list.result?.items.find((item) => item.id === id) ??
       (readingClipping?.id === id ? readingClipping : null);
     if (!target) return;
     const text = formatQuoteCitation(target);
@@ -743,35 +693,36 @@
     }
   }
 
-  async function toggleStar(id: number): Promise<void> {    const current = result?.items.find((item) => item.id === id);
-    if (!current || !result) return;
+  async function toggleStar(id: number): Promise<void> {
+    const current = list.result?.items.find((item) => item.id === id);
+    if (!current || !list.result) return;
     const next = !current.favorite;
-    result = { ...result, items: applyFavoriteToggle(result.items, id, next) };
+    list.result = { ...list.result, items: applyFavoriteToggle(list.result.items, id, next) };
     try {
       const port = await getDb();
       const confirmed = await toggleFavorite(port, id);
-      result = { ...result, items: applyFavoriteToggle(result.items, id, confirmed) };
+      list.result = { ...list.result, items: applyFavoriteToggle(list.result.items, id, confirmed) };
       if (filters.favoritesOnly && !confirmed) {
         // The unstarred card no longer belongs to this view.
-        await loadList(filter, page, filters.pageSize, clippingSort);
+        await list.reload(filter, filters.pageSize, clippingSort);
       }
     } catch (error) {
-      result = { ...result, items: applyFavoriteToggle(result.items, id, current.favorite) };
-      loadError = describeError(error);
+      list.result = { ...list.result, items: applyFavoriteToggle(list.result.items, id, current.favorite) };
+      list.error = describeError(error);
     }
   }
 
   function changePageSize(size: number): void {
     filters.pageSize = size;
-    page = 1;
+    list.page = 1;
   }
 
   /** Patch the tag chips of one visible row, leaving the rest untouched. */
   function patchClippingTags(id: number, update: (tags: Tag[]) => Tag[]): void {
-    if (!result) return;
-    result = {
-      ...result,
-      items: result.items.map((item) =>
+    if (!list.result) return;
+    list.result = {
+      ...list.result,
+      items: list.result.items.map((item) =>
         item.id === id ? { ...item, tags: update(item.tags) } : item,
       ),
     };
@@ -779,7 +730,7 @@
 
   /** Assign a tag to a clipping, creating it by name when needed (S3). */
   async function addTagToClipping(id: number, name: string): Promise<boolean> {
-    const current = result?.items.find((item) => item.id === id);
+    const current = list.result?.items.find((item) => item.id === id);
     const clean = name.trim();
     if (!current || clean === "") return false;
     if (current.tags.some((tag) => tag.name.toLowerCase() === clean.toLowerCase())) {
@@ -804,14 +755,14 @@
       return true;
     } catch (error) {
       patchClippingTags(id, () => before);
-      loadError = describeError(error);
+      list.error = describeError(error);
       return false;
     }
   }
 
   /** Remove one tag from a clipping, reverting the chip on failure (S3). */
   async function removeTagFromClipping(id: number, tagId: number): Promise<boolean> {
-    const current = result?.items.find((item) => item.id === id);
+    const current = list.result?.items.find((item) => item.id === id);
     if (!current || !current.tags.some((tag) => tag.id === tagId)) return false;
     const before = current.tags;
     patchClippingTags(id, (tags) => withoutTag(tags, tagId));
@@ -821,26 +772,26 @@
       allTags = await listTags(port);
       if (filters.tagIds.includes(tagId)) {
         // The card no longer carries every selected tag.
-        await loadList(filter, page, filters.pageSize, clippingSort);
+        await list.reload(filter, filters.pageSize, clippingSort);
       }
       return true;
     } catch (error) {
       patchClippingTags(id, () => before);
-      loadError = describeError(error);
+      list.error = describeError(error);
       return false;
     }
   }
 
   /** Overlay note edit (V2): reconciled write, then patch the visible row. */
   async function editNote(id: number, content: string): Promise<boolean> {
-    if (!result) return false;
+    if (!list.result) return false;
     try {
       const port = await getDb();
       const confirmed = await updateNote(port, id, content);
       if (confirmed) {
-        result = {
-          ...result,
-          items: applyNoteEdit(result.items, id, {
+        list.result = {
+          ...list.result,
+          items: applyNoteEdit(list.result.items, id, {
             content_edited: content,
             edited_at: new Date().toISOString(),
           }),
@@ -848,29 +799,29 @@
       }
       return confirmed;
     } catch (error) {
-      loadError = describeError(error);
+      list.error = describeError(error);
       return false;
     }
   }
 
   async function resetNoteToOriginal(id: number): Promise<boolean> {
-    if (!result) return false;
+    if (!list.result) return false;
     try {
       const port = await getDb();
       const confirmed = await resetNote(port, id);
       if (confirmed) {
-        result = {
-          ...result,
-          items: applyNoteEdit(result.items, id, { content_edited: null, edited_at: null }),
+        list.result = {
+          ...list.result,
+          items: applyNoteEdit(list.result.items, id, { content_edited: null, edited_at: null }),
         };
         if (filters.editedOnly) {
           // The reset note no longer belongs to this view.
-          await loadList(filter, page, filters.pageSize, clippingSort);
+          await list.reload(filter, filters.pageSize, clippingSort);
         }
       }
       return confirmed;
     } catch (error) {
-      loadError = describeError(error);
+      list.error = describeError(error);
       return false;
     }
   }
@@ -878,7 +829,7 @@
   /** Open the reset confirmation dialog for a note (rendered at app root). */
   function requestReset(id: number): void {
     rememberOpener();
-    resetTarget = result?.items.find((item) => item.id === id) ?? null;
+    resetTarget = list.result?.items.find((item) => item.id === id) ?? null;
   }
 
   async function confirmResetDialog(): Promise<void> {
@@ -906,16 +857,16 @@
 
   /** Open the full-window reading view on one visible row. */
   function startReading(id: number): void {
-    if (!result) return;
-    const session = openReadingSession(result, id);
+    if (!list.result) return;
+    const session = openReadingSession(list.result, id);
     if (!session) return;
     const opener =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     mountReading(
       session,
-      { filter: resultFilter, sort: resultSort },
+      { filter: list.resultFilter, sort: list.resultSort },
       opener,
-      resultFilter.query,
+      list.resultFilter.query,
     );
   }
 
@@ -934,7 +885,7 @@
     if (!reading) return;
     // Palette windows are not part of the list, so they never move its page.
     const fromList = readingSource !== null;
-    const targetPage = fromList ? readingPage(reading) : page;
+    const targetPage = fromList ? readingPage(reading) : list.page;
     const opener = readingOpener;
     readingRequest += 1;
     reading = null;
@@ -943,9 +894,9 @@
     readingSource = null;
     readingQuery = "";
     readingOpener = null;
-    const pageChanged = targetPage !== page;
+    const pageChanged = targetPage !== list.page;
     if (pageChanged) {
-      page = targetPage;
+      list.page = targetPage;
     }
     // Hand focus back. On the same page the opener is still mounted, so focus
     // returns to it; a page change reloads the list and unmounts it, so focus
@@ -1080,7 +1031,7 @@
 
   /** Focus a visible card so it becomes the j/k, Enter, * and c target. */
   async function moveSelection(direction: SelectionDirection): Promise<void> {
-    const next = stepSelection(result?.items ?? [], selectedId, direction);
+    const next = stepSelection(list.result?.items ?? [], selectedId, direction);
     if (next === null) return;
     selectedId = next;
     await tick();
@@ -1090,9 +1041,9 @@
   }
 
   function stepPage(direction: "next" | "prev"): void {
-    const next = direction === "next" ? page + 1 : page - 1;
+    const next = direction === "next" ? list.page + 1 : list.page - 1;
     if (next < 1 || next > pages) return;
-    page = next;
+    list.page = next;
     selectedId = null;
   }
 
@@ -1226,10 +1177,10 @@
       interactive: isInteractiveTarget(target),
       overlay: modalOpen || filtersOpen,
       hasLibrary,
-      hasResults: (result?.items.length ?? 0) > 0,
+      hasResults: (list.result?.items.length ?? 0) > 0,
       hasSelection: selectedId !== null,
-      canPrevPage: page > 1,
-      canNextPage: page < pages,
+      canPrevPage: list.page > 1,
+      canNextPage: list.page < pages,
     });
     if (action === null) {
       // The palette combo belongs to the app in every focus state, so the
@@ -1321,7 +1272,7 @@
       } else {
         const report = outcome.report;
         logger.info(
-          `import: ${report.inserted} inserted, ${report.duplicates} duplicates, ${report.skipped} skipped, ${report.bookCount} books`,
+          `import: ${report.inserted} inserted, ${report.duplicates} duplicates, ${report.skipped} skipped, ${report.bookCount} shelf.books`,
         );
         importStatus =
           report.alreadyImported && report.skipped === 0
@@ -1340,9 +1291,10 @@
                   duplicates: report.duplicates,
                   books: report.bookCount,
                 });
-        page = 1;
+        list.page = 1;
         await loadBooks();
-        await loadList(filter, 1, filters.pageSize, clippingSort);
+        list.resetPage();
+        await list.reload(filter, filters.pageSize, clippingSort);
       }
     } catch (error) {
       importStatus = t("import.error", {
@@ -1397,7 +1349,7 @@
 
   /** Open the export dialog from the header (clears the previous outcome). */
   function openExport(): void {
-    if (!result || result.total === 0) return;
+    if (!list.result || list.result.total === 0) return;
     rememberOpener();
     exportStatus = null;
     exportOpen = true;
@@ -1458,7 +1410,7 @@
         await exportOneFilePerBook(rows, includeOriginal);
         return;
       }
-      const bookTitle = books.find((book) => book.id === filters.bookId)?.title ?? null;
+      const bookTitle = shelf.books.find((book) => book.id === filters.bookId)?.title ?? null;
       const fileName = exportFileName(format, bookTitle);
       const text =
         format === "markdown"
@@ -1747,7 +1699,7 @@
   /** Refresh every view the dialog can affect: books, list, imports and tags. */
   async function refreshAfterLibraryChange(): Promise<void> {
     await loadBooks();
-    await loadList(filter, page, filters.pageSize, clippingSort);
+    await list.reload(filter, filters.pageSize, clippingSort);
     await loadLibraryFiles();
     const port = await getDb();
     allTags = await listTags(port);
@@ -1856,9 +1808,9 @@
     return true;
   }
 
-  const hasLibrary = $derived(books.length > 0);
-  const libraryTotal = $derived(totalClippings(books));
-  const sortedBooks = $derived(sortBooks(books, filters.bookSortBy, filters.bookSortDir));
+  const hasLibrary = $derived(shelf.books.length > 0);
+  const libraryTotal = $derived(totalClippings(shelf.books));
+  const sortedBooks = $derived(sortBooks(shelf.books, filters.bookSortBy, filters.bookSortDir));
   /** Author groups shared by the Filters menu, chips and the grouped sidebar. */
   const authorGroups = $derived(groupBooksByAuthor(sortedBooks));
   const hasActiveFilters = $derived(
@@ -1872,12 +1824,12 @@
   );
   /** Dialog scope: selected book title, else which view is being exported. */
   const exportScope = $derived(
-    books.find((book) => book.id === filters.bookId)?.title ??
+    shelf.books.find((book) => book.id === filters.bookId)?.title ??
       (hasActiveFilters ? t("export.scopeFiltered") : t("export.scopeAll")),
   );
   /** Tooltip for the toolbar export button: what the next export would hold. */
   const exportSummary = $derived(
-    t("export.summary", { count: result?.total ?? 0, scope: exportScope }),
+    t("export.summary", { count: list.result?.total ?? 0, scope: exportScope }),
   );
   /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading ? readingCurrent(reading) : null);
@@ -1986,13 +1938,13 @@
     </div>
   </header>
 
-  {#if loadError}
+  {#if list.error}
     <p class="border-b border-danger-border bg-danger-soft px-6 py-2 text-sm text-danger" role="alert">
-      {loadError}
+      {list.error}
     </p>
   {/if}
 
-  {#if !hasLibrary && !loading}
+  {#if !hasLibrary && !list.loading}
     <main class="flex flex-1 items-center justify-center px-6">
       <div class="max-w-sm text-center">
         <div
@@ -2137,7 +2089,7 @@
             <button
               type="button"
               onclick={openExport}
-              disabled={!result || result.total === 0}
+              disabled={!list.result || list.result.total === 0}
               title={exportSummary}
               aria-label={exportSummary}
               class="flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
@@ -2194,16 +2146,16 @@
         <div
           bind:this={listRegion}
           tabindex="-1"
-          class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {loading ? 'opacity-50' : ''}"
+          class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {list.loading ? 'opacity-50' : ''}"
         >
-          {#if result && result.items.length > 0}
-            {#each result.items as clipping (clipping.id)}
+          {#if list.result && list.result.items.length > 0}
+            {#each list.result.items as clipping (clipping.id)}
               <ClippingCard
                 {clipping}
                 {allTags}
                 copied={copyFlash?.id === clipping.id && copyFlash.kind === "content"}
                 quoted={copyFlash?.id === clipping.id && copyFlash.kind === "quote"}
-                query={resultFilter.query}
+                query={list.resultFilter.query}
                 onSelect={(id) => (selectedId = id)}
                 onOpen={startReading}
                 onToggleFavorite={toggleStar}
@@ -2218,7 +2170,7 @@
                 onFilterEdited={toggleEditedOnly}
               />
             {/each}
-          {:else if !loading}
+          {:else if !list.loading}
             <div class="py-16 text-center">
               <p class="text-base font-medium">{t("results.empty")}</p>
               <p class="mt-1 text-sm text-fg-muted">
@@ -2241,13 +2193,13 @@
           {/if}
         </div>
 
-        {#if result && result.total > 0}
+        {#if list.result && list.result.total > 0}
           <div class="border-t border-line px-6 py-3">
             <Pagination
-              page={result.page}
-              total={result.total}
-              pageSize={result.pageSize}
-              onSelect={(next) => (page = next)}
+              page={list.result.page}
+              total={list.result.total}
+              pageSize={list.result.pageSize}
+              onSelect={(next) => (list.page = next)}
               onSizeChange={changePageSize}
             />
           </div>
@@ -2358,7 +2310,7 @@
 
 {#if exportOpen}
   <ExportDialog
-    count={result?.total ?? 0}
+    count={list.result?.total ?? 0}
     scope={exportScope}
     busy={exporting}
     onClose={closeExport}
