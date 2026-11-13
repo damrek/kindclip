@@ -28,9 +28,7 @@
     type SidebarView,
   } from "./lib/sidebar";
   import {
-    addClippingTag,
     closeDb,
-    ensureTag,
     exportClippings,
     getDb,
     getSetting,
@@ -38,12 +36,8 @@
     listClippings,
     listTags,
     loadFilterState,
-    removeClippingTag,
-    resetNote,
     setSetting,
     SETTINGS_KEYS,
-    toggleFavorite,
-    updateNote,
     type DbPort,
     type ImportedFile,
     type StoredFilterState,
@@ -56,16 +50,10 @@
                   type ExportFormat,
   } from "./lib/exporter";
   import {
-    applyFavoriteToggle,
-    applyNoteEdit,
-    copyClippingContent,
     debounce,
-    formatQuoteCitation,
     groupBooksByAuthor,
     totalClippings,
-    withTag,
     pruneAuthors,
-    withoutTag,
     withoutTagId,
   } from "./lib/library";
   import {
@@ -95,12 +83,7 @@
     type ShortcutAction,
   } from "./lib/shortcuts";
   import { focusOnMount, trapFocus } from "./lib/focus";
-  import type {
-    Book,
-    ClippingKind,
-    ClippingRow,
-    Tag,
-  } from "./lib/types";
+  import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   import { loadReadingStats } from "./lib/stats";
   import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
   import { Preferences } from "./lib/app/preferences.svelte";
@@ -110,6 +93,7 @@
   import { ImportState, type ImportRunner } from "./lib/app/import.svelte";
   import { ExportState, saveDialog } from "./lib/app/export.svelte";
   import { StatsState } from "./lib/app/stats.svelte";
+  import { ClippingActions } from "./lib/app/actions.svelte";
   import { escapeLayer } from "./lib/app/overlays";
 
   /** Run one data-layer call with the shared connection. */
@@ -139,9 +123,6 @@
   let importStatus = $state<string | null>(null);
   /** Manual backup, automatic snapshot and restore live in one module. */
   let autoBackupStarted = false;
-  /** Which copy action just succeeded, for its 1.5 s check mark. */
-  let copyFlash = $state<{ id: number; kind: "content" | "quote" } | null>(null);
-  let copyTimer: ReturnType<typeof setTimeout> | null = null;
   /** Full-window reading.session session; null when closed. */
   const reading = new ReadingState(
     (filterState, page, sort) => withPort((port) => listClippings(port, filterState, page, sort)),
@@ -159,8 +140,6 @@
   let prefsOpen = $state(false);
   /** Element that opened the current modal; focus returns to it on close. */
   let modalOpener: HTMLElement | null = null;
-  /** Note pending reset confirmation (dialog rendered at app root). */
-  let resetTarget = $state<ClippingRow | null>(null);
   const prefs = new Preferences({
     getSetting: (key) => withPort((port) => getSetting(port, key)),
     setSetting: (key, value) => withPort((port) => setSetting(port, key, value)),
@@ -277,12 +256,24 @@
     t,
     log: logger,
   });
+  const actions = new ClippingActions({
+    getPort: () => getDb(),
+    list,
+    reload: () => list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters)),
+    favoritesOnly: () => filters.favoritesOnly,
+    editedOnly: () => filters.editedOnly,
+    selectedTagIds: () => filters.tagIds,
+    readingRow: () => reading.current,
+    setTags: (tags) => {
+      allTags = tags;
+    },
+  });
 
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
     reading.session !== null ||
       paletteOpen ||
-      resetTarget !== null ||
+      actions.resetTarget !== null ||
       exports.open ||
       library.open ||
       stats.open ||
@@ -511,193 +502,29 @@
     list.page = 1;
   }
 
-  function flashCopied(id: number, kind: "content" | "quote"): void {
-    copyFlash = { id, kind };
-    if (copyTimer !== null) {
-      clearTimeout(copyTimer);
-    }
-    copyTimer = setTimeout(() => {
-      copyFlash = null;
-      copyTimer = null;
-    }, 1500);
-  }
-
-  async function copyContent(id: number): Promise<void> {
-    const target = list.result?.items.find((item) => item.id === id);
-    const text = target ? (target.content_edited ?? target.content) : null;
-    if (!text) return;
-    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-    const ok = await copyClippingContent(writeText, text);
-    if (ok) {
-      flashCopied(id, "content");
-    }
-  }
-
-  /** Markdown quote with author, book and page, for the clipboard. */
-  async function copyQuote(id: number): Promise<void> {
-    const target =
-      list.result?.items.find((item) => item.id === id) ??
-      (readingClipping?.id === id ? readingClipping : null);
-    if (!target) return;
-    const text = formatQuoteCitation(target);
-    if (text === null) return;
-    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
-    const ok = await copyClippingContent(writeText, text);
-    if (ok) {
-      flashCopied(id, "quote");
-    }
-  }
-
-  function copyReadingQuote(): void {
-    if (readingClipping) {
-      void copyQuote(readingClipping.id);
-    }
-  }
-
-  async function toggleStar(id: number): Promise<void> {
-    const current = list.result?.items.find((item) => item.id === id);
-    if (!current || !list.result) return;
-    const next = !current.favorite;
-    list.result = { ...list.result, items: applyFavoriteToggle(list.result.items, id, next) };
-    try {
-      const port = await getDb();
-      const confirmed = await toggleFavorite(port, id);
-      list.result = { ...list.result, items: applyFavoriteToggle(list.result.items, id, confirmed) };
-      if (filters.favoritesOnly && !confirmed) {
-        // The unstarred card no longer belongs to this view.
-        await list.reload(filter, filters.pageSize, clippingSort);
-      }
-    } catch (error) {
-      list.result = { ...list.result, items: applyFavoriteToggle(list.result.items, id, current.favorite) };
-      list.error = describeError(error);
-    }
-  }
-
+  const copyContent = (id: number): Promise<void> => actions.copyContent(id);
+  const copyQuote = (id: number): Promise<void> => actions.copyQuote(id);
+  const copyReadingQuote = (): void => actions.copyReadingQuote();
+  const toggleStar = (id: number): Promise<void> => actions.toggleStar(id);
+  const addTagToClipping = (id: number, name: string): Promise<boolean> =>
+    actions.addTag(id, name);
+  const removeTagFromClipping = (id: number, tagId: number): Promise<boolean> =>
+    actions.removeTag(id, tagId);
+  const editNote = (id: number, content: string): Promise<boolean> =>
+    actions.editNote(id, content);
   function changePageSize(size: number): void {
     filters.pageSize = size;
     list.page = 1;
   }
 
-  /** Patch the tag chips of one visible row, leaving the rest untouched. */
-  function patchClippingTags(id: number, update: (tags: Tag[]) => Tag[]): void {
-    if (!list.result) return;
-    list.result = {
-      ...list.result,
-      items: list.result.items.map((item) =>
-        item.id === id ? { ...item, tags: update(item.tags) } : item,
-      ),
-    };
-  }
-
-  /** Assign a tag to a clipping, creating it by name when needed (S3). */
-  async function addTagToClipping(id: number, name: string): Promise<boolean> {
-    const current = list.result?.items.find((item) => item.id === id);
-    const clean = name.trim();
-    if (!current || clean === "") return false;
-    if (current.tags.some((tag) => tag.name.toLowerCase() === clean.toLowerCase())) {
-      return false;
-    }
-    const before = current.tags;
-    const tempId = -Date.now();
-    patchClippingTags(id, (tags) => withTag(tags, { id: tempId, name: clean }));
-    try {
-      const port = await getDb();
-      const tagId = await ensureTag(port, clean);
-      if (tagId === null) {
-        patchClippingTags(id, () => before);
-        return false;
-      }
-      await addClippingTag(port, id, tagId);
-      allTags = await listTags(port);
-      const canonical = allTags.find((tag) => tag.id === tagId)?.name ?? clean;
-      patchClippingTags(id, (tags) =>
-        withTag(withoutTag(tags, tempId), { id: tagId, name: canonical }),
-      );
-      return true;
-    } catch (error) {
-      patchClippingTags(id, () => before);
-      list.error = describeError(error);
-      return false;
-    }
-  }
-
-  /** Remove one tag from a clipping, reverting the chip on failure (S3). */
-  async function removeTagFromClipping(id: number, tagId: number): Promise<boolean> {
-    const current = list.result?.items.find((item) => item.id === id);
-    if (!current || !current.tags.some((tag) => tag.id === tagId)) return false;
-    const before = current.tags;
-    patchClippingTags(id, (tags) => withoutTag(tags, tagId));
-    try {
-      const port = await getDb();
-      await removeClippingTag(port, id, tagId);
-      allTags = await listTags(port);
-      if (filters.tagIds.includes(tagId)) {
-        // The card no longer carries every selected tag.
-        await list.reload(filter, filters.pageSize, clippingSort);
-      }
-      return true;
-    } catch (error) {
-      patchClippingTags(id, () => before);
-      list.error = describeError(error);
-      return false;
-    }
-  }
-
-  /** Overlay note edit (V2): reconciled write, then patch the visible row. */
-  async function editNote(id: number, content: string): Promise<boolean> {
-    if (!list.result) return false;
-    try {
-      const port = await getDb();
-      const confirmed = await updateNote(port, id, content);
-      if (confirmed) {
-        list.result = {
-          ...list.result,
-          items: applyNoteEdit(list.result.items, id, {
-            content_edited: content,
-            edited_at: new Date().toISOString(),
-          }),
-        };
-      }
-      return confirmed;
-    } catch (error) {
-      list.error = describeError(error);
-      return false;
-    }
-  }
-
-  async function resetNoteToOriginal(id: number): Promise<boolean> {
-    if (!list.result) return false;
-    try {
-      const port = await getDb();
-      const confirmed = await resetNote(port, id);
-      if (confirmed) {
-        list.result = {
-          ...list.result,
-          items: applyNoteEdit(list.result.items, id, { content_edited: null, edited_at: null }),
-        };
-        if (filters.editedOnly) {
-          // The reset note no longer belongs to this view.
-          await list.reload(filter, filters.pageSize, clippingSort);
-        }
-      }
-      return confirmed;
-    } catch (error) {
-      list.error = describeError(error);
-      return false;
-    }
-  }
-
   /** Open the reset confirmation dialog for a note (rendered at app root). */
   function requestReset(id: number): void {
     rememberOpener();
-    resetTarget = list.result?.items.find((item) => item.id === id) ?? null;
+    actions.requestReset(id);
   }
 
-  async function confirmResetDialog(): Promise<void> {
-    if (!resetTarget) return;
-    if (await resetNoteToOriginal(resetTarget.id)) {
-      resetTarget = null;
-    }
+  function confirmResetDialog(): Promise<void> {
+    return actions.confirmReset();
   }
 
   /** Open the full-window reading.session view on one visible row. */
@@ -776,9 +603,9 @@
   }
 
   function closeReset(): void {
-    if (resetTarget === null) return;
-    resetTarget = null;
-    restoreOpener();
+    if (actions.closeReset()) {
+      restoreOpener();
+    }
   }
 
   /** S1: whole-library aggregates, fetched fresh each time the dialog opens. */
@@ -893,7 +720,7 @@
         reading: reading.session !== null,
         palette: paletteOpen,
         shortcuts: shortcutsOpen,
-        reset: resetTarget !== null,
+        reset: actions.resetTarget !== null,
         exportOpen: exports.open,
         library: library.open,
         stats: stats.open,
@@ -1470,8 +1297,8 @@
               <ClippingCard
                 {clipping}
                 {allTags}
-                copied={copyFlash?.id === clipping.id && copyFlash.kind === "content"}
-                quoted={copyFlash?.id === clipping.id && copyFlash.kind === "quote"}
+                copied={actions.copyFlash?.id === clipping.id && actions.copyFlash.kind === "content"}
+                quoted={actions.copyFlash?.id === clipping.id && actions.copyFlash.kind === "quote"}
                 query={list.resultFilter.query}
                 onSelect={(id) => (selectedId = id)}
                 onOpen={startReading}
@@ -1554,7 +1381,7 @@
     canNext={reading.canStep("next")}
     loading={reading.loading}
     error={reading.error}
-    quoted={copyFlash?.id === readingClipping.id && copyFlash.kind === "quote"}
+    quoted={actions.copyFlash?.id === readingClipping.id && actions.copyFlash.kind === "quote"}
     onCopyQuote={copyReadingQuote}
     onPrev={() => void stepReading("prev")}
     onNext={() => void stepReading("next")}
@@ -1571,7 +1398,7 @@
   />
 {/if}
 
-{#if resetTarget}
+{#if actions.resetTarget}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <button
       type="button"
@@ -1594,15 +1421,15 @@
       <p class="mt-1 text-sm text-fg-muted">
         {t("card.resetConfirm")}
       </p>
-      {#if resetTarget.content}
+      {#if actions.resetTarget.content}
         <blockquote
           class="mt-3 max-h-48 overflow-y-auto border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
         >
-          {resetTarget.content}
+          {actions.resetTarget.content}
         </blockquote>
       {:else}
         <p class="mt-3 text-sm text-fg-subtle italic">
-          {t("card.noText", { kind: t(`kind.${resetTarget.kind}`) })}
+          {t("card.noText", { kind: t(`kind.${actions.resetTarget.kind}`) })}
         </p>
       {/if}
       <div class="mt-4 flex items-center justify-end gap-2">
