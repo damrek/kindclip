@@ -128,6 +128,7 @@
   import { Preferences } from "./lib/app/preferences.svelte";
   import { ReadingState } from "./lib/app/reading.svelte";
   import { LibraryPanel } from "./lib/app/library.svelte";
+  import { escapeLayer } from "./lib/app/overlays";
 
   /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
@@ -899,69 +900,64 @@
     if (event.defaultPrevented) return;
 
     if (event.key === "Escape") {
-      // The reading.session view owns its own Escape and arrows.
-      if (reading.session !== null) return;
-      if (paletteOpen) {
-        event.preventDefault();
-        closePalette();
-        return;
+      const layer = escapeLayer({
+        reading: reading.session !== null,
+        palette: paletteOpen,
+        shortcuts: shortcutsOpen,
+        reset: resetTarget !== null,
+        exportOpen,
+        library: library.open,
+        stats: statsOpen,
+        restore: restoreOpen,
+        preferences: prefsOpen,
+        filters: filtersOpen,
+        query: filters.query,
+        searchExpanded,
+        selection: selectedId !== null,
+      });
+      if (layer === "none") return;
+      // The reading view owns its own Escape and arrows.
+      if (layer === "reading") return;
+      event.preventDefault();
+      switch (layer) {
+        case "palette":
+          closePalette();
+          return;
+        case "shortcuts":
+          closeShortcuts();
+          return;
+        case "reset":
+          closeReset();
+          return;
+        case "export":
+          if (!exporting) closeExport();
+          return;
+        case "library":
+          if (!library.busy) closeLibrary();
+          return;
+        case "stats":
+          closeStats();
+          return;
+        case "restore":
+          if (!restoreBusy) closeRestore();
+          return;
+        case "preferences":
+          closePreferences();
+          return;
+        case "filters":
+          filtersOpen = false;
+          return;
+        case "query":
+          filters.query = "";
+          return;
+        case "search":
+          searchExpanded = false;
+          return;
+        case "selection":
+          selectedId = null;
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+          return;
       }
-      if (shortcutsOpen) {
-        event.preventDefault();
-        closeShortcuts();
-        return;
-      }
-      if (resetTarget !== null) {
-        event.preventDefault();
-        closeReset();
-        return;
-      }
-      if (exportOpen) {
-        event.preventDefault();
-        if (!exporting) closeExport();
-        return;
-      }
-      if (library.open) {
-        event.preventDefault();
-        if (!library.busy) closeLibrary();
-        return;
-      }
-      if (statsOpen) {
-        event.preventDefault();
-        closeStats();
-        return;
-      }
-      if (restoreOpen) {
-        event.preventDefault();
-        if (!restoreBusy) closeRestore();
-        return;
-      }
-      if (prefsOpen) {
-        event.preventDefault();
-        closePreferences();
-        return;
-      }
-      if (filtersOpen) {
-        event.preventDefault();
-        filtersOpen = false;
-        return;
-      }
-      if (filters.query !== "") {
-        event.preventDefault();
-        filters.query = "";
-        return;
-      }
-      if (searchExpanded) {
-        event.preventDefault();
-        searchExpanded = false;
-        return;
-      }
-      if (selectedId !== null) {
-        event.preventDefault();
-        selectedId = null;
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      }
-      return;
     }
 
     // ? toggles the help it opened.
@@ -1041,7 +1037,7 @@
       } else {
         const report = outcome.report;
         logger.info(
-          `import: ${report.inserted} inserted, ${report.duplicates} duplicates, ${report.skipped} skipped, ${report.bookCount} shelf.books`,
+          `import: ${report.inserted} inserted, ${report.duplicates} duplicates, ${report.skipped} skipped, ${report.bookCount} books`,
         );
         importStatus =
           report.alreadyImported && report.skipped === 0
