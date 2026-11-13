@@ -30,23 +30,15 @@
   import {
     addClippingTag,
     closeDb,
-    deleteBook,
-    deleteTag,
     ensureTag,
     exportClippings,
     getDb,
     getSetting,
     listBooks,
     listClippings,
-    listImportedFiles,
     listTags,
     loadFilterState,
-    mergeBooks,
-    mergeTags,
     removeClippingTag,
-    removeImportedFile,
-    renameBook,
-    renameTag,
     resetNote,
     setSetting,
     SETTINGS_KEYS,
@@ -54,8 +46,6 @@
     updateNote,
     type DbPort,
     type ImportedFile,
-    type RenameBookResult,
-    type RenameTagResult,
     type StoredFilterState,
     type TagCount,
   } from "./lib/db";
@@ -137,6 +127,7 @@
   import { BookShelf, ClippingList } from "./lib/app/catalog.svelte";
   import { Preferences } from "./lib/app/preferences.svelte";
   import { ReadingState } from "./lib/app/reading.svelte";
+  import { LibraryPanel } from "./lib/app/library.svelte";
 
   /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
@@ -185,11 +176,6 @@
   let restoreInfo = $state<BackupInfo | null>(null);
   let restoreError = $state<string | null>(null);
   let restoreRequest = 0;
-  let libraryOpen = $state(false);
-  let libraryBusy = $state(false);
-  let libraryFiles = $state<ImportedFile[]>([]);
-  let libraryStatus = $state<string | null>(null);
-  let libraryError = $state<string | null>(null);
   let statsOpen = $state(false);
   let statsLoading = $state(false);
   let statsData = $state<ReadingStats | null>(null);
@@ -231,13 +217,28 @@
   });
   const t = prefs.t;
 
+  const library = new LibraryPanel({
+    getPort: () => getDb(),
+    t,
+    refresh: async () => {
+      await loadBooks();
+      await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
+      const port = await getDb();
+      allTags = await listTags(port);
+    },
+    onTagRemoved: (tagId) => {
+      filters.tagIds = withoutTagId(filters.tagIds, tagId);
+    },
+    log: logger.error,
+  });
+
   /** Reading view or a modal: the shell is inert and shortcuts are off. */
   const modalOpen = $derived(
     reading.session !== null ||
       paletteOpen ||
       resetTarget !== null ||
       exportOpen ||
-      libraryOpen ||
+      library.open ||
       statsOpen ||
       restoreOpen ||
       prefsOpen ||
@@ -767,12 +768,6 @@
     restoreOpener();
   }
 
-  function closeLibrary(): void {
-    if (!libraryOpen) return;
-    libraryOpen = false;
-    restoreOpener();
-  }
-
   /** S1: whole-library aggregates, fetched fresh each time the dialog opens. */
   async function openStats(): Promise<void> {
     if (statsOpen) return;
@@ -926,9 +921,9 @@
         if (!exporting) closeExport();
         return;
       }
-      if (libraryOpen) {
+      if (library.open) {
         event.preventDefault();
-        if (!libraryBusy) closeLibrary();
+        if (!library.busy) closeLibrary();
         return;
       }
       if (statsOpen) {
@@ -1450,137 +1445,36 @@
     }
   }
 
-  async function loadLibraryFiles(): Promise<void> {
-    try {
-      const port = await getDb();
-      libraryFiles = await listImportedFiles(port);
-    } catch (error) {
-      libraryError = t("library.error", {
-        message: describeError(error),
-      });
-      logger.error("library-load", error);
-    }
-  }
-
-  async function openLibrary(): Promise<void> {
-    rememberOpener();
-    libraryStatus = null;
-    libraryError = null;
-    libraryOpen = true;
-    await loadLibraryFiles();
-  }
-
-  /** Refresh every view the dialog can affect: books, list, imports and tags. */
+  /** Reload every view the app can affect after a database swap. */
   async function refreshAfterLibraryChange(): Promise<void> {
     await loadBooks();
-    await list.reload(filter, filters.pageSize, clippingSort);
-    await loadLibraryFiles();
+    await list.reload(toFilter(filters), filters.pageSize, clippingSortOf(filters));
+    await library.loadFiles();
     const port = await getDb();
     allTags = await listTags(port);
   }
 
-  /** One policy for library mutations: busy flag, translated error, and a
-   * reload after a failure so a partially applied multi-step write shows the
-   * real state instead of the pre-click one. */
-  async function runLibraryAction<T>(action: (port: DbPort) => Promise<T>): Promise<T | null> {
-    libraryBusy = true;
-    libraryError = null;
-    try {
-      const port = await getDb();
-      return await action(port);
-    } catch (error) {
-      libraryError = t("library.error", { message: describeError(error) });
-      await refreshAfterLibraryChange();
-      return null;
-    } finally {
-      libraryBusy = false;
-    }
+  async function openLibrary(): Promise<void> {
+    rememberOpener();
+    await library.show();
   }
 
-  async function libraryRename(
-    bookId: number,
-    title: string,
-    author: string,
-  ): Promise<RenameBookResult | null> {
-    const result = await runLibraryAction((port) => renameBook(port, bookId, title, author));
-    if (result?.status === "renamed") {
-      libraryStatus = t("library.statusRenamed");
-      await refreshAfterLibraryChange();
-    }
-    return result;
+  function closeLibrary(): void {
+    if (!library.open) return;
+    library.close();
+    restoreOpener();
   }
 
-  async function libraryMerge(sourceId: number, targetId: number): Promise<boolean> {
-    const result = await runLibraryAction((port) => mergeBooks(port, sourceId, targetId));
-    if (result?.status !== "merged") {
-      return false;
-    }
-    libraryStatus = t("library.statusMerged", { count: result.moved });
-    await refreshAfterLibraryChange();
-    return true;
-  }
-
-  async function libraryDeleteBook(book: Book): Promise<boolean> {
-    const removed = await runLibraryAction((port) => deleteBook(port, book.id));
-    if (removed === null) {
-      return false;
-    }
-    libraryStatus = t("library.statusDeleted", { count: removed });
-    await refreshAfterLibraryChange();
-    return true;
-  }
-
-  async function libraryRemoveFile(file: ImportedFile): Promise<boolean> {
-    const result = await runLibraryAction((port) => removeImportedFile(port, file.id));
-    if (result === null) {
-      return false;
-    }
-    libraryStatus = t("library.statusRemoved", {
-      clippings: result.clippings,
-      books: result.books,
-    });
-    await refreshAfterLibraryChange();
-    return true;
-  }
-
-  async function libraryRenameTag(
-    tagId: number,
-    name: string,
-  ): Promise<RenameTagResult | null> {
-    const result = await runLibraryAction((port) => renameTag(port, tagId, name));
-    if (result?.status === "renamed") {
-      libraryStatus = t("library.statusTagRenamed");
-      await refreshAfterLibraryChange();
-    }
-    return result;
-  }
-
-  async function libraryMergeTags(sourceId: number, targetId: number): Promise<boolean> {
-    const result = await runLibraryAction((port) => mergeTags(port, sourceId, targetId));
-    if (result?.status !== "merged") {
-      return false;
-    }
-    libraryStatus = t("library.statusTagsMerged", { count: result.moved });
-    // The source tag is gone: it must leave the active filter too.
-    filters.tagIds = withoutTagId(filters.tagIds, sourceId);
-    await refreshAfterLibraryChange();
-    return true;
-  }
-
-  async function libraryDeleteTag(tag: TagCount): Promise<boolean> {
-    const done = await runLibraryAction(async (port) => {
-      await deleteTag(port, tag.id);
-      return true;
-    });
-    if (done === null) {
-      return false;
-    }
-    libraryStatus = t("library.statusTagDeleted");
-    // A deleted tag must leave the active filter too.
-    filters.tagIds = withoutTagId(filters.tagIds, tag.id);
-    await refreshAfterLibraryChange();
-    return true;
-  }
+  const libraryRename = (bookId: number, title: string, author: string) =>
+    library.rename(bookId, title, author);
+  const libraryMerge = (sourceId: number, targetId: number) =>
+    library.merge(sourceId, targetId);
+  const libraryDeleteBook = (book: Book) => library.removeBook(book);
+  const libraryRemoveFile = (file: ImportedFile) => library.removeFile(file);
+  const libraryRenameTag = (tagId: number, name: string) => library.renameTag(tagId, name);
+  const libraryMergeTags = (sourceId: number, targetId: number) =>
+    library.mergeTags(sourceId, targetId);
+  const libraryDeleteTag = (tag: TagCount) => library.removeTag(tag);
 
   const hasLibrary = $derived(shelf.books.length > 0);
   const libraryTotal = $derived(totalClippings(shelf.books));
@@ -2092,14 +1986,14 @@
   />
 {/if}
 
-{#if libraryOpen}
+{#if library.open}
   <LibraryDialog
     books={sortedBooks}
-    files={libraryFiles}
+    files={library.files}
     tags={allTags}
-    busy={libraryBusy}
-    status={libraryStatus}
-    error={libraryError}
+    busy={library.busy}
+    status={library.status}
+    error={library.error}
     onClose={closeLibrary}
     onRename={libraryRename}
     onMerge={libraryMerge}
