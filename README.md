@@ -174,7 +174,9 @@ and this app has no such channel.
 
 ```
 src/                        # Svelte 5 + Tailwind v4 frontend
-  lib/                      # db, backup, exporter, importer, stats, i18n, theme, types
+  App.svelte                # shell: layout, dialogs and list orchestration
+  lib/                      # domain modules (filters, sorting, library, reading, …)
+    db/                     # data layer split by entity (clippings, books, tags, files, settings)
   components/               # BookSidebar, ClippingCard, FilterMenu, dialogs, ...
   assets/icon.png
 src-tauri/

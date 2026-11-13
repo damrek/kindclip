@@ -2,6 +2,9 @@
   "name": "kindclip",
   "private": true,
   "version": "1.18.0",
+  "engines": {
+    "node": ">=22.5"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

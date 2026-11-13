@@ -62,4 +62,10 @@ jobs:
 
       - run: npm run test
 
+      # The Rust side gets the same treatment as the TS side: formatting and
+      # lints are gates, not suggestions. clippy runs over every target so the
+      # inline command tests are linted too.
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+
