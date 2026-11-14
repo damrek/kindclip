@@ -10,6 +10,16 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-11-14
+
+### Changed
+
+- **Preferences**: the dialog no longer scrolls at the minimum window size.
+  Language and text size share a row, the palette cards are slimmer, and keyboard
+  shortcuts moved to a header button, retiring the one-item About section. Data
+  actions now use short labels with the full description on hover, Diagnostics
+  reads "Open logs", and the privacy note fits on one line.
+
 ## [1.19.0] - 2026-11-13
 
 ### Added
