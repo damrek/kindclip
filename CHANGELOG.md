@@ -10,6 +10,8 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-11-14
+
 ### Changed
 
 - **Preferences**: the dialog no longer scrolls at the minimum window size.
