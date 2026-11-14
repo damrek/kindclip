@@ -5,8 +5,8 @@ across text, books and authors, filter, star favorites, tag, edit notes, export
 to Markdown, JSON or CSV, and track your reading stats. Native look, tiny
 binaries, on Windows, Linux and macOS.
 
-**[Landing page](https://damrek.github.io/kindclip/)** · screenshots, palettes
-and downloads.
+**[https://damrek.github.io/kindclip/](https://damrek.github.io/kindclip/)** ·
+screenshots, palettes and downloads.
 
 ![Tauri](https://img.shields.io/badge/Tauri-v2-24C8DB?logo=tauri&logoColor=white)
 ![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte&logoColor=white)
@@ -162,18 +162,19 @@ cargo fmt --all -- --check
 CI (`.github/workflows/ci.yml`) runs on every pull request and again on every
 commit that lands on `main`: the PR run validates a synthetic merge preview, the
 `main` run validates the exact commit a release tags. All three matrix jobs are
-required status checks on `main`, so a red run blocks the merge.
+required status checks on `main`, so a red run blocks the merge. The Ubuntu leg
+also runs the release-notes script tests, so a broken `CHANGELOG.md` parser fails
+before a release.
 
 Releases (`.github/workflows/release.yml`) run from a `workflow_dispatch` or a
 `v*` tag. Before anything is built, the workflow refuses a commit that is not on
 `main` or whose version files disagree with the resolved version. The release
 body is the released version's `CHANGELOG.md` section, unwrapped for GitHub's
 line-break rendering; when the section is missing, the workflow warns and falls
-back to GitHub's generated notes. It then syncs
-the version, runs the checks and tests, and bundles for macOS (ARM + Intel),
-Linux and Windows. Windows ships the NSIS `.exe` only — the WiX `.msi` is
-deliberately not built, since it exists for enterprise `msiexec`/GPO deployment
-and this app has no such channel.
+back to GitHub's generated notes. It then syncs the version, runs the checks and
+tests, and bundles for macOS (ARM + Intel), Linux and Windows. Windows ships the
+NSIS `.exe` only — the WiX `.msi` is deliberately not built, since it exists for
+enterprise `msiexec`/GPO deployment and this app has no such channel.
 *macOS/Windows artifacts are unsigned, so Gatekeeper/SmartScreen will warn.*
 
 ## Structure
@@ -216,7 +217,7 @@ Diagnostic logs live in the standard per-OS log dir — `~/.local/share/app.kind
 (Linux), `%LOCALAPPDATA%\app.kindclip\logs` (Windows), `~/Library/Logs/app.kindclip`
 (macOS). Installed builds write `kindclip.log` and `tauri dev` writes
 `kindclip-dev.log`, rotated at 1 MB over three files. Open the folder from
-**Preferences → Diagnostics → Open logs folder**. They hold paths, counts, sizes
+**Preferences → Diagnostics → Open logs**. They hold paths, counts, sizes
 and error messages only — never clipping text, notes, search queries, tags or
 book titles.
 
