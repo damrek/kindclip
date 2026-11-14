@@ -166,7 +166,10 @@ required status checks on `main`, so a red run blocks the merge.
 
 Releases (`.github/workflows/release.yml`) run from a `workflow_dispatch` or a
 `v*` tag. Before anything is built, the workflow refuses a commit that is not on
-`main` or whose version files disagree with the resolved version. It then syncs
+`main` or whose version files disagree with the resolved version. The release
+body is the released version's `CHANGELOG.md` section, unwrapped for GitHub's
+line-break rendering; when the section is missing, the workflow warns and falls
+back to GitHub's generated notes. It then syncs
 the version, runs the checks and tests, and bundles for macOS (ARM + Intel),
 Linux and Windows. Windows ships the NSIS `.exe` only — the WiX `.msi` is
 deliberately not built, since it exists for enterprise `msiexec`/GPO deployment

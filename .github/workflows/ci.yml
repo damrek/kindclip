@@ -38,6 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # release.yml parses CHANGELOG.md with this script; pin it on one leg.
+      - name: Test release notes script
+        if: matrix.platform == 'ubuntu-22.04'
+        run: bash .github/scripts/release-notes.test.sh
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24

@@ -156,6 +156,13 @@ jobs:
     outputs:
       release_id: ${{ steps.release.outputs.release_id }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          # The notes come from CHANGELOG.md at the commit being released, not
+          # at the branch tip.
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
       - name: Create or reuse the GitHub release
         # Every matrix leg uploads in parallel. Creating the release once here
         # and handing the legs its id keeps tauri-action from racing itself:
@@ -165,18 +172,41 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # This job has no checkout, and gh resolves the repository from a git
-          # remote; GITHUB_REPOSITORY alone is not enough.
+          # gh and the notes script both need the repository explicitly.
           GH_REPO: ${{ github.repository }}
           TAG: v${{ needs.prepare.outputs.version }}
           TITLE: kindclip v${{ needs.prepare.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" \
-              --title "$TITLE" \
-              --generate-notes \
-              --target "$GITHUB_SHA"
+            # Release notes are the CHANGELOG section for this version, not
+            # the generated PR list: the changelog leaves out refactors and
+            # tooling on purpose.
+            NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+            set +e
+            bash .github/scripts/release-notes.sh "$VERSION" "$GH_REPO" >"$NOTES_FILE"
+            NOTES_STATUS=$?
+            set -e
+            case "$NOTES_STATUS" in
+              0)
+                gh release create "$TAG" \
+                  --title "$TITLE" \
+                  --notes-file "$NOTES_FILE" \
+                  --target "$GITHUB_SHA"
+                ;;
+              1)
+                echo "::warning::CHANGELOG.md has no section for $VERSION; falling back to --generate-notes."
+                gh release create "$TAG" \
+                  --title "$TITLE" \
+                  --generate-notes \
+                  --target "$GITHUB_SHA"
+                ;;
+              *)
+                echo "::error::release-notes.sh failed with status $NOTES_STATUS"
+                exit "$NOTES_STATUS"
+                ;;
+            esac
           fi
           release_id=$(gh release view "$TAG" --json databaseId --jq .databaseId)
           if [ -z "$release_id" ]; then
