@@ -204,3 +204,22 @@ describe("prefs.versionShort", () => {
     expect(translate("it", "prefs.versionShort", { version: "1.9.0" })).toBe("v1.9.0");
   });
 });
+
+describe("preferences compact labels", () => {
+  it("keeps each short label shorter than the full text its tooltip shows", () => {
+    const pairs = [
+      ["prefs.autoBackupShort", "prefs.autoBackup"],
+      ["prefs.backupShort", "prefs.backup"],
+      ["prefs.restoreShort", "prefs.restore"],
+      ["db.openShort", "db.open"],
+      ["logs.openShort", "logs.open"],
+    ] as const;
+    for (const locale of LOCALES) {
+      for (const [short, full] of pairs) {
+        const label = translate(locale, short);
+        expect(label, `${locale}.${short}`).not.toBe(short);
+        expect(label.length, `${locale}.${short}`).toBeLessThan(translate(locale, full).length);
+      }
+    }
+  });
+});
