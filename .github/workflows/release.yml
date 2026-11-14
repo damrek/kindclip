@@ -182,31 +182,28 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             # Release notes are the CHANGELOG section for this version, not
             # the generated PR list: the changelog leaves out refactors and
-            # tooling on purpose.
+            # tooling on purpose. The flags are picked first so the release is
+            # created at one call site (see ci-workflows.test.ts).
             NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+            NOTES_ARGS=(--generate-notes)
             set +e
             bash .github/scripts/release-notes.sh "$VERSION" "$GH_REPO" >"$NOTES_FILE"
             NOTES_STATUS=$?
             set -e
             case "$NOTES_STATUS" in
-              0)
-                gh release create "$TAG" \
-                  --title "$TITLE" \
-                  --notes-file "$NOTES_FILE" \
-                  --target "$GITHUB_SHA"
-                ;;
+              0) NOTES_ARGS=(--notes-file "$NOTES_FILE") ;;
               1)
                 echo "::warning::CHANGELOG.md has no section for $VERSION; falling back to --generate-notes."
-                gh release create "$TAG" \
-                  --title "$TITLE" \
-                  --generate-notes \
-                  --target "$GITHUB_SHA"
                 ;;
               *)
                 echo "::error::release-notes.sh failed with status $NOTES_STATUS"
                 exit "$NOTES_STATUS"
                 ;;
             esac
+            gh release create "$TAG" \
+              --title "$TITLE" \
+              "${NOTES_ARGS[@]}" \
+              --target "$GITHUB_SHA"
           fi
           release_id=$(gh release view "$TAG" --json databaseId --jq .databaseId)
           if [ -z "$release_id" ]; then

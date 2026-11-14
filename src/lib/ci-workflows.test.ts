@@ -70,9 +70,9 @@ describe("release workflow: one release object per tag", () => {
     expect(releaseWorkflow).toMatch(/needs: \[prepare, create-release\]/);
   });
 
-  it("gives gh a repository context in the job that has no checkout", () => {
-    // gh resolves owner/repo from a git remote and ignores GITHUB_REPOSITORY;
-    // without GH_REPO every call fails before the API and no release is made.
+  it("gives gh and the notes script the repository explicitly", () => {
+    // Both calls read the repository from the env instead of trusting the
+    // checkout's git remote; GITHUB_REPOSITORY alone is not enough for gh.
     expect(releaseWorkflow).toMatch(/GH_REPO: \$\{\{ github\.repository \}\}/);
   });
 
