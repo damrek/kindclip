@@ -70,6 +70,19 @@ describe("release workflow: one release object per tag", () => {
     expect(releaseWorkflow).toMatch(/needs: \[prepare, create-release\]/);
   });
 
+  it("picks the notes flags before the single creation call", () => {
+    const start = releaseWorkflow.indexOf("NOTES_ARGS=(--generate-notes)");
+    const end = releaseWorkflow.indexOf("release_id=$(gh release view");
+    const block = releaseWorkflow.slice(start, end);
+    expect(block).toContain('case "$NOTES_STATUS" in');
+    expect(block).toContain('0) NOTES_ARGS=(--notes-file "$NOTES_FILE") ;;');
+    expect(block).toContain('exit "$NOTES_STATUS"');
+    expect(block).toContain('"${NOTES_ARGS[@]}"');
+    const caseBody = block.slice(block.indexOf('case "$NOTES_STATUS" in'), block.indexOf("esac"));
+    expect(caseBody).not.toContain("gh release create");
+    expect(releaseWorkflow.match(/gh release create/g)).toHaveLength(1);
+  });
+
   it("gives gh and the notes script the repository explicitly", () => {
     // Both calls read the repository from the env instead of trusting the
     // checkout's git remote; GITHUB_REPOSITORY alone is not enough for gh.
