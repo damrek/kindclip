@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://damrek.github.io/kindclip/sitemap.xml

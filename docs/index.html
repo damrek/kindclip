@@ -3,26 +3,134 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>kindclip — your Kindle highlights, finally in one place</title>
+    <title>kindclip — Kindle highlights viewer for Windows, Mac, Linux</title>
     <meta
       name="description"
-      content="A local, keyboard-first desktop viewer for your Kindle highlights. Import My Clippings.txt, search everything, filter by book or author, tag, edit notes, copy quotes or export to Markdown, JSON, CSV or one file per book for Obsidian. Windows, Linux and macOS."
+      content="View, search and export your Kindle highlights from My Clippings.txt. Tag, edit notes, copy quotes, write Markdown for Obsidian. Free, local, no account."
     />
     <link rel="canonical" href="https://damrek.github.io/kindclip/" />
     <link rel="icon" type="image/png" href="icon.png" />
-    <link rel="apple-touch-icon" href="icon.png" />
+    <link rel="apple-touch-icon" href="icon-180.png" sizes="180x180" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="kindclip" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:url" content="https://damrek.github.io/kindclip/" />
     <meta property="og:title" content="kindclip — your Kindle highlights, finally in one place" />
     <meta
       property="og:description"
-      content="Import My Clippings.txt once and get a fast, searchable library with author filters, tags, edited notes, Markdown quotes, per-book Obsidian exports, daily backups and reading stats. Local-first and native on Windows, Linux and macOS."
+      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, Markdown quotes and Obsidian exports. Local-first, no account, free."
     />
-    <meta property="og:image" content="https://damrek.github.io/kindclip/screen_1.png" />
+    <meta property="og:image" content="https://damrek.github.io/kindclip/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="kindclip: the library view in a dark theme, next to the tagline “Your Kindle highlights, finally in one place.”"
+    />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="kindclip — your Kindle highlights, finally in one place" />
+    <meta
+      name="twitter:description"
+      content="A free desktop viewer for My Clippings.txt: search, tag, edit notes, export to Markdown, JSON or CSV. Windows, macOS and Linux."
+    />
+    <meta name="twitter:image" content="https://damrek.github.io/kindclip/og.png" />
+    <meta
+      name="twitter:image:alt"
+      content="kindclip: the library view in a dark theme, next to the tagline “Your Kindle highlights, finally in one place.”"
+    />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1f26" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "kindclip",
+        "applicationCategory": "UtilitiesApplication",
+        "applicationSubCategory": "Ebook highlights viewer",
+        "operatingSystem": "Windows, macOS, Linux",
+        "description": "Desktop viewer for Kindle highlights. Import My Clippings.txt, search across books and authors, tag, edit notes, and export to Markdown, JSON or CSV.",
+        "url": "https://damrek.github.io/kindclip/",
+        "downloadUrl": "https://github.com/damrek/kindclip/releases/latest",
+        "installUrl": "https://github.com/damrek/kindclip/releases/latest",
+        "softwareHelp": "https://github.com/damrek/kindclip#readme",
+        "license": "https://github.com/damrek/kindclip/blob/main/LICENSE",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "screenshot": "https://damrek.github.io/kindclip/screen_1.png",
+        "image": "https://damrek.github.io/kindclip/og.png",
+        "author": {
+          "@type": "Person",
+          "name": "damrek",
+          "url": "https://github.com/damrek"
+        },
+        "featureList": [
+          "Import My Clippings.txt from any Kindle",
+          "Full-text search across clippings, book titles and authors",
+          "Tags, favorites and author filters",
+          "Note editing with the original kept",
+          "Copy a clipping as a Markdown quote",
+          "Export to Markdown, JSON or CSV",
+          "One Markdown file per book for Obsidian",
+          "Verified backups and restore"
+        ]
+      }
+    </script>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Does kindclip modify My Clippings.txt?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Never. The file is read on import; your original content stays untouched. Note edits live in kindclip.db next to the original text, and you can reset any note to what the Kindle wrote."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Where does my data live?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In one SQLite file in the standard per-OS config directory: ~/.config/app.kindclip/kindclip.db on Linux, %APPDATA%\\app.kindclip\\kindclip.db on Windows, and ~/Library/Application Support/app.kindclip/kindclip.db on macOS. Nothing is uploaded, ever."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I move or back up a library?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Preferences then Data saves a consistent snapshot of the database with a date in the name, and kindclip also snapshots the library once per launch, keeping the newest seven in a backups folder next to the database. A restore verifies the file, previews its contents, and keeps the replaced file as kindclip.db.before-restore."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a web or mobile version?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. kindclip is a desktop app built with Tauri: a Rust backend, a Svelte 5 frontend and SQLite, shipped as small native binaries. The reading happens on your machine."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is kindclip free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. kindclip is MIT-licensed, free to download and use, with no account, no subscription and no upload. The full source is on GitHub."
+            }
+          }
+        ]
+      }
+    </script>
 
     <script>
       // Resolve the color theme before first paint so a remembered choice
@@ -1281,13 +1389,17 @@
         }
       }
 
+      /* The main nav is wide, so it leaves the header earlier than the rest
+         of the mobile layout to keep the header on one row. */
+      @media (max-width: 880px) {
+        .nav {
+          display: none;
+        }
+      }
+
       @media (max-width: 720px) {
         .wrap {
           width: min(1120px, 100% - 32px);
-        }
-
-        .nav {
-          display: none;
         }
 
         .header-inner {
@@ -1373,6 +1485,7 @@
 
         <nav class="nav" aria-label="Main">
           <a href="#features">Features</a>
+          <a href="#clippings">My Clippings.txt</a>
           <a href="#themes">Themes</a>
           <a href="#install">Install</a>
           <a href="#faq">FAQ</a>
@@ -1486,7 +1599,7 @@
         <div class="wrap">
           <div class="section-head">
             <span class="section-label">Features</span>
-            <h2>Everything you actually do with highlights</h2>
+            <h2>Organize, search and export Kindle highlights</h2>
             <p>
               No dashboards, feeds or subscriptions. Import once, find anything,
               keep what matters, take it with you.
@@ -1591,6 +1704,77 @@
                 </p>
               </div>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="clippings">
+        <div class="wrap">
+          <div class="section-head">
+            <span class="section-label">The file</span>
+            <h2>What is My Clippings.txt?</h2>
+            <p>
+              Your Kindle writes everything you highlight, note or bookmark into
+              a single plain-text file on the device. It is the only copy that
+              includes books you sent over USB, and it is what kindclip reads.
+            </p>
+          </div>
+
+          <div class="install">
+            <div>
+              <ol class="steps">
+                <li>
+                  <h3>Plug the Kindle in</h3>
+                  <p>
+                    Connect it with a USB cable and open the drive that appears.
+                    No app and no Amazon login are involved.
+                  </p>
+                </li>
+                <li>
+                  <h3>Open the <code>documents</code> folder</h3>
+                  <p>
+                    <code>My Clippings.txt</code> sits at the root of
+                    <code>documents/</code>. It is appended to as you read, so
+                    copying it again later brings in the new highlights.
+                  </p>
+                </li>
+                <li>
+                  <h3>Copy the file, keep the original</h3>
+                  <p>
+                    Copy it to your computer and import it. The Kindle keeps
+                    writing to its own copy; kindclip only ever reads.
+                  </p>
+                </li>
+              </ol>
+            </div>
+
+            <div class="panel">
+              <h3>What the file holds</h3>
+              <table>
+                <tbody>
+                  <tr>
+                    <th scope="row">Books</th>
+                    <td>Every book on the device, bought or sideloaded</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Kinds</th>
+                    <td>Highlights, notes and bookmarks</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Metadata</th>
+                    <td>Title, author, page or location, and the date</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Format</th>
+                    <td>Plain text, entries split by <code>==========</code></td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Ownership</th>
+                    <td>Stays on the device; never rewritten by kindclip</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -1789,7 +1973,7 @@
         <div class="wrap">
           <div class="section-head">
             <span class="section-label">Install</span>
-            <h2>Three steps, one file</h2>
+            <h2>Install kindclip in three steps</h2>
             <p>
               Download the build for your platform, copy one file from the
               Kindle, and import. Re-import any time: duplicates are skipped and
@@ -1869,7 +2053,7 @@
         <div class="wrap">
           <div class="section-head">
             <span class="section-label">Questions</span>
-            <h2>Before you ask</h2>
+            <h2>Kindle highlights FAQ</h2>
           </div>
 
           <div class="faq">
@@ -1916,6 +2100,15 @@
                 No. kindclip is a desktop app built with Tauri: a Rust backend, a
                 Svelte 5 frontend and SQLite, shipped as small native binaries.
                 The reading happens on your machine.
+              </p>
+            </details>
+
+            <details>
+              <summary>Is kindclip free?</summary>
+              <p>
+                Yes. kindclip is MIT-licensed: free to download and use, with no
+                account, no subscription and no upload. The full source is on
+                <a href="https://github.com/damrek/kindclip">GitHub</a>.
               </p>
             </details>
           </div>
