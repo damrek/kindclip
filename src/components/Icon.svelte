@@ -17,14 +17,21 @@
     | "expand"
     | "keyboard"
     | "settings"
-    | "stats";
+    | "stats"
+    | "edit"
+    | "copy"
+    | "quote"
+    | "check"
+    | "star";
 
   interface Props {
     name: IconName;
     class?: string;
+    /** Fill the shape with the text color (state toggles such as the star). */
+    filled?: boolean;
   }
 
-  const { name, class: className = "h-4 w-4" }: Props = $props();
+  const { name, class: className = "h-4 w-4", filled = false }: Props = $props();
 
   const PATHS: Record<IconName, string[]> = {
     sidebar: ["M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9 3v18"],
@@ -59,13 +66,25 @@
       "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
     ],
     stats: ["M3 3v18h18", "M18 17V9", "M13 17V5", "M8 17v-3"],
+    edit: ["M12 20h9", "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"],
+    copy: [
+      "M10 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z",
+      "M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3",
+    ],
+    quote: [
+      "M9 7H5a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h2v1a3 3 0 0 1-3 3",
+      "M21 7h-4a3 3 0 0 0-3 3v3a3 3 0 0 0 3 3h2v1a3 3 0 0 1-3 3",
+    ],
+    check: ["M20 6L9 17l-5-5"],
+    // Five-point star, symmetric around x=12: outer r=9.4, inner r=4.0.
+    star: ["M12 2.7 L14.35 8.86 L20.94 9.2 L15.8 13.34 L17.53 19.7 L12 16.1 L6.47 19.7 L8.2 13.34 L3.06 9.2 L9.65 8.86z"],
   };
 </script>
 
 <svg
   class={className}
   viewBox="0 0 24 24"
-  fill="none"
+  fill={filled ? "currentColor" : "none"}
   stroke="currentColor"
   stroke-width="1.7"
   stroke-linecap="round"

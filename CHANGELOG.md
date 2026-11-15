@@ -10,6 +10,14 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+### Changed
+
+- **Clipping cards**: the favorite moved to the card's top-right corner, the two
+  copy actions became one grouped control, and every action is a 34 px button
+  with an 18 px icon at readable contrast instead of a faint glyph. "Add tag"
+  now sits with the tags, the reading view opens from a labelled **Read**
+  button, and "Restore original" only appears on edited notes.
+
 ## [1.20.0] - 2026-11-14
 
 ### Changed

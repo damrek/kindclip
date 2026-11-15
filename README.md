@@ -41,8 +41,8 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 2. Copy `documents/My Clippings.txt` from your Kindle.
 3. **Import** → pick the file, or drag a `.txt` onto the window. Re-import any
    time: duplicates are skipped by content hash, and new highlights are added.
-4. Search, filter and read: `?` shows every shortcut and `⤢` opens a clipping
-   full-window.
+4. Search, filter and read: `?` shows every shortcut and each card's **Read**
+   button opens a clipping full-window.
 5. Export the current view, or back up the database from **Preferences → Data**.
 
 ## Features
