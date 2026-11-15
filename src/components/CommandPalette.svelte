@@ -6,10 +6,11 @@
   import { searchClippings, countClippings, getDb } from "../lib/db";
   import { stepSelection } from "../lib/shortcuts";
   import { describeError } from "../lib/errors";
-  import { hasMoreBelow } from "../lib/scroll";
+  import { ScrollFade } from "../lib/scrollFade.svelte";
   import { focusOnMount, selectOnInteraction, trapFocus } from "../lib/focus";
   import type { ClippingRow } from "../lib/types";
   import HighlightedText from "./HighlightedText.svelte";
+  import ScrollFadeOverlay from "./ScrollFadeOverlay.svelte";
   import Icon from "./Icon.svelte";
 
   interface Props {
@@ -34,10 +35,8 @@
   let total = $state(0);
   /** Query that produced `results`; Enter waits for a newer one. */
   let resultsQuery = $state("");
-  /** Scroller the bottom fade is measured against. */
-  let listEl = $state<HTMLUListElement | null>(null);
-  /** More rows below the fold, so the fade is only drawn then. */
-  let moreBelow = $state(false);
+  /** Bottom fade of the list, measured against the scroller. */
+  const fade = new ScrollFade();
   let pendingOpen = false;
   let destroyed = false;
   let request = 0;
@@ -86,34 +85,12 @@
     }
   }
 
-  /** True while the list has rows below the fold, which is when it gets a fade. */
-  function measureFade(): void {
-    const element = listEl;
-    moreBelow = element !== null && hasMoreBelow(element);
-  }
-
   onMount(() => {
     void load("");
     return () => {
       destroyed = true;
       schedule.cancel();
     };
-  });
-
-  // Re-measure whenever the scroller is (re)sized: the dialog is viewport-relative.
-  $effect(() => {
-    const element = listEl;
-    if (element === null) return;
-    const observer = new ResizeObserver(measureFade);
-    observer.observe(element);
-    return () => observer.disconnect();
-  });
-
-  // Re-measure after every result set, once the new rows are in the DOM.
-  $effect(() => {
-    void results;
-    void listEl;
-    measureFade();
   });
 
   // Keep the keyboard selection visible while the list scrolls.
@@ -233,8 +210,7 @@
         role="listbox"
         aria-label={i18n.t("palette.placeholder")}
         aria-busy={loading}
-        bind:this={listEl}
-        onscroll={measureFade}
+        use:fade.track
         class="max-h-[58vh] space-y-0.5 overflow-y-auto p-2"
       >
         {#each results as item (item.id)}
@@ -289,12 +265,10 @@
     <div
       class="relative flex items-center justify-between gap-4 border-t border-line px-4 py-2 text-xs text-fg-subtle"
     >
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-x-0 -top-16 h-16 bg-linear-to-t from-surface-raised via-surface-raised/80 to-transparent transition-opacity duration-150 {moreBelow
-          ? 'opacity-100'
-          : 'opacity-0'}"
-      ></div>
+      <ScrollFadeOverlay
+        visible={fade.moreBelow}
+        class="inset-x-0 -top-16 h-16"
+      />
       <span class="min-w-0 truncate">{i18n.t("palette.hint")}</span>
       {#if total > 0}
         <span class="shrink-0 tabular-nums">

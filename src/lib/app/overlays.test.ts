@@ -135,6 +135,36 @@ describe("Overlays", () => {
     expect(fake.focused).toEqual([fake.element]);
   });
 
+  it("returns to the preferences dialog when the list came from there", async () => {
+    const fake = fakeDom();
+    const overlays = new Overlays(fake.dom);
+    fake.setActive(fake.element);
+    overlays.openPreferences();
+    overlays.closePreferences(null, false);
+
+    overlays.openShortcuts("preferences");
+    expect(overlays.shortcutsFromPreferences).toBe(true);
+
+    overlays.closeShortcuts(null);
+    await Promise.resolve();
+
+    expect(overlays.shortcuts).toBe(false);
+    expect(overlays.preferences).toBe(true);
+    // The stack still owns the opener; the shell gets it back at the end.
+    expect(fake.focused).toEqual([]);
+
+    overlays.closePreferences(null);
+    await Promise.resolve();
+    expect(fake.focused).toEqual([fake.element]);
+  });
+
+  it("does not claim a return path when the list opens on its own", () => {
+    const overlays = new Overlays(fakeDom().dom);
+    overlays.openShortcuts();
+
+    expect(overlays.shortcutsFromPreferences).toBe(false);
+  });
+
   it("clears a selection and drops its focus ring", () => {
     const fake = fakeDom();
     const overlays = new Overlays(fake.dom);

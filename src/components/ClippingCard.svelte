@@ -149,52 +149,69 @@
   data-clipping-id={clipping.id}
   tabindex="-1"
   use:selectOnInteraction={() => onSelect(clipping.id)}
-  class="clipping-card rounded-2xl border border-line bg-surface-raised p-5 transition-colors hover:border-line-strong"
+  class="clipping-card rounded-2xl border border-line bg-surface-raised p-4 transition-colors hover:border-line-strong"
 >
-  {#if editing}
-    <textarea
-      bind:value={draft}
-      rows="4"
-      class="w-full resize-y rounded-xl border border-accent bg-accent-soft/50 p-3 text-[15px] leading-relaxed text-fg outline-none focus:border-accent"
-    ></textarea>
-    <div class="mt-2 flex items-center gap-2">
-      <button
-        type="button"
-        onclick={save}
-        disabled={saving}
-        class="rounded-full bg-inverse px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:opacity-80 disabled:opacity-50"
-      >
-        {i18n.t("card.save")}
-      </button>
-      <button
-        type="button"
-        onclick={() => (editing = false)}
-        disabled={saving}
-        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-50"
-      >
-        {i18n.t("card.cancel")}
-      </button>
+  <div class="flex items-start gap-2.5">
+    <div class="min-w-0 flex-1">
+      {#if editing}
+        <textarea
+          bind:value={draft}
+          rows="4"
+          class="w-full resize-y rounded-xl border border-accent bg-accent-soft/50 p-3 text-[15px] leading-relaxed text-fg outline-none focus:border-accent"
+        ></textarea>
+        <div class="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onclick={save}
+            disabled={saving}
+            class="rounded-full bg-inverse px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:opacity-80 disabled:opacity-50"
+          >
+            {i18n.t("card.save")}
+          </button>
+          <button
+            type="button"
+            onclick={() => (editing = false)}
+            disabled={saving}
+            class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-50"
+          >
+            {i18n.t("card.cancel")}
+          </button>
+        </div>
+      {:else if displayContent}
+        <blockquote
+          class="border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
+        >
+          <HighlightedText text={displayContent} {query} />
+        </blockquote>
+      {:else}
+        <p class="text-sm text-fg-subtle italic">
+          {i18n.t("card.noText", { kind: kindLabel })}
+        </p>
+      {/if}
     </div>
-  {:else if displayContent}
-    <blockquote
-      class="border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
-    >
-      <HighlightedText text={displayContent} {query} />
-    </blockquote>
-  {:else}
-    <p class="text-sm text-fg-subtle italic">
-      {i18n.t("card.noText", { kind: kindLabel })}
-    </p>
-  {/if}
 
-  <div class="mt-4 text-sm">
+    <button
+      type="button"
+      onclick={() => onToggleFavorite(clipping.id)}
+      aria-label={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
+      aria-pressed={clipping.favorite}
+      title={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
+      class="-mr-1 -mt-1 grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface {clipping.favorite
+        ? 'text-accent hover:text-accent-hover'
+        : 'text-fg-muted hover:text-fg'}"
+    >
+      <Icon name="star" filled={clipping.favorite} class="h-5 w-5" />
+    </button>
+  </div>
+
+  <div class="mt-3.5 text-sm">
     <span class="block font-medium text-fg"><HighlightedText text={clipping.title} {query} /></span>
     {#if clipping.author}
       <span class="block text-fg-muted"><HighlightedText text={clipping.author} {query} /></span>
     {/if}
   </div>
 
-  <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+  <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
     <button
       type="button"
       onclick={(event) => {
@@ -207,6 +224,22 @@
     >
       {kindLabel}
     </button>
+    {#if edited && !editing}
+      <button
+        type="button"
+        onclick={(event) => {
+          event.stopPropagation();
+          onFilterEdited();
+        }}
+        aria-label={i18n.t("card.filterEdited")}
+        title={editedOnLabel === ""
+          ? i18n.t("card.filterEdited")
+          : `${i18n.t("card.filterEdited")} · ${editedOnLabel}`}
+        class="rounded-full bg-accent-soft-strong px-2.5 py-0.5 font-medium text-accent-text transition hover:bg-accent/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
+      >
+        {i18n.t("card.edited")}
+      </button>
+    {/if}
     {#each visibleTags as tag (tag.id)}
       <span
         class="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-text"
@@ -231,9 +264,9 @@
           }}
           aria-label={i18n.t("card.removeTag", { name: tag.name })}
           title={i18n.t("card.removeTag", { name: tag.name })}
-          class="-mr-0.5 rounded-full px-0.5 text-sm leading-none text-accent-text transition hover:text-danger"
+          class="-mr-0.5 grid h-4 w-4 place-items-center rounded-full text-accent-text transition hover:text-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
         >
-          ×
+          <Icon name="close" class="h-3 w-3" />
         </button>
       </span>
     {/each}
@@ -248,88 +281,10 @@
         title={tagsExpanded
           ? i18n.t("card.showFewerTags")
           : i18n.t("card.showMoreTags", { count: chips.hidden })}
-        class="rounded-full border border-dashed border-line-strong px-2 py-0.5 font-medium text-fg-muted transition hover:bg-surface-hover"
+        class="rounded-full border border-dashed border-line-strong px-2 py-0.5 font-medium text-fg-muted transition hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
       >
         {tagsExpanded ? "−" : `+${chips.hidden}`}
       </button>
-    {/if}
-    {#if edited && !editing}
-      <button
-        type="button"
-        onclick={(event) => {
-          event.stopPropagation();
-          onFilterEdited();
-        }}
-        aria-label={i18n.t("card.filterEdited")}
-        title={editedOnLabel === ""
-          ? i18n.t("card.filterEdited")
-          : `${i18n.t("card.filterEdited")} · ${editedOnLabel}`}
-        class="rounded-full bg-accent-soft-strong px-2.5 py-0.5 font-medium text-accent-text transition hover:bg-accent/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
-      >
-        {i18n.t("card.edited")}
-      </button>
-    {/if}
-    {#if reference !== ""}
-      <span>{reference}</span>
-    {/if}
-    <span>{addedOnLabel}</span>
-    <span class="flex-1"></span>
-    {#if !editing}
-      <button
-        type="button"
-        onclick={() => onOpen(clipping.id)}
-        aria-label={i18n.t("reading.open")}
-        title={i18n.t("reading.open")}
-        class="rounded-full p-1.5 text-fg-faint transition hover:text-fg-muted"
-      >
-        <Icon name="expand" class="h-4 w-4" />
-      </button>
-      {#if canEdit}
-        <button
-          type="button"
-          onclick={startEditing}
-          aria-label={i18n.t("card.edit")}
-          title={i18n.t("card.edit")}
-          class="rounded-full p-1.5 text-base leading-none transition text-fg-faint hover:text-fg-muted"
-        >
-          ✎
-        </button>
-      {/if}
-      {#if edited}
-        <button
-          type="button"
-          onclick={() => onRequestReset(clipping.id)}
-          aria-label={i18n.t("card.reset")}
-          title={i18n.t("card.reset")}
-          class="rounded-full p-1.5 text-base leading-none transition text-fg-faint hover:text-accent"
-        >
-          ↺
-        </button>
-      {/if}
-      {#if displayContent}
-        <button
-          type="button"
-          onclick={() => onCopy(clipping.id)}
-          aria-label={i18n.t("card.copy")}
-          title={copied ? i18n.t("card.copied") : i18n.t("card.copy")}
-          class="rounded-full p-1.5 text-base leading-none transition {copied
-            ? 'text-success'
-            : 'text-fg-faint hover:text-fg-muted'}"
-        >
-          {copied ? "✓" : "⧉"}
-        </button>
-        <button
-          type="button"
-          onclick={() => onCopyQuote(clipping.id)}
-          aria-label={i18n.t("card.copyQuote")}
-          title={quoted ? i18n.t("card.quoteCopied") : i18n.t("card.copyQuote")}
-          class="rounded-full p-1.5 text-base leading-none transition {quoted
-            ? 'text-success'
-            : 'text-fg-faint hover:text-fg-muted'}"
-        >
-          {quoted ? "✓" : "❝"}
-        </button>
-      {/if}
     {/if}
     <button
       type="button"
@@ -337,24 +292,19 @@
       aria-label={i18n.t("card.addTag")}
       aria-expanded={tagFormOpen}
       title={i18n.t("card.addTag")}
-      class="rounded-full p-1.5 text-base leading-none transition {tagFormOpen
-        ? 'text-accent'
-        : 'text-fg-faint hover:text-accent'}"
+      class="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface {tagFormOpen
+        ? 'border-accent bg-accent-soft text-accent-text'
+        : 'border-line-strong text-fg-muted hover:bg-surface-hover hover:text-fg'}"
     >
-      #
+      <Icon name="plus" class="h-3 w-3" />
+      {i18n.t("card.tagChip")}
     </button>
-    <button
-      type="button"
-      onclick={() => onToggleFavorite(clipping.id)}
-      aria-label={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
-      aria-pressed={clipping.favorite}
-      title={clipping.favorite ? i18n.t("card.unfav") : i18n.t("card.fav")}
-      class="rounded-full p-1.5 text-lg leading-none transition {clipping.favorite
-        ? 'text-accent hover:text-accent-hover'
-        : 'text-fg-faint hover:text-accent'}"
-    >
-      {clipping.favorite ? "★" : "☆"}
-    </button>
+    {#if reference !== ""}
+      <span class="text-fg-faint" aria-hidden="true">·</span>
+      <span>{reference}</span>
+    {/if}
+    <span class="text-fg-faint" aria-hidden="true">·</span>
+    <span class="text-fg-subtle">{addedOnLabel}</span>
   </div>
 
   {#if tagFormOpen}
@@ -390,4 +340,73 @@
       {/if}
     </form>
   {/if}
+
+  {#if !editing}
+    <div class="mt-2 flex items-center gap-2 border-t border-line-subtle pt-2">
+      <button
+        type="button"
+        onclick={() => onOpen(clipping.id)}
+        title={i18n.t("reading.open")}
+        class="inline-flex h-[34px] items-center gap-1.5 rounded-[10px] px-2.5 text-[13.5px] font-medium text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
+      >
+        <Icon name="bookOpen" class="h-[18px] w-[18px]" />
+        {i18n.t("card.read")}
+      </button>
+      {#if canEdit}
+        <button
+          type="button"
+          onclick={startEditing}
+          aria-label={i18n.t("card.edit")}
+          title={i18n.t("card.edit")}
+          class="grid h-[34px] w-[34px] place-items-center rounded-[10px] text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
+        >
+          <Icon name="edit" class="h-[18px] w-[18px]" />
+        </button>
+      {/if}
+      {#if edited}
+        <button
+          type="button"
+          onclick={() => onRequestReset(clipping.id)}
+          aria-label={i18n.t("card.reset")}
+          title={i18n.t("card.reset")}
+          class="grid h-[34px] w-[34px] place-items-center rounded-[10px] text-fg-muted transition-colors hover:bg-surface-hover hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface"
+        >
+          <Icon name="restore" class="h-[18px] w-[18px]" />
+        </button>
+      {/if}
+      {#if displayContent}
+        <!-- One object, two real buttons: the shared well groups the two copies
+             without turning them into a menu. The hairline is a ring, not a
+             border, so the pill stays as tall as the halves plus 1 px. -->
+        <div
+          class="ml-auto inline-flex items-center gap-0.5 rounded-xl bg-surface-inset p-px ring-1 ring-line-strong/50"
+        >
+          <button
+            type="button"
+            onclick={() => onCopy(clipping.id)}
+            aria-label={i18n.t("card.copy")}
+            title={copied ? i18n.t("card.copied") : i18n.t("card.copy")}
+            class="grid h-8 w-8 place-items-center rounded-[9px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent {copied
+              ? 'text-success'
+              : 'text-fg-muted hover:bg-surface-hover hover:text-fg'}"
+          >
+            <Icon name={copied ? "check" : "copy"} class="h-[17px] w-[17px]" />
+          </button>
+          <span class="h-4 w-px bg-line-strong/60" aria-hidden="true"></span>
+          <button
+            type="button"
+            onclick={() => onCopyQuote(clipping.id)}
+            aria-label={i18n.t("card.copyQuote")}
+            title={quoted ? i18n.t("card.quoteCopied") : i18n.t("card.copyQuote")}
+            class="grid h-8 w-8 place-items-center rounded-[9px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent {quoted
+              ? 'text-success'
+              : 'text-fg-muted hover:bg-surface-hover hover:text-fg'}"
+          >
+            <Icon name={quoted ? "check" : "quote"} class="h-[17px] w-[17px]" />
+          </button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
 </article>

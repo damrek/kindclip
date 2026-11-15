@@ -1,10 +1,11 @@
 <script lang="ts">
   import { getContext, tick } from "svelte";
   import Icon from "./Icon.svelte";
+  import ScrollFadeOverlay from "./ScrollFadeOverlay.svelte";
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import type { TagCount } from "../lib/db";
   import { foldText, type AuthorGroup } from "../lib/library";
-  import { hasMoreBelow } from "../lib/scroll";
+  import { ScrollFade } from "../lib/scrollFade.svelte";
   import type { ClippingKind } from "../lib/types";
 
   interface Props {
@@ -61,12 +62,9 @@
     if (open === wasOpen) return;
     wasOpen = open;
     if (!open) {
-      // A closed panel starts from the full list the next time it opens, with
-      // the fade back on its first row.
+      // A closed panel starts from the full list the next time it opens.
       authorQuery = "";
       tagQuery = "";
-      authorsAtEnd = false;
-      tagsAtEnd = false;
     }
     void tick().then(() => {
       if (open) {
@@ -93,43 +91,9 @@
     tags.filter((tag) => matches(tag.name, tagQuery.replace(/^#/, ""))),
   );
 
-  let authorsList = $state<HTMLDivElement | null>(null);
-  let tagsList = $state<HTMLDivElement | null>(null);
-  /** True once the list sits on its last row; the fade then steps aside. */
-  let authorsAtEnd = $state(false);
-  let tagsAtEnd = $state(false);
-
-  /** Rows the bounded lists show (`max-h-40` = 5 rows of `py-1.5` + `text-sm`,
-   * 32px each, measured in the browser). The fade starts from the row count so
-   * the first paint already carries it: deriving it from a DOM measurement
-   * would light it one frame late and fade it in. */
-  const VISIBLE_ROWS = 5;
-
-  const authorsMore = $derived(visibleAuthors.length > VISIBLE_ROWS && !authorsAtEnd);
-  const tagsMore = $derived(visibleTags.length > VISIBLE_ROWS && !tagsAtEnd);
-
-  /** A list is at its end when nothing scrolls below the fold. */
-  function scrolledToEnd(element: HTMLDivElement | null): boolean {
-    return element !== null && !hasMoreBelow(element);
-  }
-
-  const measureAuthors = (): void => {
-    authorsAtEnd = scrolledToEnd(authorsList);
-  };
-  const measureTags = (): void => {
-    tagsAtEnd = scrolledToEnd(tagsList);
-  };
-
-  /** A new query re-lays the list out, so the old end state no longer holds. */
-  function setAuthorQuery(next: string): void {
-    authorQuery = next;
-    authorsAtEnd = false;
-  }
-
-  function setTagQuery(next: string): void {
-    tagQuery = next;
-    tagsAtEnd = false;
-  }
+  /** Each bounded facet gets its own bottom fade, measured on its scroller. */
+  const authorsFade = new ScrollFade();
+  const tagsFade = new ScrollFade();
 
   const activeCount = $derived(
     authors.length +
@@ -291,12 +255,11 @@
         {@render facetSearch(
           authorQuery,
           i18n.t("filters.searchAuthors"),
-          setAuthorQuery,
+          (next) => (authorQuery = next),
         )}
         <div class="relative -mx-1">
           <div
-            bind:this={authorsList}
-            onscroll={measureAuthors}
+            use:authorsFade.track
             class="max-h-40 overflow-y-auto overscroll-contain px-1"
           >
             {#if visibleAuthors.length === 0}
@@ -320,12 +283,10 @@
               {/each}
             {/if}
           </div>
-          <div
-            aria-hidden="true"
-            class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-surface-raised via-surface-raised/80 to-transparent transition-opacity duration-150 {authorsMore
-              ? 'opacity-100'
-              : 'opacity-0'}"
-          ></div>
+          <ScrollFadeOverlay
+            visible={authorsFade.moreBelow}
+            class="inset-x-0 -bottom-px h-8"
+          />
         </div>
       {/if}
 
@@ -338,12 +299,11 @@
         {@render facetSearch(
           tagQuery,
           i18n.t("filters.searchTags"),
-          setTagQuery,
+          (next) => (tagQuery = next),
         )}
         <div class="relative -mx-1">
           <div
-            bind:this={tagsList}
-            onscroll={measureTags}
+            use:tagsFade.track
             class="max-h-40 overflow-y-auto overscroll-contain px-1"
           >
             {#if visibleTags.length === 0}
@@ -365,12 +325,10 @@
               {/each}
             {/if}
           </div>
-          <div
-            aria-hidden="true"
-            class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-surface-raised via-surface-raised/80 to-transparent transition-opacity duration-150 {tagsMore
-              ? 'opacity-100'
-              : 'opacity-0'}"
-          ></div>
+          <ScrollFadeOverlay
+            visible={tagsFade.moreBelow}
+            class="inset-x-0 -bottom-px h-8"
+          />
         </div>
       {/if}
 

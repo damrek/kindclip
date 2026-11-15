@@ -10,6 +10,23 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-11-15
+
+### Changed
+
+- **Clipping cards**: the favorite moved to the card's top-right corner, the two
+  copy actions became one grouped control, and every action is a 34 px button
+  with an 18 px icon at readable contrast instead of a faint glyph. "Add tag"
+  now sits with the tags, the reading view opens from a labelled **Read**
+  button, and "Restore original" only appears on edited notes.
+- **Keyboard shortcuts**: the list scrolls inside its panel instead of dragging the
+  scrollbar over the border and the rounded corners, and the gap under the header
+  is wider. Opened from Preferences, it now shows a back arrow, and closing it
+  returns to Preferences instead of closing the settings dialog as well.
+- **Long lists** in Manage library, Reading stats and Keyboard shortcuts fade out
+  at the bottom while more rows remain below the fold, like the filter panel and
+  the sidebar already did.
+
 ## [1.20.0] - 2026-11-14
 
 ### Changed
