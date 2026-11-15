@@ -83,6 +83,8 @@ function browserDom(): OverlayDom {
 export class Overlays {
   palette = $state(false);
   shortcuts = $state(false);
+  /** Dialog the shortcuts list came from, so closing it returns there. */
+  shortcutsReturn = $state<"preferences" | null>(null);
   /** Popover that filters the list; it never makes the shell inert. */
   filters = $state(false);
   preferences = $state(false);
@@ -121,15 +123,28 @@ export class Overlays {
     });
   }
 
-  openShortcuts(): void {
+  openShortcuts(returnTo: "preferences" | null = null): void {
     if (this.shortcuts) return;
     this.rememberOpener();
+    this.shortcutsReturn = returnTo;
     this.shortcuts = true;
+  }
+
+  /** The list replaced Preferences, so closing it must land back there. */
+  get shortcutsFromPreferences(): boolean {
+    return this.shortcutsReturn === "preferences";
   }
 
   closeShortcuts(fallback: HTMLElement | null): void {
     if (!this.shortcuts) return;
+    const returnTo = this.shortcutsReturn;
     this.shortcuts = false;
+    this.shortcutsReturn = null;
+    if (returnTo === "preferences") {
+      // Keep the opener: the shell gets it back when Preferences closes.
+      this.preferences = true;
+      return;
+    }
     this.restoreOpener(fallback);
   }
 
