@@ -14,6 +14,7 @@
     | "chevronsDown"
     | "chevronsUp"
     | "close"
+    | "back"
     | "expand"
     | "keyboard"
     | "settings"
@@ -45,6 +46,7 @@
     chevronsDown: ["M7 6l5 5 5-5", "M7 13l5 5 5-5"],
     chevronsUp: ["M17 11l-5-5-5 5", "M17 18l-5-5-5 5"],
     close: ["M6 6l12 12", "M18 6L6 18"],
+    back: ["M19 12H5", "M12 19l-7-7 7-7"],
     expand: ["M15 3h6v6", "M9 21H3v-6", "M21 3l-7 7", "M3 21l7-7"],
     keyboard: [
       "M3 6h18a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z",

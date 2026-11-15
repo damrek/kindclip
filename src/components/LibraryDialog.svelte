@@ -1,7 +1,9 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
+  import { ScrollFade } from "../lib/scrollFade.svelte";
   import Modal from "./Modal.svelte";
+  import ScrollFadeOverlay from "./ScrollFadeOverlay.svelte";
   import { filterBooks } from "../lib/library";
   import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
   import type { Book } from "../lib/types";
@@ -67,6 +69,9 @@
   const dateFormatter = $derived(
     new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
   );
+
+  /** Bottom fade of the list, measured against the scroller. */
+  const fade = new ScrollFade();
 
   function formatDate(value: string): string {
     const date = new Date(value);
@@ -320,198 +325,41 @@
       />
     {/if}
 
-    <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
-      {#if tab === "books"}
-        {#if books.length > 0 && filteredBooks.length === 0}
-          <p class="py-6 text-center text-sm text-fg-subtle">
-            {i18n.t("library.emptyFilteredBooks")}
-          </p>
-        {/if}
-        <ul class="space-y-1">
-          {#each filteredBooks as book (book.id)}
-            <li class="rounded-lg border border-line p-2.5">
-              {#if renameId === book.id}
-                <form
-                  class="flex flex-wrap items-end gap-2"
-                  onsubmit={(event) => {
-                    event.preventDefault();
-                    void saveRename();
-                  }}
-                >
-                  <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-fg-muted">
-                    {i18n.t("library.bookTitle")}
-                    <input
-                      bind:value={titleDraft}
-                      required
-                      disabled={working}
-                      class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
-                    />
-                  </label>
-                  <label class="flex min-w-32 flex-1 flex-col gap-1 text-xs text-fg-muted">
-                    {i18n.t("library.bookAuthor")}
-                    <input
-                      bind:value={authorDraft}
-                      disabled={working}
-                      class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={working}
-                    class="rounded-full bg-inverse px-3 py-1.5 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
-                  >
-                    {i18n.t("library.save")}
-                  </button>
-                  <button
-                    type="button"
-                    onclick={cancelRowActions}
-                    disabled={working}
-                    class="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
-                  >
-                    {i18n.t("library.cancel")}
-                  </button>
-                </form>
-              {:else}
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="truncate text-sm text-fg" title={book.title}>
-                      {book.title}
-                    </p>
-                    {#if book.author}
-                      <p class="truncate text-xs text-fg-muted" title={book.author}>
-                        {book.author}
-                      </p>
-                    {/if}
-                  </div>
-                  <div class="flex shrink-0 items-center gap-1">
-                    <span class="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-fg-muted">
-                      {i18n.t("library.clippingCount", { count: book.clipping_count })}
-                    </span>
-                    <button
-                      type="button"
-                      onclick={() => startRename(book)}
-                      disabled={working}
-                      class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
-                    >
-                      {i18n.t("library.rename")}
-                    </button>
-                    <button
-                      type="button"
-                      onclick={() => startMerge(book)}
-                      disabled={working || books.length < 2}
-                      class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
-                    >
-                      {i18n.t("library.merge")}
-                    </button>
-                    <button
-                      type="button"
-                      onclick={() => {
-                        deleteTarget = book;
-                        renameId = null;
-                        mergeSourceId = null;
-                        mergeTargetId = null;
-                        removeTarget = null;
-                      }}
-                      disabled={working}
-                      class="rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
-                    >
-                      {i18n.t("library.delete")}
-                    </button>
-                  </div>
-                </div>
-
-                {#if mergeSourceId === book.id}
-                  <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
-                    <label class="flex items-center gap-2 text-xs text-fg-muted">
-                      {i18n.t("library.mergeTarget")}
-                      <select
-                        bind:value={mergeTargetId}
-                        disabled={working}
-                        class="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg outline-none"
-                      >
-                        <option value={null} disabled>—</option>
-                        {#each mergeTargets as target (target.id)}
-                          <option value={target.id}>{target.title}</option>
-                        {/each}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      onclick={confirmMerge}
-                      disabled={working || mergeTargetId === null}
-                      class="rounded-full bg-inverse px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
-                    >
-                      {i18n.t("library.merge")}
-                    </button>
-                    <button
-                      type="button"
-                      onclick={cancelRowActions}
-                      disabled={working}
-                      class="rounded-full border border-line px-3 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
-                    >
-                      {i18n.t("library.cancel")}
-                    </button>
-                  </div>
-                {/if}
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      {:else if tab === "files"}
-        {#if files.length === 0}
-          <p class="py-6 text-center text-sm text-fg-subtle">
-            {i18n.t("library.emptyFiles")}
-          </p>
-        {:else}
+    <div class="relative mt-3 flex min-h-0 flex-1 flex-col">
+      <div
+        use:fade.track
+        class="min-h-0 flex-1 overflow-y-auto"
+      >
+        {#if tab === "books"}
+          {#if books.length > 0 && filteredBooks.length === 0}
+            <p class="py-6 text-center text-sm text-fg-subtle">
+              {i18n.t("library.emptyFilteredBooks")}
+            </p>
+          {/if}
           <ul class="space-y-1">
-            {#each files as file (file.id)}
-              <li class="flex items-center justify-between gap-3 rounded-lg border border-line p-2.5">
-                <div class="min-w-0">
-                  <p class="truncate text-sm text-fg" title={file.path}>
-                    {file.path}
-                  </p>
-                  <p class="text-xs text-fg-muted">
-                    {i18n.t("library.importedAt", { date: formatDate(file.imported_at) })} ·
-                    {i18n.t("library.clippingCount", { count: file.clipping_count })}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onclick={() => {
-                    removeTarget = file;
-                    deleteTarget = null;
-                  }}
-                  disabled={working}
-                  class="shrink-0 rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
-                >
-                  {i18n.t("library.remove")}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      {:else}
-        {#if tags.length === 0}
-          <p class="py-6 text-center text-sm text-fg-subtle">
-            {i18n.t("library.emptyTags")}
-          </p>
-        {:else}
-          <ul class="space-y-1">
-            {#each tags as tag (tag.id)}
+            {#each filteredBooks as book (book.id)}
               <li class="rounded-lg border border-line p-2.5">
-                {#if tagRenameId === tag.id}
+                {#if renameId === book.id}
                   <form
                     class="flex flex-wrap items-end gap-2"
                     onsubmit={(event) => {
                       event.preventDefault();
-                      void saveTagRename();
+                      void saveRename();
                     }}
                   >
                     <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-fg-muted">
-                      {i18n.t("library.tagName")}
+                      {i18n.t("library.bookTitle")}
                       <input
-                        bind:value={tagNameDraft}
+                        bind:value={titleDraft}
                         required
+                        disabled={working}
+                        class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
+                      />
+                    </label>
+                    <label class="flex min-w-32 flex-1 flex-col gap-1 text-xs text-fg-muted">
+                      {i18n.t("library.bookAuthor")}
+                      <input
+                        bind:value={authorDraft}
                         disabled={working}
                         class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
                       />
@@ -525,7 +373,7 @@
                     </button>
                     <button
                       type="button"
-                      onclick={cancelTagActions}
+                      onclick={cancelRowActions}
                       disabled={working}
                       class="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                     >
@@ -534,21 +382,23 @@
                   </form>
                 {:else}
                   <div class="flex items-center justify-between gap-3">
-                    <p
-                      class="min-w-0 truncate text-sm text-fg"
-                      title={tag.name}
-                    >
-                      #{tag.name}
-                    </p>
+                    <div class="min-w-0">
+                      <p class="truncate text-sm text-fg" title={book.title}>
+                        {book.title}
+                      </p>
+                      {#if book.author}
+                        <p class="truncate text-xs text-fg-muted" title={book.author}>
+                          {book.author}
+                        </p>
+                      {/if}
+                    </div>
                     <div class="flex shrink-0 items-center gap-1">
-                      <span
-                        class="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-fg-muted"
-                      >
-                        {i18n.t("library.clippingCount", { count: tag.clipping_count })}
+                      <span class="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-fg-muted">
+                        {i18n.t("library.clippingCount", { count: book.clipping_count })}
                       </span>
                       <button
                         type="button"
-                        onclick={() => startTagRename(tag)}
+                        onclick={() => startRename(book)}
                         disabled={working}
                         class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
@@ -556,8 +406,8 @@
                       </button>
                       <button
                         type="button"
-                        onclick={() => startTagMerge(tag)}
-                        disabled={working || tags.length < 2}
+                        onclick={() => startMerge(book)}
+                        disabled={working || books.length < 2}
                         class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
                         {i18n.t("library.merge")}
@@ -565,10 +415,11 @@
                       <button
                         type="button"
                         onclick={() => {
-                          tagDeleteTarget = tag;
-                          tagRenameId = null;
-                          tagMergeSourceId = null;
-                          tagMergeTargetId = null;
+                          deleteTarget = book;
+                          renameId = null;
+                          mergeSourceId = null;
+                          mergeTargetId = null;
+                          removeTarget = null;
                         }}
                         disabled={working}
                         class="rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
@@ -578,34 +429,32 @@
                     </div>
                   </div>
 
-                  {#if tagMergeSourceId === tag.id}
-                    <div
-                      class="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2"
-                    >
+                  {#if mergeSourceId === book.id}
+                    <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
                       <label class="flex items-center gap-2 text-xs text-fg-muted">
                         {i18n.t("library.mergeTarget")}
                         <select
-                          bind:value={tagMergeTargetId}
+                          bind:value={mergeTargetId}
                           disabled={working}
                           class="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg outline-none"
                         >
                           <option value={null} disabled>—</option>
-                          {#each tagMergeTargets as target (target.id)}
-                            <option value={target.id}>#{target.name}</option>
+                          {#each mergeTargets as target (target.id)}
+                            <option value={target.id}>{target.title}</option>
                           {/each}
                         </select>
                       </label>
                       <button
                         type="button"
-                        onclick={confirmTagMerge}
-                        disabled={working || tagMergeTargetId === null}
+                        onclick={confirmMerge}
+                        disabled={working || mergeTargetId === null}
                         class="rounded-full bg-inverse px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
                       >
                         {i18n.t("library.merge")}
                       </button>
                       <button
                         type="button"
-                        onclick={cancelTagActions}
+                        onclick={cancelRowActions}
                         disabled={working}
                         class="rounded-full border border-line px-3 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
@@ -617,8 +466,173 @@
               </li>
             {/each}
           </ul>
+        {:else if tab === "files"}
+          {#if files.length === 0}
+            <p class="py-6 text-center text-sm text-fg-subtle">
+              {i18n.t("library.emptyFiles")}
+            </p>
+          {:else}
+            <ul class="space-y-1">
+              {#each files as file (file.id)}
+                <li class="flex items-center justify-between gap-3 rounded-lg border border-line p-2.5">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm text-fg" title={file.path}>
+                      {file.path}
+                    </p>
+                    <p class="text-xs text-fg-muted">
+                      {i18n.t("library.importedAt", { date: formatDate(file.imported_at) })} ·
+                      {i18n.t("library.clippingCount", { count: file.clipping_count })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => {
+                      removeTarget = file;
+                      deleteTarget = null;
+                    }}
+                    disabled={working}
+                    class="shrink-0 rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
+                  >
+                    {i18n.t("library.remove")}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        {:else}
+          {#if tags.length === 0}
+            <p class="py-6 text-center text-sm text-fg-subtle">
+              {i18n.t("library.emptyTags")}
+            </p>
+          {:else}
+            <ul class="space-y-1">
+              {#each tags as tag (tag.id)}
+                <li class="rounded-lg border border-line p-2.5">
+                  {#if tagRenameId === tag.id}
+                    <form
+                      class="flex flex-wrap items-end gap-2"
+                      onsubmit={(event) => {
+                        event.preventDefault();
+                        void saveTagRename();
+                      }}
+                    >
+                      <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-fg-muted">
+                        {i18n.t("library.tagName")}
+                        <input
+                          bind:value={tagNameDraft}
+                          required
+                          disabled={working}
+                          class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
+                        />
+                      </label>
+                      <button
+                        type="submit"
+                        disabled={working}
+                        class="rounded-full bg-inverse px-3 py-1.5 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
+                      >
+                        {i18n.t("library.save")}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={cancelTagActions}
+                        disabled={working}
+                        class="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+                      >
+                        {i18n.t("library.cancel")}
+                      </button>
+                    </form>
+                  {:else}
+                    <div class="flex items-center justify-between gap-3">
+                      <p
+                        class="min-w-0 truncate text-sm text-fg"
+                        title={tag.name}
+                      >
+                        #{tag.name}
+                      </p>
+                      <div class="flex shrink-0 items-center gap-1">
+                        <span
+                          class="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-fg-muted"
+                        >
+                          {i18n.t("library.clippingCount", { count: tag.clipping_count })}
+                        </span>
+                        <button
+                          type="button"
+                          onclick={() => startTagRename(tag)}
+                          disabled={working}
+                          class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+                        >
+                          {i18n.t("library.rename")}
+                        </button>
+                        <button
+                          type="button"
+                          onclick={() => startTagMerge(tag)}
+                          disabled={working || tags.length < 2}
+                          class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+                        >
+                          {i18n.t("library.merge")}
+                        </button>
+                        <button
+                          type="button"
+                          onclick={() => {
+                            tagDeleteTarget = tag;
+                            tagRenameId = null;
+                            tagMergeSourceId = null;
+                            tagMergeTargetId = null;
+                          }}
+                          disabled={working}
+                          class="rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
+                        >
+                          {i18n.t("library.delete")}
+                        </button>
+                      </div>
+                    </div>
+
+                    {#if tagMergeSourceId === tag.id}
+                      <div
+                        class="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2"
+                      >
+                        <label class="flex items-center gap-2 text-xs text-fg-muted">
+                          {i18n.t("library.mergeTarget")}
+                          <select
+                            bind:value={tagMergeTargetId}
+                            disabled={working}
+                            class="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg outline-none"
+                          >
+                            <option value={null} disabled>—</option>
+                            {#each tagMergeTargets as target (target.id)}
+                              <option value={target.id}>#{target.name}</option>
+                            {/each}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          onclick={confirmTagMerge}
+                          disabled={working || tagMergeTargetId === null}
+                          class="rounded-full bg-inverse px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
+                        >
+                          {i18n.t("library.merge")}
+                        </button>
+                        <button
+                          type="button"
+                          onclick={cancelTagActions}
+                          disabled={working}
+                          class="rounded-full border border-line px-3 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+                        >
+                          {i18n.t("library.cancel")}
+                        </button>
+                      </div>
+                    {/if}
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
-      {/if}
+      </div>
+      <ScrollFadeOverlay
+        visible={fade.moreBelow}
+        class="inset-x-0 -bottom-px h-8"
+      />
     </div>
 
     {#if mergeOffer}

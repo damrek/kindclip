@@ -317,6 +317,11 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 
   const openShortcuts = (): void => overlays.openShortcuts();
   const closeShortcuts = (): void => overlays.closeShortcuts(listRegion);
+  /** Preferences hands the screen over; closing the list comes back to it. */
+  const openShortcutsFromPreferences = (): void => {
+    closePreferences(false);
+    overlays.openShortcuts("preferences");
+  };
   const openPalette = (): void => overlays.openPalette(modalOpen);
   const closePalette = (): void => overlays.closePalette(listRegion);
 
@@ -1113,11 +1118,14 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     onOpenDb={revealDatabase}
     onBackup={onBackup}
     onRestore={() => handOffFromPreferences(onRestoreRequest)}
-    onShortcuts={() => handOffFromPreferences(openShortcuts)}
+    onShortcuts={openShortcutsFromPreferences}
     onClose={() => closePreferences()}
   />
 {/if}
 
 {#if overlays.shortcuts}
-  <ShortcutsDialog onClose={closeShortcuts} />
+  <ShortcutsDialog
+    onClose={closeShortcuts}
+    fromPreferences={overlays.shortcutsFromPreferences}
+  />
 {/if}

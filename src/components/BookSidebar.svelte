@@ -1,13 +1,14 @@
 <script lang="ts">
   import { getContext } from "svelte";
   import Icon from "./Icon.svelte";
+  import ScrollFadeOverlay from "./ScrollFadeOverlay.svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import type { AuthorGroup } from "../lib/library";
   import type { BookSortDir, BookSortKey } from "../lib/sorting";
   import type { SidebarView } from "../lib/sidebar";
   import type { Book } from "../lib/types";
-  import { hasMoreBelow } from "../lib/scroll";
+  import { ScrollFade } from "../lib/scrollFade.svelte";
 
   interface Props {
     books: Book[];
@@ -50,17 +51,10 @@
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
-  /** Book list scroller, measured for the bottom fade. */
-  let listEl = $state<HTMLDivElement | null>(null);
-  /** More books below the fold, so the fade is only drawn then. */
-  let moreBelow = $state(false);
+  /** Bottom fade of the book list, measured against the scroller. */
+  const fade = new ScrollFade();
   /** Author groups collapsed in this session (S7). */
   const collapsed = new SvelteSet<string>();
-
-  function measureFade(): void {
-    const element = listEl;
-    moreBelow = element !== null && hasMoreBelow(element);
-  }
 
   function toggleGroup(key: string): void {
     if (collapsed.has(key)) {
@@ -80,26 +74,6 @@
       collapsed.add(group.key);
     }
   }
-
-  // Re-measure whenever the scroller is resized or the sidebar is toggled in.
-  $effect(() => {
-    const element = listEl;
-    if (element === null) return;
-    const observer = new ResizeObserver(measureFade);
-    observer.observe(element);
-    return () => observer.disconnect();
-  });
-
-  // Re-measure after the book list, the view or a group changes, once the new
-  // rows are in the DOM.
-  $effect(() => {
-    void books;
-    void groups;
-    void view;
-    void collapsed.size;
-    void listEl;
-    measureFade();
-  });
 </script>
 
 {#snippet bookRow(book: Book, showAuthor: boolean)}
@@ -235,8 +209,7 @@
 
     <div
       class="mt-1 flex-1 space-y-0.5 overflow-y-auto"
-      bind:this={listEl}
-      onscroll={measureFade}
+      use:fade.track
     >
       {#if view === "books"}
         {#each books as book (book.id)}
@@ -285,12 +258,11 @@
         {/each}
       {/if}
     </div>
-    <div
-      aria-hidden="true"
-      class="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-surface via-surface/80 to-transparent transition-opacity duration-150 {moreBelow
-        ? 'opacity-100'
-        : 'opacity-0'}"
-    ></div>
+    <ScrollFadeOverlay
+      visible={fade.moreBelow}
+      tone="surface"
+      class="inset-x-0 -bottom-px h-16"
+    />
   </nav>
 
   <div class="mt-2 shrink-0 space-y-0.5 border-t border-line-subtle pt-2">
