@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FilterState } from "./filters.svelte";
+import { CLIPPING_SORT_DIRS, CLIPPING_SORT_KEYS } from "../sorting";
 
 function make(resets = 0, saved: string[] = []) {
   const state = new FilterState({
@@ -44,7 +45,19 @@ describe("FilterState", () => {
 
     state.setSort("nope:desc");
     state.setSort("page:sideways");
+    state.setSort("date");
     expect(state.sort).toEqual({ key: "page", dir: "desc" });
+  });
+
+  it("accepts every sort key and direction the sorting module defines", () => {
+    const { state } = make();
+
+    for (const key of CLIPPING_SORT_KEYS) {
+      for (const dir of CLIPPING_SORT_DIRS) {
+        state.setSort(`${key}:${dir}`);
+        expect(state.sort).toEqual({ key, dir });
+      }
+    }
   });
 
   it("clears every field and returns to the first page", () => {

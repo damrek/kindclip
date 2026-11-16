@@ -11,7 +11,12 @@ import {
   toggleValue,
   type FilterValues,
 } from "../filters";
-import type { BookSortKey, ClippingSort } from "../sorting";
+import {
+  isClippingSortDir,
+  isClippingSortKey,
+  type BookSortKey,
+  type ClippingSort,
+} from "../sorting";
 import type { StoredFilterState } from "../db";
 import type { ClippingFilter, ClippingKind } from "../types";
 
@@ -105,8 +110,7 @@ export class FilterState {
   /** Value shape of the sort select: `<key>:<dir>` (e.g. `page:asc`). */
   setSort(value: string): void {
     const [key, dir] = value.split(":");
-    if (key !== "date" && key !== "title" && key !== "page") return;
-    if (dir !== "asc" && dir !== "desc") return;
+    if (!isClippingSortKey(key) || !isClippingSortDir(dir)) return;
     this.values.sortBy = key;
     this.values.sortDir = dir;
     this.deps.resetPage();

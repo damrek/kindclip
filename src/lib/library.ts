@@ -17,26 +17,45 @@ export function totalClippings(books: Book[]): number {
   return books.reduce((sum, book) => sum + book.clipping_count, 0);
 }
 
+/** Letters Unicode NFD does not decompose, folded to their ASCII counterpart.
+ * The single source for search, highlighting and the folded-column backfill. */
+const FOLD_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/ß/g, "ss"],
+  [/æ/g, "ae"],
+  [/œ/g, "oe"],
+  [/ø/g, "o"],
+  [/ł/g, "l"],
+  [/đ|ð/g, "d"],
+  [/þ/g, "th"],
+  [/ħ/g, "h"],
+  [/ı/g, "i"],
+];
+
+function foldPieces(value: string): string {
+  let folded = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  for (const [pattern, replacement] of FOLD_REPLACEMENTS) {
+    folded = folded.replace(pattern, replacement);
+  }
+  return folded;
+}
+
 /** Case- and diacritic-insensitive text used for search and book matching.
  *
  * NFD splits a precomposed letter into its base plus a combining mark, so
  * dropping the marks folds every accented letter (including Vietnamese and
- * Cyrillic). The explicit replacements cover the letters Unicode does not
- * decompose: ß, æ, œ, ø, ł, đ/ð, þ, ħ and ı. */
+ * Cyrillic). */
 export function foldText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/ß/g, "ss")
-    .replace(/æ/g, "ae")
-    .replace(/œ/g, "oe")
-    .replace(/ø/g, "o")
-    .replace(/ł/g, "l")
-    .replace(/đ|ð/g, "d")
-    .replace(/þ/g, "th")
-    .replace(/ħ/g, "h")
-    .replace(/ı/g, "i");
+  return foldPieces(value);
+}
+
+/** Fold one code point exactly as `foldText` folds ordinary text.
+ *
+ * `foldText` lowercases whole strings, which additionally maps a final Σ to ς;
+ * per-character folding cannot see that context, so a Greek query ending in
+ * sigma may search but not highlight. Highlighting maps folded matches back to
+ * the original UTF-16 offsets with this. */
+export function foldChar(char: string): string {
+  return foldPieces(char);
 }
 
 /** Books whose title or author contains the query, in incoming order. */

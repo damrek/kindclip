@@ -93,6 +93,22 @@ describe("highlightSegments", () => {
     ]);
   });
 
+  it("maps emoji, sigma and decomposed accents back to the original offsets", () => {
+    expect(highlightSegments("👍🏽 great", "👍🏽")).toEqual([
+      { text: "👍🏽", match: true },
+      { text: " great", match: false },
+    ]);
+    expect(highlightSegments("aΣb", "σ")).toEqual([
+      { text: "a", match: false },
+      { text: "Σ", match: true },
+      { text: "b", match: false },
+    ]);
+    expect(highlightSegments("Cafe\u0301 au lait", "café")).toEqual([
+      { text: "Cafe", match: true },
+      { text: "\u0301 au lait", match: false },
+    ]);
+  });
+
   it("never drops or rewrites text when nothing matches", () => {
     const text = "Nothing here";
     expect(highlightSegments(text, "absent")).toEqual([{ text, match: false }]);

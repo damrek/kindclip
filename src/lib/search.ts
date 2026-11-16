@@ -1,4 +1,4 @@
-import { foldText } from "./library";
+import { foldChar, foldText } from "./library";
 
 /** Words of a query, folded and deduplicated; empty for a blank query. */
 export function searchTerms(query: string): string[] {
@@ -13,26 +13,6 @@ export function searchTerms(query: string): string[] {
 export interface HighlightSegment {
   text: string;
   match: boolean;
-}
-
-/** Fold one code point the same way `foldText` folds the whole string.
- * `foldText` lowercases whole strings, which additionally maps a final Σ to
- * ς; per-character folding cannot see that context, so a Greek query ending
- * in sigma may search but not highlight. */
-function foldChar(char: string): string {
-  return char
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/ß/g, "ss")
-    .replace(/æ/g, "ae")
-    .replace(/œ/g, "oe")
-    .replace(/ø/g, "o")
-    .replace(/ł/g, "l")
-    .replace(/đ|ð/g, "d")
-    .replace(/þ/g, "th")
-    .replace(/ħ/g, "h")
-    .replace(/ı/g, "i");
 }
 
 /** Folded text plus, per folded code unit, the index of the source character

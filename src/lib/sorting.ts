@@ -21,6 +21,15 @@ export const DEFAULT_CLIPPING_SORT: ClippingSort = { key: "date", dir: "desc" };
 export const CLIPPING_SORT_KEYS: ClippingSortKey[] = ["date", "title", "page"];
 export const CLIPPING_SORT_DIRS: ClippingSortDir[] = ["asc", "desc"];
 
+/** Guard for values coming from the DOM or persisted JSON. */
+export function isClippingSortKey(value: string): value is ClippingSortKey {
+  return CLIPPING_SORT_KEYS.some((key) => key === value);
+}
+
+export function isClippingSortDir(value: string): value is ClippingSortDir {
+  return CLIPPING_SORT_DIRS.some((dir) => dir === value);
+}
+
 export type BookSortKey = "title" | "author";
 export type BookSortDir = SortDir;
 
