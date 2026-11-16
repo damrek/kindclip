@@ -93,15 +93,6 @@ export class Overlays {
 
   constructor(private readonly dom: OverlayDom = browserDom()) {}
 
-  /** A full dialog is open (the filters popover is not one). */
-  get dialogOpen(): boolean {
-    return this.palette || this.shortcuts || this.preferences;
-  }
-
-  get anySelected(): boolean {
-    return this.selectedId !== null;
-  }
-
   rememberOpener(): void {
     if (this.#opener !== null && this.#opener.isConnected) return;
     this.#opener = this.dom.activeElement();

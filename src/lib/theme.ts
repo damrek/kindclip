@@ -8,6 +8,7 @@
  * Keeping them separate keeps "system" honest: the OS decides the mode, the
  * user still decides which dark palette that mode renders.
  */
+import { readStored, writeStored } from "./storage";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type DarkPalette = "atom-one-dark" | "darcula" | "nord" | "solarized-dark";
@@ -70,43 +71,21 @@ export function applyTheme(element: HTMLElement, resolved: ResolvedTheme): void 
 }
 
 export function loadThemeMode(): ThemeMode {
-  try {
-    const stored = localStorage.getItem(MODE_STORAGE_KEY);
-    if (isThemeMode(stored)) {
-      return stored;
-    }
-  } catch {
-    // Private mode or unavailable storage: fall back to system.
-  }
-  return "system";
+  const stored = readStored(MODE_STORAGE_KEY);
+  return isThemeMode(stored) ? stored : "system";
 }
 
 export function saveThemeMode(mode: ThemeMode): void {
-  try {
-    localStorage.setItem(MODE_STORAGE_KEY, mode);
-  } catch {
-    // Non-fatal: the mode simply won't persist.
-  }
+  writeStored(MODE_STORAGE_KEY, mode);
 }
 
 export function loadDarkPalette(): DarkPalette {
-  try {
-    const stored = localStorage.getItem(PALETTE_STORAGE_KEY);
-    if (isDarkPalette(stored)) {
-      return stored;
-    }
-  } catch {
-    // Private mode or unavailable storage: fall back to the default palette.
-  }
-  return DEFAULT_DARK_PALETTE;
+  const stored = readStored(PALETTE_STORAGE_KEY);
+  return isDarkPalette(stored) ? stored : DEFAULT_DARK_PALETTE;
 }
 
 export function saveDarkPalette(palette: DarkPalette): void {
-  try {
-    localStorage.setItem(PALETTE_STORAGE_KEY, palette);
-  } catch {
-    // Non-fatal: the palette simply won't persist.
-  }
+  writeStored(PALETTE_STORAGE_KEY, palette);
 }
 
 export function systemPrefersDark(): boolean {

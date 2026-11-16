@@ -6,6 +6,7 @@
   import FilterMenu from "./components/FilterMenu.svelte";
   import Icon from "./components/Icon.svelte";
   import LibraryDialog from "./components/LibraryDialog.svelte";
+  import Modal from "./components/Modal.svelte";
   import Pagination from "./components/Pagination.svelte";
   import PreferencesDialog from "./components/PreferencesDialog.svelte";
   import ReadingView from "./components/ReadingView.svelte";
@@ -52,7 +53,6 @@
     stepSelection,
     type SelectionDirection,
   } from "./lib/shortcuts";
-  import { focusOnMount, trapFocus } from "./lib/focus";
   import type { BookSortKey } from "./lib/sorting";
 import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   import { createBookShelf, createClippingList } from "./lib/app/catalog.svelte";
@@ -1002,57 +1002,45 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 {/if}
 
 {#if actions.resetTarget}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <button
-      type="button"
-      aria-label={t("card.cancel")}
-      onclick={closeReset}
-      class="absolute inset-0 cursor-default bg-black/50"
-    ></button>
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={t("card.reset")}
-      tabindex={-1}
-      use:focusOnMount
-      use:trapFocus
-      class="relative w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
-    >
-      <p class="text-sm font-medium text-fg">
+  <Modal
+    label={t("card.reset")}
+    onClose={closeReset}
+    panel="w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
+  >
+    <p class="text-sm font-medium text-fg">
+      {t("card.reset")}
+    </p>
+    <p class="mt-1 text-sm text-fg-muted">
+      {t("card.resetConfirm")}
+    </p>
+    {#if actions.resetTarget.content}
+      <blockquote
+        class="mt-3 max-h-48 overflow-y-auto border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
+      >
+        {actions.resetTarget.content}
+      </blockquote>
+    {:else}
+      <p class="mt-3 text-sm text-fg-subtle italic">
+        {t("card.noText", { kind: t(`kind.${actions.resetTarget.kind}`) })}
+      </p>
+    {/if}
+    <div class="mt-4 flex items-center justify-end gap-2">
+      <button
+        type="button"
+        onclick={closeReset}
+        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover"
+      >
+        {t("card.cancel")}
+      </button>
+      <button
+        type="button"
+        onclick={confirmResetDialog}
+        class="rounded-full bg-danger-solid px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:bg-danger-solid-hover"
+      >
         {t("card.reset")}
-      </p>
-      <p class="mt-1 text-sm text-fg-muted">
-        {t("card.resetConfirm")}
-      </p>
-      {#if actions.resetTarget.content}
-        <blockquote
-          class="mt-3 max-h-48 overflow-y-auto border-l-2 border-accent pl-4 text-[15px] leading-relaxed text-fg"
-        >
-          {actions.resetTarget.content}
-        </blockquote>
-      {:else}
-        <p class="mt-3 text-sm text-fg-subtle italic">
-          {t("card.noText", { kind: t(`kind.${actions.resetTarget.kind}`) })}
-        </p>
-      {/if}
-      <div class="mt-4 flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onclick={closeReset}
-          class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover"
-        >
-          {t("card.cancel")}
-        </button>
-        <button
-          type="button"
-          onclick={confirmResetDialog}
-          class="rounded-full bg-danger-solid px-3.5 py-1.5 text-xs font-medium text-inverse-fg transition hover:bg-danger-solid-hover"
-        >
-          {t("card.reset")}
-        </button>
-      </div>
+      </button>
     </div>
-  </div>
+  </Modal>
 {/if}
 
 {#if exports.open}

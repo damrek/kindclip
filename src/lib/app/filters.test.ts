@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FilterState } from "./filters.svelte";
-import { CLIPPING_SORT_DIRS, CLIPPING_SORT_KEYS } from "../sorting";
+import { CLIPPING_SORT_KEYS, SORT_DIRS } from "../sorting";
 
 function make(resets = 0, saved: string[] = []) {
   const state = new FilterState({
@@ -53,7 +53,7 @@ describe("FilterState", () => {
     const { state } = make();
 
     for (const key of CLIPPING_SORT_KEYS) {
-      for (const dir of CLIPPING_SORT_DIRS) {
+      for (const dir of SORT_DIRS) {
         state.setSort(`${key}:${dir}`);
         expect(state.sort).toEqual({ key, dir });
       }

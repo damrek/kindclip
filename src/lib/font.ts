@@ -1,4 +1,5 @@
 /** Font-size accessibility control (V1.2): small/medium/large root scaling. */
+import { writeStored } from "./storage";
 
 export type FontScale = "small" | "medium" | "large";
 
@@ -34,9 +35,5 @@ export function loadFontScale(stored: string | null): FontScale {
 }
 
 export function saveFontScale(scale: FontScale): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, scale);
-  } catch {
-    // Non-fatal: the font size simply won't persist.
-  }
+  writeStored(STORAGE_KEY, scale);
 }
