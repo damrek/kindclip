@@ -1,22 +1,38 @@
 <script lang="ts">
   import { getContext } from "svelte";
+  import { donutSegments } from "../lib/donut";
   import { I18N_CONTEXT_KEY, type I18nContext, countText } from "../lib/i18n";
   import { ScrollFade } from "../lib/scrollFade.svelte";
+  import type { ReadingStats } from "../lib/stats";
+  import type { ClippingKind } from "../lib/types";
   import Modal from "./Modal.svelte";
   import ScrollFadeOverlay from "./ScrollFadeOverlay.svelte";
-  import type { ReadingStats } from "../lib/stats";
 
   interface Props {
     stats: ReadingStats | null;
     loading: boolean;
     error: string | null;
     onClose: () => void;
+    /** Stats drill-down: the list shows only this kind. */
+    onFilterKind: (kind: ClippingKind) => void;
   }
 
-  const { stats, loading, error, onClose }: Props = $props();
+  const { stats, loading, error, onClose, onFilterKind }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
   const total = $derived(stats?.total ?? 0);
+  /** A kind keeps its slice color no matter how the counts rank. */
+  const KIND_COLOR: Record<ClippingKind, number> = {
+    highlight: 1,
+    bookmark: 2,
+    note: 3,
+  };
+  /** Slice under the pointer; it dims the other slices. */
+  let hoveredKind = $state<ClippingKind | null>(null);
+  /** Slice whose legend row holds keyboard focus; hover wins while it lasts. */
+  let focusedKind = $state<ClippingKind | null>(null);
+  const activeKind = $derived(hoveredKind ?? focusedKind);
+  const kindSegments = $derived(donutSegments(stats?.kinds.map((row) => row.count) ?? []));
   const yearMax = $derived(Math.max(1, ...(stats?.years.map((row) => row.count) ?? [])));
   const bookMax = $derived(Math.max(1, ...(stats?.books.map((row) => row.count) ?? [])));
 
@@ -101,25 +117,90 @@
             >
               {i18n.t("stats.byKind")}
             </h3>
-            <ul class="mt-2 space-y-1.5">
-              {#each stats.kinds as row (row.kind)}
-                <li class="flex items-center gap-3 text-sm">
-                  <span class="w-24 shrink-0 truncate">{i18n.t(`kind.${row.kind}`)}</span>
-                  <span
-                    class="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-hover"
-                    aria-hidden="true"
-                  >
-                    <span
-                      class="block h-full rounded-full bg-fg-subtle"
-                      style={`width: ${percent(row.count)}%`}
-                    ></span>
+            <div class="mt-2 flex items-center gap-5">
+              <div class="relative h-36 w-36 shrink-0">
+                <svg viewBox="0 0 120 120" class="h-full w-full" aria-hidden="true">
+                  <g transform="rotate(-90 60 60)">
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="50"
+                      fill="none"
+                      stroke-width="17"
+                      style="stroke: var(--surface-hover)"
+                    />
+                    {#each kindSegments as segment (segment.index)}
+                      {@const row = stats.kinds[segment.index]}
+                      <!-- Mouse-only duplicate of the legend buttons below: every
+                           number and action stays reachable from the keyboard there. -->
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="50"
+                        fill="none"
+                        pathLength="100"
+                        stroke-width={activeKind === row.kind ? 19 : 17}
+                        stroke-dasharray={`${segment.dash} ${100 - segment.dash}`}
+                        stroke-dashoffset={segment.offset}
+                        style={`stroke: var(--chart-${KIND_COLOR[row.kind]})`}
+                        class="cursor-pointer transition-[stroke-width,opacity] duration-150 {activeKind !==
+                        null && activeKind !== row.kind
+                          ? 'opacity-40'
+                          : ''}"
+                        onmouseenter={() => (hoveredKind = row.kind)}
+                        onmouseleave={() => (hoveredKind = null)}
+                        onclick={() => onFilterKind(row.kind)}
+                      >
+                        <title>
+                          {i18n.t(`kind.${row.kind}`)}: {row.count} · {percent(row.count)}%
+                        </title>
+                      </circle>
+                    {/each}
+                  </g>
+                </svg>
+                <div class="pointer-events-none absolute inset-0 grid place-content-center text-center">
+                  <span class="text-lg font-semibold tabular-nums text-fg">{total}</span>
+                  <span class="text-[0.66rem] text-fg-subtle">
+                    {i18n.t("stats.chartTotal")}
                   </span>
-                  <span class="w-16 shrink-0 text-right tabular-nums text-fg-muted">
-                    {row.count} · {percent(row.count)}%
-                  </span>
-                </li>
-              {/each}
-            </ul>
+                </div>
+              </div>
+              <ul class="min-w-0 flex-1 space-y-1">
+                {#each stats.kinds as row (row.kind)}
+                  <li>
+                    <button
+                      type="button"
+                      onclick={() => onFilterKind(row.kind)}
+                      onmouseenter={() => (hoveredKind = row.kind)}
+                      onmouseleave={() => (hoveredKind = null)}
+                      onfocus={() => (focusedKind = row.kind)}
+                      onblur={() => (focusedKind = null)}
+                      title={i18n.t("stats.filterKind", {
+                        kind: i18n.t(`kind.${row.kind}`),
+                      })}
+                      class="flex w-full cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-left text-sm transition-colors hover:bg-surface-hover {activeKind ===
+                      row.kind
+                        ? 'bg-surface-hover'
+                        : ''}"
+                    >
+                      <span
+                        class="h-2.5 w-2.5 shrink-0 rounded-[3px]"
+                        style={`background: var(--chart-${KIND_COLOR[row.kind]})`}
+                        aria-hidden="true"
+                      ></span>
+                      <span class="min-w-0 flex-1 truncate">
+                        {i18n.t(`kind.${row.kind}`)}
+                      </span>
+                      <span class="shrink-0 tabular-nums text-fg-muted">
+                        {row.count} · {percent(row.count)}%
+                      </span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
           </section>
 
           <section class="mt-5" aria-labelledby="stats-book">

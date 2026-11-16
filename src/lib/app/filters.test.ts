@@ -60,6 +60,21 @@ describe("FilterState", () => {
     }
   });
 
+  it("replaces the kind filter for a stats drill-down and keeps the other facets", () => {
+    const { state, resets } = make();
+    state.toggleKind("note");
+    state.toggleKind("highlight");
+    state.toggleAuthor("A");
+    state.selectBook(3);
+
+    state.selectKind("bookmark");
+
+    expect(state.values.kinds).toEqual(["bookmark"]);
+    expect(state.values.authors).toEqual(["A"]);
+    expect(state.values.bookId).toBe(3);
+    expect(resets()).toBe(5);
+  });
+
   it("clears every field and returns to the first page", () => {
     const { state, resets } = make();
     state.toggleKind("highlight");

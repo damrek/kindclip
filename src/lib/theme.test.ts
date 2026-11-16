@@ -22,7 +22,7 @@ function paletteTokens(id: ThemePalette): Record<string, string> {
     const [, selector, body] = match;
     if (!selector?.includes(`[data-palette="${id}"]`)) continue;
     const tokens: Record<string, string> = {};
-    for (const token of (body ?? "").matchAll(/--([a-z-]+)\s*:\s*([^;]+);/g)) {
+    for (const token of (body ?? "").matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/g)) {
       tokens[token[1]!] = token[2]!.trim();
     }
     return tokens;
@@ -59,6 +59,9 @@ const REQUIRED_TOKENS = [
   "danger-soft",
   "danger-border",
   "success",
+  "chart-1",
+  "chart-2",
+  "chart-3",
 ];
 
 function luminance(hex: string): number {
@@ -233,6 +236,14 @@ describe("app.css palettes", () => {
       expect(ratio, `${color} as UI on ${bg} in ${palette}`).toBeGreaterThanOrEqual(
         3,
       );
+    }
+  });
+
+  it.each(ALL_PALETTES)("%s keeps the chart series visible on the dialog surface", (palette) => {
+    const tokens = paletteTokens(palette);
+    for (const token of ["chart-1", "chart-2", "chart-3"]) {
+      const ratio = contrast(tokenColor(tokens, token), tokenColor(tokens, "surface-raised"));
+      expect(ratio, `${token} on surface-raised in ${palette}`).toBeGreaterThanOrEqual(3);
     }
   });
 

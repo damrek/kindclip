@@ -344,6 +344,12 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     }
   }
 
+  /** Stats drill-down: the list shows only that kind and the dialog closes. */
+  function filterByKind(kind: ClippingKind): void {
+    filters.selectKind(kind);
+    closeStats();
+  }
+
   const openPreferences = (): void => overlays.openPreferences();
   /** `restoreFocus: false` when another dialog takes over the screen. */
   const closePreferences = (restoreFocus = true): void =>
@@ -998,6 +1004,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     loading={stats.loading}
     error={stats.error}
     onClose={closeStats}
+    onFilterKind={filterByKind}
   />
 {/if}
 

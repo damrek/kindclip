@@ -80,8 +80,15 @@ export class FilterState {
     }, 250);
   }
 
+  /** Toggle one kind in the OR filter; the list reloads from `filter`. */
   toggleKind(next: ClippingKind): void {
     this.values.kinds = toggleValue(this.values.kinds, next);
+    this.deps.resetPage();
+  }
+
+  /** Stats drill-down: show only this kind, keeping the other facets. */
+  selectKind(kind: ClippingKind): void {
+    this.values.kinds = [kind];
     this.deps.resetPage();
   }
 
