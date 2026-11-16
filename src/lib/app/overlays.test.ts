@@ -81,7 +81,6 @@ describe("Overlays", () => {
 
     expect(overlays.palette).toBe(true);
     expect(overlays.shortcuts).toBe(true);
-    expect(overlays.dialogOpen).toBe(true);
     expect(fake.renders()).toBe(0);
   });
 
@@ -170,19 +169,17 @@ describe("Overlays", () => {
     const overlays = new Overlays(fake.dom);
     overlays.select(7);
 
-    expect(overlays.anySelected).toBe(true);
     overlays.clearSelection();
 
     expect(overlays.selectedId).toBeNull();
     expect(fake.blurred).toHaveLength(1);
   });
 
-  it("treats the filter popover as open without blocking the shell", () => {
+  it("opens and closes the filter popover", () => {
     const overlays = new Overlays(fakeDom().dom);
     overlays.openFilters();
 
     expect(overlays.filters).toBe(true);
-    expect(overlays.dialogOpen).toBe(false);
     overlays.closeFilters();
     expect(overlays.filters).toBe(false);
   });

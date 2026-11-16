@@ -6,6 +6,7 @@
 import { getDb, getSetting, SETTINGS_KEYS, setSetting } from "../db";
 import { applyFontScale, loadFontScale, saveFontScale, type FontScale } from "../font";
 import { logger } from "../log";
+import { readStored, writeStored } from "../storage";
 import {
   isLocale,
   loadLocale,
@@ -31,23 +32,6 @@ import {
 const LOCALE_KEY = "kindclip-locale";
 const FONT_KEY = "kindclip-font-scale";
 const FONT_SCALES: FontScale[] = ["small", "medium", "large"];
-
-/** Best-effort read: private mode or blocked storage falls back to null. */
-function readStored(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Non-fatal: the choice simply won't survive a restart.
-  }
-}
 
 export interface PreferencesDeps {
   getSetting: (key: string) => Promise<string | null>;

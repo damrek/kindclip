@@ -1,4 +1,5 @@
 /** Sidebar visibility (UX polish): persisted like the theme/font caches. */
+import { readStored, writeStored } from "./storage";
 
 const STORAGE_KEY = "kindclip-sidebar-open";
 const VIEW_KEY = "kindclip-sidebar-view";
@@ -11,19 +12,11 @@ export function loadSidebarView(stored: string | null): SidebarView {
 }
 
 export function readSidebarView(): SidebarView {
-  try {
-    return loadSidebarView(localStorage.getItem(VIEW_KEY));
-  } catch {
-    return "books";
-  }
+  return loadSidebarView(readStored(VIEW_KEY));
 }
 
 export function saveSidebarView(view: SidebarView): void {
-  try {
-    localStorage.setItem(VIEW_KEY, view);
-  } catch {
-    // Non-fatal: the view simply won't persist.
-  }
+  writeStored(VIEW_KEY, view);
 }
 
 export function loadSidebarOpen(stored: string | null): boolean {
@@ -31,17 +24,9 @@ export function loadSidebarOpen(stored: string | null): boolean {
 }
 
 export function readSidebarOpen(): boolean {
-  try {
-    return loadSidebarOpen(localStorage.getItem(STORAGE_KEY));
-  } catch {
-    return true;
-  }
+  return loadSidebarOpen(readStored(STORAGE_KEY));
 }
 
 export function saveSidebarOpen(open: boolean): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, open ? "open" : "closed");
-  } catch {
-    // Non-fatal: the sidebar simply won't persist.
-  }
+  writeStored(STORAGE_KEY, open ? "open" : "closed");
 }

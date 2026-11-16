@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FilterState } from "./filters.svelte";
+import { CLIPPING_SORT_KEYS, SORT_DIRS } from "../sorting";
 
 function make(resets = 0, saved: string[] = []) {
   const state = new FilterState({
@@ -44,7 +45,34 @@ describe("FilterState", () => {
 
     state.setSort("nope:desc");
     state.setSort("page:sideways");
+    state.setSort("date");
     expect(state.sort).toEqual({ key: "page", dir: "desc" });
+  });
+
+  it("accepts every sort key and direction the sorting module defines", () => {
+    const { state } = make();
+
+    for (const key of CLIPPING_SORT_KEYS) {
+      for (const dir of SORT_DIRS) {
+        state.setSort(`${key}:${dir}`);
+        expect(state.sort).toEqual({ key, dir });
+      }
+    }
+  });
+
+  it("replaces the kind filter for a stats drill-down and keeps the other facets", () => {
+    const { state, resets } = make();
+    state.toggleKind("note");
+    state.toggleKind("highlight");
+    state.toggleAuthor("A");
+    state.selectBook(3);
+
+    state.selectKind("bookmark");
+
+    expect(state.values.kinds).toEqual(["bookmark"]);
+    expect(state.values.authors).toEqual(["A"]);
+    expect(state.values.bookId).toBe(3);
+    expect(resets()).toBe(5);
   });
 
   it("clears every field and returns to the first page", () => {

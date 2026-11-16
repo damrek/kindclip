@@ -9,6 +9,9 @@ export type SortDir = "asc" | "desc";
 export type ClippingSortKey = "date" | "title" | "page";
 export type ClippingSortDir = SortDir;
 
+export type BookSortKey = "title" | "author";
+export type BookSortDir = SortDir;
+
 export interface ClippingSort {
   key: ClippingSortKey;
   dir: ClippingSortDir;
@@ -19,12 +22,26 @@ export const DEFAULT_CLIPPING_SORT: ClippingSort = { key: "date", dir: "desc" };
 
 /** Runtime validation lists for the persisted filter payload. */
 export const CLIPPING_SORT_KEYS: ClippingSortKey[] = ["date", "title", "page"];
-export const CLIPPING_SORT_DIRS: ClippingSortDir[] = ["asc", "desc"];
-
-export type BookSortKey = "title" | "author";
-export type BookSortDir = SortDir;
-
 export const BOOK_SORT_KEYS: BookSortKey[] = ["title", "author"];
+/** Every sort direction, shared by the clipping and book vocabularies. */
+export const SORT_DIRS: SortDir[] = ["asc", "desc"];
+
+/** Guards for values coming from the DOM or persisted JSON. */
+export function isClippingSortKey(value: string): value is ClippingSortKey {
+  return CLIPPING_SORT_KEYS.some((key) => key === value);
+}
+
+export function isBookSortKey(value: string): value is BookSortKey {
+  return BOOK_SORT_KEYS.some((key) => key === value);
+}
+
+export function isClippingSortDir(value: string): value is ClippingSortDir {
+  return SORT_DIRS.some((dir) => dir === value);
+}
+
+export function isBookSortDir(value: string): value is BookSortDir {
+  return SORT_DIRS.some((dir) => dir === value);
+}
 
 /** Sort a copy of the books by title or author. Case-insensitive so "the" and
  * "The" land together; the input array is never mutated. */

@@ -5,6 +5,7 @@
   import Modal from "./Modal.svelte";
   import ScrollFadeOverlay from "./ScrollFadeOverlay.svelte";
   import { filterBooks } from "../lib/library";
+  import { RowActions, type RenameOutcome } from "../lib/app/rowActions.svelte";
   import type { ImportedFile, RenameBookResult, RenameTagResult, TagCount } from "../lib/db";
   import type { Book } from "../lib/types";
 
@@ -44,28 +45,56 @@
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
   let tab = $state<"books" | "files" | "tags">("books");
-  let localBusy = $state(false);
   let bookFilter = $state("");
-  let renameId = $state<number | null>(null);
-  let titleDraft = $state("");
-  let authorDraft = $state("");
-  let mergeSourceId = $state<number | null>(null);
-  let mergeTargetId = $state<number | null>(null);
-  let mergeOffer = $state<{ sourceId: number; targetId: number } | null>(null);
-  let deleteTarget = $state<Book | null>(null);
-  let removeTarget = $state<ImportedFile | null>(null);
+  let removeFileTarget = $state<ImportedFile | null>(null);
+  let fileBusy = $state(false);
 
-  let tagRenameId = $state<number | null>(null);
-  let tagNameDraft = $state("");
-  let tagMergeSourceId = $state<number | null>(null);
-  let tagMergeTargetId = $state<number | null>(null);
-  let tagMergeOffer = $state<{ sourceId: number; targetId: number } | null>(null);
-  let tagDeleteTarget = $state<TagCount | null>(null);
+  interface BookDraft {
+    title: string;
+    author: string;
+  }
 
-  const working = $derived(busy || localBusy);
+  interface TagDraft {
+    name: string;
+  }
+
+  /** Both lists run the same rename/merge/delete flow; only the writes differ. */
+  const bookActions = new RowActions<Book, BookDraft>({
+    draftOf: (book) => ({ title: book.title, author: book.author ?? "" }),
+    rename: async (book, draft) => toOutcome(await onRename(book.id, draft.title, draft.author)),
+    merge: (sourceId, targetId) => onMerge(sourceId, targetId),
+    remove: (book) => onDeleteBook(book),
+    // A closed book panel also closes the file removal it used to sit next to.
+    onCancel: () => {
+      removeFileTarget = null;
+    },
+  });
+  const tagActions = new RowActions<TagCount, TagDraft>({
+    draftOf: (tag) => ({ name: tag.name }),
+    rename: async (tag, draft) => toOutcome(await onRenameTag(tag.id, draft.name)),
+    merge: (sourceId, targetId) => onMergeTags(sourceId, targetId),
+    remove: (tag) => onDeleteTag(tag),
+  });
+
+  /** The panel reports `merge-required` with its own field name per entity. */
+  function toOutcome(result: RenameBookResult | RenameTagResult | null): RenameOutcome | null {
+    if (result === null || result.status !== "merge-required") {
+      return result;
+    }
+    return {
+      status: "merge-required",
+      existingId: "existingBookId" in result ? result.existingBookId : result.existingTagId,
+    };
+  }
+
+  const working = $derived(busy || bookActions.busy || tagActions.busy || fileBusy);
   const filteredBooks = $derived(filterBooks(books, bookFilter));
-  const mergeTargets = $derived(books.filter((book) => book.id !== mergeSourceId));
-  const tagMergeTargets = $derived(tags.filter((tag) => tag.id !== tagMergeSourceId));
+  const mergeTargets = $derived(books.filter((book) => book.id !== bookActions.mergeSourceId));
+  const tagMergeTargets = $derived(tags.filter((tag) => tag.id !== tagActions.mergeSourceId));
+  const bookMergeOffer = $derived(bookActions.mergeOffer);
+  const bookDeleteTarget = $derived(bookActions.deleteTarget);
+  const tagMergeOffer = $derived(tagActions.mergeOffer);
+  const tagDeleteTarget = $derived(tagActions.deleteTarget);
   const dateFormatter = $derived(
     new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
   );
@@ -78,179 +107,37 @@
     return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
   }
 
-  function startRename(book: Book): void {
-    renameId = book.id;
-    titleDraft = book.title;
-    authorDraft = book.author ?? "";
-    mergeSourceId = null;
-    mergeTargetId = null;
-    mergeOffer = null;
-    deleteTarget = null;
-    removeTarget = null;
+  /** Book actions sit next to the file list: starting one closes its panel. */
+  function startBookRename(book: Book): void {
+    removeFileTarget = null;
+    bookActions.startRename(book);
   }
 
-  function cancelRowActions(): void {
-    renameId = null;
-    mergeSourceId = null;
-    mergeTargetId = null;
-    mergeOffer = null;
-    deleteTarget = null;
-    removeTarget = null;
+  function startBookMerge(book: Book): void {
+    removeFileTarget = null;
+    bookActions.startMerge(book);
   }
 
-  async function saveRename(): Promise<void> {
-    if (renameId === null) return;
-    localBusy = true;
+  function startBookDelete(book: Book): void {
+    removeFileTarget = null;
+    bookActions.startDelete(book);
+  }
+
+  function startFileRemove(file: ImportedFile): void {
+    bookActions.deleteTarget = null;
+    removeFileTarget = file;
+  }
+
+  async function confirmRemoveFile(): Promise<void> {
+    const target = removeFileTarget;
+    if (target === null || fileBusy) return;
+    fileBusy = true;
     try {
-      const result = await onRename(renameId, titleDraft, authorDraft);
-      if (result === null) return;
-      if (result.status === "merge-required") {
-        mergeOffer = { sourceId: renameId, targetId: result.existingBookId };
-        renameId = null;
-        return;
-      }
-      if (result.status === "renamed") {
-        cancelRowActions();
+      if (await onRemoveFile(target)) {
+        removeFileTarget = null;
       }
     } finally {
-      localBusy = false;
-    }
-  }
-
-  async function confirmMergeOffer(): Promise<void> {
-    if (!mergeOffer) return;
-    localBusy = true;
-    try {
-      if (await onMerge(mergeOffer.sourceId, mergeOffer.targetId)) {
-        mergeOffer = null;
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  function startMerge(book: Book): void {
-    mergeSourceId = book.id;
-    mergeTargetId = null;
-    renameId = null;
-    deleteTarget = null;
-    removeTarget = null;
-  }
-
-  async function confirmMerge(): Promise<void> {
-    if (mergeSourceId === null || mergeTargetId === null) return;
-    localBusy = true;
-    try {
-      if (await onMerge(mergeSourceId, mergeTargetId)) {
-        mergeSourceId = null;
-        mergeTargetId = null;
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  async function confirmDelete(): Promise<void> {
-    if (!deleteTarget) return;
-    localBusy = true;
-    try {
-      if (await onDeleteBook(deleteTarget)) {
-        deleteTarget = null;
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  async function confirmRemove(): Promise<void> {
-    if (!removeTarget) return;
-    localBusy = true;
-    try {
-      if (await onRemoveFile(removeTarget)) {
-        removeTarget = null;
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  function startTagRename(tag: TagCount): void {
-    tagRenameId = tag.id;
-    tagNameDraft = tag.name;
-    tagMergeSourceId = null;
-    tagMergeTargetId = null;
-    tagMergeOffer = null;
-    tagDeleteTarget = null;
-  }
-
-  function cancelTagActions(): void {
-    tagRenameId = null;
-    tagMergeSourceId = null;
-    tagMergeTargetId = null;
-    tagMergeOffer = null;
-    tagDeleteTarget = null;
-  }
-
-  async function saveTagRename(): Promise<void> {
-    if (tagRenameId === null) return;
-    localBusy = true;
-    try {
-      const result = await onRenameTag(tagRenameId, tagNameDraft);
-      if (result === null) return;
-      if (result.status === "merge-required") {
-        tagMergeOffer = { sourceId: tagRenameId, targetId: result.existingTagId };
-        tagRenameId = null;
-        return;
-      }
-      if (result.status === "renamed") {
-        cancelTagActions();
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  async function confirmTagMergeOffer(): Promise<void> {
-    if (!tagMergeOffer) return;
-    localBusy = true;
-    try {
-      if (await onMergeTags(tagMergeOffer.sourceId, tagMergeOffer.targetId)) {
-        tagMergeOffer = null;
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  function startTagMerge(tag: TagCount): void {
-    tagMergeSourceId = tag.id;
-    tagMergeTargetId = null;
-    tagRenameId = null;
-    tagDeleteTarget = null;
-  }
-
-  async function confirmTagMerge(): Promise<void> {
-    if (tagMergeSourceId === null || tagMergeTargetId === null) return;
-    localBusy = true;
-    try {
-      if (await onMergeTags(tagMergeSourceId, tagMergeTargetId)) {
-        tagMergeSourceId = null;
-        tagMergeTargetId = null;
-      }
-    } finally {
-      localBusy = false;
-    }
-  }
-
-  async function confirmTagDelete(): Promise<void> {
-    if (!tagDeleteTarget) return;
-    localBusy = true;
-    try {
-      if (await onDeleteTag(tagDeleteTarget)) {
-        tagDeleteTarget = null;
-      }
-    } finally {
-      localBusy = false;
+      fileBusy = false;
     }
   }
 </script>
@@ -339,18 +226,18 @@
           <ul class="space-y-1">
             {#each filteredBooks as book (book.id)}
               <li class="rounded-lg border border-line p-2.5">
-                {#if renameId === book.id}
+                {#if bookActions.renameTarget?.id === book.id}
                   <form
                     class="flex flex-wrap items-end gap-2"
                     onsubmit={(event) => {
                       event.preventDefault();
-                      void saveRename();
+                      void bookActions.saveRename();
                     }}
                   >
                     <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-fg-muted">
                       {i18n.t("library.bookTitle")}
                       <input
-                        bind:value={titleDraft}
+                        bind:value={bookActions.draft.title}
                         required
                         disabled={working}
                         class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
@@ -359,7 +246,7 @@
                     <label class="flex min-w-32 flex-1 flex-col gap-1 text-xs text-fg-muted">
                       {i18n.t("library.bookAuthor")}
                       <input
-                        bind:value={authorDraft}
+                        bind:value={bookActions.draft.author}
                         disabled={working}
                         class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
                       />
@@ -373,7 +260,7 @@
                     </button>
                     <button
                       type="button"
-                      onclick={cancelRowActions}
+                      onclick={() => bookActions.cancel()}
                       disabled={working}
                       class="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                     >
@@ -398,7 +285,7 @@
                       </span>
                       <button
                         type="button"
-                        onclick={() => startRename(book)}
+                        onclick={() => startBookRename(book)}
                         disabled={working}
                         class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
@@ -406,7 +293,7 @@
                       </button>
                       <button
                         type="button"
-                        onclick={() => startMerge(book)}
+                        onclick={() => startBookMerge(book)}
                         disabled={working || books.length < 2}
                         class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
@@ -414,13 +301,7 @@
                       </button>
                       <button
                         type="button"
-                        onclick={() => {
-                          deleteTarget = book;
-                          renameId = null;
-                          mergeSourceId = null;
-                          mergeTargetId = null;
-                          removeTarget = null;
-                        }}
+                        onclick={() => startBookDelete(book)}
                         disabled={working}
                         class="rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
                       >
@@ -429,12 +310,12 @@
                     </div>
                   </div>
 
-                  {#if mergeSourceId === book.id}
+                  {#if bookActions.mergeSourceId === book.id}
                     <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
                       <label class="flex items-center gap-2 text-xs text-fg-muted">
                         {i18n.t("library.mergeTarget")}
                         <select
-                          bind:value={mergeTargetId}
+                          bind:value={bookActions.mergeTargetId}
                           disabled={working}
                           class="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg outline-none"
                         >
@@ -446,15 +327,15 @@
                       </label>
                       <button
                         type="button"
-                        onclick={confirmMerge}
-                        disabled={working || mergeTargetId === null}
+                        onclick={() => void bookActions.confirmMerge()}
+                        disabled={working || bookActions.mergeTargetId === null}
                         class="rounded-full bg-inverse px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
                       >
                         {i18n.t("library.merge")}
                       </button>
                       <button
                         type="button"
-                        onclick={cancelRowActions}
+                        onclick={() => bookActions.cancel()}
                         disabled={working}
                         class="rounded-full border border-line px-3 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
@@ -486,10 +367,7 @@
                   </div>
                   <button
                     type="button"
-                    onclick={() => {
-                      removeTarget = file;
-                      deleteTarget = null;
-                    }}
+                    onclick={() => startFileRemove(file)}
                     disabled={working}
                     class="shrink-0 rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
                   >
@@ -508,18 +386,18 @@
             <ul class="space-y-1">
               {#each tags as tag (tag.id)}
                 <li class="rounded-lg border border-line p-2.5">
-                  {#if tagRenameId === tag.id}
+                  {#if tagActions.renameTarget?.id === tag.id}
                     <form
                       class="flex flex-wrap items-end gap-2"
                       onsubmit={(event) => {
                         event.preventDefault();
-                        void saveTagRename();
+                        void tagActions.saveRename();
                       }}
                     >
                       <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-fg-muted">
                         {i18n.t("library.tagName")}
                         <input
-                          bind:value={tagNameDraft}
+                          bind:value={tagActions.draft.name}
                           required
                           disabled={working}
                           class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-fg outline-none focus:border-line-strong"
@@ -534,7 +412,7 @@
                       </button>
                       <button
                         type="button"
-                        onclick={cancelTagActions}
+                        onclick={() => tagActions.cancel()}
                         disabled={working}
                         class="rounded-full border border-line px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                       >
@@ -557,7 +435,7 @@
                         </span>
                         <button
                           type="button"
-                          onclick={() => startTagRename(tag)}
+                          onclick={() => tagActions.startRename(tag)}
                           disabled={working}
                           class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                         >
@@ -565,7 +443,7 @@
                         </button>
                         <button
                           type="button"
-                          onclick={() => startTagMerge(tag)}
+                          onclick={() => tagActions.startMerge(tag)}
                           disabled={working || tags.length < 2}
                           class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                         >
@@ -573,12 +451,7 @@
                         </button>
                         <button
                           type="button"
-                          onclick={() => {
-                            tagDeleteTarget = tag;
-                            tagRenameId = null;
-                            tagMergeSourceId = null;
-                            tagMergeTargetId = null;
-                          }}
+                          onclick={() => tagActions.startDelete(tag)}
                           disabled={working}
                           class="rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
                         >
@@ -587,14 +460,14 @@
                       </div>
                     </div>
 
-                    {#if tagMergeSourceId === tag.id}
+                    {#if tagActions.mergeSourceId === tag.id}
                       <div
                         class="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2"
                       >
                         <label class="flex items-center gap-2 text-xs text-fg-muted">
                           {i18n.t("library.mergeTarget")}
                           <select
-                            bind:value={tagMergeTargetId}
+                            bind:value={tagActions.mergeTargetId}
                             disabled={working}
                             class="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg outline-none"
                           >
@@ -606,15 +479,15 @@
                         </label>
                         <button
                           type="button"
-                          onclick={confirmTagMerge}
-                          disabled={working || tagMergeTargetId === null}
+                          onclick={() => void tagActions.confirmMerge()}
+                          disabled={working || tagActions.mergeTargetId === null}
                           class="rounded-full bg-inverse px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-inverse/80 disabled:opacity-40"
                         >
                           {i18n.t("library.merge")}
                         </button>
                         <button
                           type="button"
-                          onclick={cancelTagActions}
+                          onclick={() => tagActions.cancel()}
                           disabled={working}
                           class="rounded-full border border-line px-3 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                         >
@@ -635,13 +508,13 @@
       />
     </div>
 
-    {#if mergeOffer}
+    {#if bookMergeOffer}
       <div class="mt-3 rounded-lg border border-accent/30 bg-accent-soft p-3">
         <p class="text-sm text-accent-text">{i18n.t("library.mergeRequired")}</p>
         <div class="mt-2 flex items-center justify-end gap-2">
           <button
             type="button"
-            onclick={() => (mergeOffer = null)}
+            onclick={() => (bookActions.mergeOffer = null)}
             disabled={working}
             class="rounded-full border border-accent/40 px-3 py-1 text-xs font-medium text-accent-text transition hover:bg-accent-soft-strong disabled:opacity-40"
           >
@@ -649,7 +522,7 @@
           </button>
           <button
             type="button"
-            onclick={confirmMergeOffer}
+            onclick={() => void bookActions.confirmMergeOffer()}
             disabled={working}
             class="rounded-full bg-accent px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-accent-hover disabled:opacity-40"
           >
@@ -659,18 +532,18 @@
       </div>
     {/if}
 
-    {#if deleteTarget}
+    {#if bookDeleteTarget}
       <div class="mt-3 rounded-lg border border-danger-border bg-danger-soft p-3">
         <p class="text-sm text-danger">
           {i18n.t("library.confirmDelete", {
-            title: deleteTarget.title,
-            clippings: countText(i18n.locale, "clipping", deleteTarget.clipping_count),
+            title: bookDeleteTarget.title,
+            clippings: countText(i18n.locale, "clipping", bookDeleteTarget.clipping_count),
           })}
         </p>
         <div class="mt-2 flex items-center justify-end gap-2">
           <button
             type="button"
-            onclick={() => (deleteTarget = null)}
+            onclick={() => (bookActions.deleteTarget = null)}
             disabled={working}
             class="rounded-full border border-danger-border px-3 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
           >
@@ -678,7 +551,7 @@
           </button>
           <button
             type="button"
-            onclick={confirmDelete}
+            onclick={() => void bookActions.confirmDelete()}
             disabled={working}
             class="rounded-full bg-danger-solid px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-danger-solid-hover disabled:opacity-40"
           >
@@ -688,18 +561,18 @@
       </div>
     {/if}
 
-    {#if removeTarget}
+    {#if removeFileTarget}
       <div class="mt-3 rounded-lg border border-danger-border bg-danger-soft p-3">
         <p class="text-sm text-danger">
           {i18n.t("library.confirmRemove", {
-            path: removeTarget.path,
-            clippings: countText(i18n.locale, "clipping", removeTarget.clipping_count),
+            path: removeFileTarget.path,
+            clippings: countText(i18n.locale, "clipping", removeFileTarget.clipping_count),
           })}
         </p>
         <div class="mt-2 flex items-center justify-end gap-2">
           <button
             type="button"
-            onclick={() => (removeTarget = null)}
+            onclick={() => (removeFileTarget = null)}
             disabled={working}
             class="rounded-full border border-danger-border px-3 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
           >
@@ -707,7 +580,7 @@
           </button>
           <button
             type="button"
-            onclick={confirmRemove}
+            onclick={confirmRemoveFile}
             disabled={working}
             class="rounded-full bg-danger-solid px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-danger-solid-hover disabled:opacity-40"
           >
@@ -723,7 +596,7 @@
         <div class="mt-2 flex items-center justify-end gap-2">
           <button
             type="button"
-            onclick={() => (tagMergeOffer = null)}
+            onclick={() => (tagActions.mergeOffer = null)}
             disabled={working}
             class="rounded-full border border-accent/40 px-3 py-1 text-xs font-medium text-accent-text transition hover:bg-accent-soft-strong disabled:opacity-40"
           >
@@ -731,7 +604,7 @@
           </button>
           <button
             type="button"
-            onclick={confirmTagMergeOffer}
+            onclick={() => void tagActions.confirmMergeOffer()}
             disabled={working}
             class="rounded-full bg-accent px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-accent-hover disabled:opacity-40"
           >
@@ -752,7 +625,7 @@
         <div class="mt-2 flex items-center justify-end gap-2">
           <button
             type="button"
-            onclick={() => (tagDeleteTarget = null)}
+            onclick={() => (tagActions.deleteTarget = null)}
             disabled={working}
             class="rounded-full border border-danger-border px-3 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
           >
@@ -760,7 +633,7 @@
           </button>
           <button
             type="button"
-            onclick={confirmTagDelete}
+            onclick={() => void tagActions.confirmDelete()}
             disabled={working}
             class="rounded-full bg-danger-solid px-3 py-1 text-xs font-medium text-inverse-fg transition hover:bg-danger-solid-hover disabled:opacity-40"
           >

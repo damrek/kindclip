@@ -6,6 +6,7 @@ import {
   debounce,
   emptyFilter,
   filterBooks,
+  foldChar,
   foldText,
   formatQuoteCitation,
   groupBooksByAuthor,
@@ -173,6 +174,33 @@ describe("foldText", () => {
     expect(foldText("Øresund")).toBe("oresund");
     expect(foldText("Ħal")).toBe("hal");
     expect(foldText("Þingvellir")).toBe("thingvellir");
+  });
+
+  it("folds one code point exactly like the whole string", () => {
+    const corpus = [
+      "a",
+      "Z",
+      "é",
+      "n",
+      "ß",
+      "æ",
+      "œ",
+      "ø",
+      "ł",
+      "đ",
+      "ð",
+      "þ",
+      "ħ",
+      "ı",
+      "Σ",
+      "中",
+      "🙂",
+      "\u0301",
+    ];
+    for (const char of corpus) {
+      expect(foldChar(char)).toBe(foldText(char));
+      expect(foldText(`x${char}y`)).toBe(`x${foldChar(char)}y`);
+    }
   });
 });
 

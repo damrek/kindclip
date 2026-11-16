@@ -85,14 +85,7 @@ pub(crate) fn is_auto_backup_name(name: &str) -> bool {
     let Some(date) = rest.strip_suffix(AUTO_BACKUP_SUFFIX) else {
         return false;
     };
-    let bytes = date.as_bytes();
-    bytes.len() == 10
-        && bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes
-            .iter()
-            .enumerate()
-            .all(|(index, byte)| index == 4 || index == 7 || byte.is_ascii_digit())
+    is_iso_date(date)
 }
 
 pub(crate) fn path_string(path: &Path) -> String {
@@ -334,4 +327,264 @@ pub fn prune_auto_backups(
         report.temps_deleted
     );
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, SystemTime};
+
+    use super::*;
+    use crate::commands::test_support::{backup_dir, sqlite_bytes, write_sqlite};
+
+    fn auto_dir(name: &str) -> PathBuf {
+        backup_dir(name).join("backups")
+    }
+
+    fn snapshot(dir: &Path, day: u32) -> PathBuf {
+        std::fs::create_dir_all(dir).unwrap();
+        let path = dir.join(format!("kindclip-backup-2026-01-{day:02}.db"));
+        write_sqlite(&path, format!("day {day}").as_bytes());
+        path
+    }
+
+    #[test]
+    fn auto_backup_name_owns_the_format_and_rejects_bad_dates() {
+        assert_eq!(
+            auto_backup_name("2026-11-12").unwrap(),
+            "kindclip-backup-2026-11-12.db"
+        );
+        assert!(auto_backup_name("2026-11-12.db").is_err());
+        assert!(auto_backup_name("2026-13-01").is_err());
+        assert!(auto_backup_name("2026-11-32").is_err());
+        assert!(auto_backup_name("12-11-2026").is_err());
+    }
+
+    #[test]
+    fn auto_backup_name_recognizes_only_well_formed_dates() {
+        assert!(is_auto_backup_name("kindclip-backup-2026-01-09.db"));
+        assert!(!is_auto_backup_name("kindclip-backup-2026-13-01.db"));
+        assert!(!is_auto_backup_name("kindclip-backup-2026-01-32.db"));
+        assert!(!is_auto_backup_name("kindclip-backup-2026-01-09.tmp"));
+        assert!(!is_auto_backup_name("notes.txt"));
+    }
+
+    #[test]
+    fn prepare_auto_backup_at_creates_the_folder_and_the_final_path() {
+        let dir = auto_dir("auto-prepare");
+        let paths = prepare_auto_backup_at(&dir, "2026-11-12").unwrap();
+
+        assert!(dir.is_dir());
+        assert_eq!(
+            Path::new(&paths.final_path),
+            dir.join("kindclip-backup-2026-11-12.db")
+        );
+        assert!(paths.temp_path.contains("kindclip-auto-"));
+        assert!(paths.temp_path.ends_with(".tmp"));
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn prepare_auto_backup_at_rejects_a_foreign_name() {
+        let dir = auto_dir("auto-prepare-bad");
+        let error = prepare_auto_backup_at(&dir, "not-a-date").unwrap_err();
+
+        assert!(error.contains("YYYY-MM-DD"), "{error}");
+    }
+
+    #[test]
+    fn prepare_auto_backup_at_gives_each_run_its_own_temp_file() {
+        let dir = auto_dir("auto-prepare-temp");
+        let first = prepare_auto_backup_at(&dir, "2026-11-12").unwrap();
+        let second = prepare_auto_backup_at(&dir, "2026-11-13").unwrap();
+
+        assert_ne!(first.temp_path, second.temp_path);
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn list_auto_backups_in_returns_dated_files_newest_first() {
+        let dir = auto_dir("auto-list");
+        snapshot(&dir, 3);
+        snapshot(&dir, 9);
+        std::fs::write(dir.join("kindclip.db"), b"live").unwrap();
+        std::fs::write(dir.join("notes.txt"), b"notes").unwrap();
+
+        let listed = list_auto_backups_in(&dir).unwrap();
+
+        assert_eq!(listed.len(), 2);
+        assert_eq!(listed[0].name, "kindclip-backup-2026-01-09.db");
+        assert_eq!(listed[1].name, "kindclip-backup-2026-01-03.db");
+        assert!(listed[0].size > 0);
+        assert!(listed[0].path.ends_with("kindclip-backup-2026-01-09.db"));
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn list_auto_backups_in_accepts_a_missing_folder() {
+        let dir = std::env::temp_dir().join("kindclip-auto-missing-folder");
+        std::fs::remove_dir_all(&dir).ok();
+
+        assert!(list_auto_backups_in(&dir).unwrap().is_empty());
+    }
+
+    #[test]
+    fn commit_auto_backup_at_moves_a_valid_snapshot_into_place() {
+        let dir = auto_dir("auto-commit");
+        std::fs::create_dir_all(&dir).unwrap();
+        let temp = dir.join("kindclip-auto-1.tmp");
+        let final_path = dir.join("kindclip-backup-2026-11-12.db");
+        write_sqlite(&temp, b"payload");
+
+        commit_auto_backup_at(&temp, &final_path).unwrap();
+
+        assert!(!temp.exists());
+        assert_eq!(
+            std::fs::read(&final_path).unwrap(),
+            sqlite_bytes(b"payload")
+        );
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn commit_auto_backup_at_cleans_a_non_sqlite_temp_file() {
+        let dir = auto_dir("auto-commit-bad");
+        std::fs::create_dir_all(&dir).unwrap();
+        let temp = dir.join("kindclip-auto-bad.tmp");
+        let final_path = dir.join("kindclip-backup-2026-11-12.db");
+        std::fs::write(&temp, b"not a database").unwrap();
+
+        let error = commit_auto_backup_at(&temp, &final_path).unwrap_err();
+
+        assert!(error.contains("SQLite"), "{error}");
+        assert!(!temp.exists());
+        assert!(!final_path.exists());
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn commit_auto_backup_at_never_overwrites_an_existing_snapshot() {
+        let dir = auto_dir("auto-commit-existing");
+        std::fs::create_dir_all(&dir).unwrap();
+        let temp = dir.join("kindclip-auto-2.tmp");
+        let final_path = dir.join("kindclip-backup-2026-11-12.db");
+        write_sqlite(&temp, b"new");
+        write_sqlite(&final_path, b"old");
+
+        let error = commit_auto_backup_at(&temp, &final_path).unwrap_err();
+
+        assert!(error.contains("already exists"), "{error}");
+        assert_eq!(std::fs::read(&final_path).unwrap(), sqlite_bytes(b"old"));
+        assert!(!temp.exists());
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn commit_auto_backup_at_refuses_a_temp_file_from_another_folder() {
+        let dir = auto_dir("auto-commit-foreign");
+        let other = auto_dir("auto-commit-foreign-temp");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+        let temp = other.join("kindclip-auto-3.tmp");
+        write_sqlite(&temp, b"payload");
+        let final_path = dir.join("kindclip-backup-2026-11-12.db");
+
+        let error = commit_auto_backup_at(&temp, &final_path).unwrap_err();
+
+        assert!(error.contains("temporary"), "{error}");
+        assert!(
+            temp.exists(),
+            "the foreign temp file must survive the rejection"
+        );
+        assert!(!final_path.exists());
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+        std::fs::remove_dir_all(other.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn prune_auto_backups_in_keeps_the_newest_and_protects_live_files() {
+        let dir = auto_dir("auto-prune");
+        let oldest = snapshot(&dir, 1);
+        let second = snapshot(&dir, 2);
+        for day in 3..=9 {
+            snapshot(&dir, day);
+        }
+        std::fs::write(dir.join("kindclip.db"), b"live").unwrap();
+        std::fs::write(dir.join("kindclip.db-wal"), b"wal").unwrap();
+        std::fs::write(dir.join("kindclip.db-shm"), b"shm").unwrap();
+        std::fs::write(dir.join("kindclip.db-journal"), b"journal").unwrap();
+        std::fs::write(dir.join("kindclip.db.before-restore"), b"previous").unwrap();
+        std::fs::write(dir.join("notes.txt"), b"notes").unwrap();
+        let outside = dir.parent().unwrap().join("kindclip-backup-2026-01-01.db");
+        write_sqlite(&outside, b"outside");
+        let newest = dir.join("kindclip-backup-2026-01-09.db");
+
+        let report = prune_auto_backups_in(
+            &dir,
+            7,
+            &[
+                oldest.clone(),
+                second.clone(),
+                dir.join("kindclip.db"),
+                dir.join("kindclip.db-wal"),
+                dir.join("kindclip.db-shm"),
+                dir.join("kindclip.db-journal"),
+                outside.clone(),
+                newest.clone(),
+            ],
+            SystemTime::now(),
+        );
+
+        assert_eq!(report.deleted, 2);
+        assert_eq!(report.failed, 6);
+        assert!(!oldest.exists());
+        assert!(!second.exists());
+        assert!(newest.exists());
+        assert_eq!(std::fs::read(dir.join("kindclip.db")).unwrap(), b"live");
+        assert_eq!(std::fs::read(dir.join("kindclip.db-wal")).unwrap(), b"wal");
+        assert_eq!(std::fs::read(dir.join("kindclip.db-shm")).unwrap(), b"shm");
+        assert_eq!(
+            std::fs::read(dir.join("kindclip.db-journal")).unwrap(),
+            b"journal"
+        );
+        assert!(dir.join("kindclip.db.before-restore").exists());
+        assert!(dir.join("notes.txt").exists());
+        assert!(outside.exists());
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn prune_auto_backups_in_removes_only_stale_temp_files() {
+        let dir = auto_dir("auto-prune-temps");
+        std::fs::create_dir_all(&dir).unwrap();
+        let stale = dir.join("kindclip-auto-stale.tmp");
+        let fresh = dir.join("kindclip-auto-fresh.tmp");
+        std::fs::write(&stale, b"x").unwrap();
+        std::fs::write(&fresh, b"x").unwrap();
+        let long_ago = SystemTime::now() - Duration::from_secs(48 * 60 * 60);
+        std::fs::File::options()
+            .write(true)
+            .open(&stale)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(long_ago))
+            .unwrap();
+
+        let report = prune_auto_backups_in(&dir, 7, &[], SystemTime::now());
+
+        assert_eq!(report.temps_deleted, 1);
+        assert!(!stale.exists());
+        assert!(fresh.exists());
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn prune_auto_backups_in_accepts_a_missing_folder() {
+        let dir = std::env::temp_dir().join("kindclip-auto-prune-missing");
+        std::fs::remove_dir_all(&dir).ok();
+
+        let report = prune_auto_backups_in(&dir, 7, &[], SystemTime::now());
+
+        assert_eq!(report.deleted, 0);
+        assert_eq!(report.failed, 0);
+    }
 }

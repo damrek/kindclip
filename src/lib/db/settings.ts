@@ -1,7 +1,9 @@
 import { PAGE_SIZES } from "../pagination";
 import {
-  CLIPPING_SORT_DIRS,
-  CLIPPING_SORT_KEYS,
+  isBookSortDir,
+  isBookSortKey,
+  isClippingSortDir,
+  isClippingSortKey,
   type ClippingSortDir,
   type ClippingSortKey,
 } from "../sorting";
@@ -78,6 +80,18 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
     // Widened for runtime validation: JSON may carry any string.
     const sortBy = parsed.sortBy as string | undefined;
     const sortDir = parsed.sortDir as string | undefined;
+    // The guards narrow here, so the returned shape needs no casts.
+    const bookSortBy =
+      parsed.bookSortBy === undefined || isBookSortKey(parsed.bookSortBy)
+        ? parsed.bookSortBy
+        : null;
+    const bookSortDir =
+      parsed.bookSortDir === undefined || isBookSortDir(parsed.bookSortDir)
+        ? parsed.bookSortDir
+        : null;
+    const storedSortBy = sortBy === undefined || isClippingSortKey(sortBy) ? sortBy : null;
+    const storedSortDir = sortDir === undefined || isClippingSortDir(sortDir) ? sortDir : null;
+    const pageSize = parsed.pageSize;
     if (
       typeof parsed.query !== "string" ||
       (parsed.bookId !== null && typeof parsed.bookId !== "number") ||
@@ -91,15 +105,12 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       (parsed.authors !== undefined &&
         (!Array.isArray(parsed.authors) ||
           !parsed.authors.every((author) => typeof author === "string"))) ||
-      (parsed.bookSortBy !== undefined &&
-        parsed.bookSortBy !== "title" &&
-        parsed.bookSortBy !== "author") ||
-      (parsed.bookSortDir !== undefined &&
-        parsed.bookSortDir !== "asc" &&
-        parsed.bookSortDir !== "desc") ||
-      (sortBy !== undefined && !CLIPPING_SORT_KEYS.includes(sortBy as ClippingSortKey)) ||
-      (sortDir !== undefined && !CLIPPING_SORT_DIRS.includes(sortDir as ClippingSortDir)) ||
-      !PAGE_SIZES.includes(parsed.pageSize as number)
+      bookSortBy === null ||
+      bookSortDir === null ||
+      storedSortBy === null ||
+      storedSortDir === null ||
+      typeof pageSize !== "number" ||
+      !PAGE_SIZES.includes(pageSize)
     ) {
       return null;
     }
@@ -111,11 +122,11 @@ export async function loadFilterState(port: DbPort): Promise<StoredFilterState |
       favoritesOnly: parsed.favoritesOnly,
       editedOnly: parsed.editedOnly ?? false,
       tagIds: parsed.tagIds ?? [],
-      pageSize: parsed.pageSize as number,
-      ...(parsed.bookSortBy ? { bookSortBy: parsed.bookSortBy } : {}),
-      ...(parsed.bookSortDir ? { bookSortDir: parsed.bookSortDir } : {}),
-      ...(sortBy ? { sortBy: sortBy as ClippingSortKey } : {}),
-      ...(sortDir ? { sortDir: sortDir as ClippingSortDir } : {}),
+      pageSize,
+      ...(bookSortBy ? { bookSortBy } : {}),
+      ...(bookSortDir ? { bookSortDir } : {}),
+      ...(storedSortBy ? { sortBy: storedSortBy } : {}),
+      ...(storedSortDir ? { sortDir: storedSortDir } : {}),
     };
   } catch {
     return null;

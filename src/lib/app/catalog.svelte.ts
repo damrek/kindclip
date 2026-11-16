@@ -89,20 +89,6 @@ export class ClippingList {
   resetPage(): void {
     this.page = 1;
   }
-
-  /** Optimistic flip of one visible row; the caller persists it. */
-  patch(id: number, update: (row: ClippingRow) => ClippingRow): void {
-    if (!this.result) return;
-    this.result = {
-      ...this.result,
-      items: this.result.items.map((row) => (row.id === id ? update(row) : row)),
-    };
-  }
-
-  /** True when the current rows no longer contain the selected id. */
-  lost(id: number | null): boolean {
-    return id !== null && (this.result === null || !this.result.items.some((row) => row.id === id));
-  }
 }
 
 /** Book list with its own loaded flag; the caller prunes a stale selection. */

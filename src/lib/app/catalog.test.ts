@@ -106,20 +106,6 @@ describe("ClippingList.reload", () => {
   });
 });
 
-describe("ClippingList.patch / lost", () => {
-  it("patches one row and reports a lost selection", async () => {
-    const { list } = listWith(async () => pageOf([1, 2], 2));
-    await list.reload(emptyFilter(), 20, sort);
-
-    list.patch(2, (row) => ({ ...row, favorite: true }));
-    expect(list.result?.items[1].favorite).toBe(true);
-
-    expect(list.lost(null)).toBe(false);
-    expect(list.lost(2)).toBe(false);
-    expect(list.lost(7)).toBe(true);
-  });
-});
-
 describe("BookShelf", () => {
   it("loads once and reports the failure message otherwise", async () => {
     const books: Book[] = [{ id: 1, title: "A", author: null, clipping_count: 2 }];
