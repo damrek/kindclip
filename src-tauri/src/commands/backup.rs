@@ -64,3 +64,54 @@ pub fn clear_backup_target(path: String) -> Result<(), CommandError> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::test_support::{backup_dir, write_sqlite};
+
+    #[test]
+    fn validate_backup_file_accepts_a_sqlite_file() {
+        let dir = backup_dir("validate-ok");
+        let path = dir.join("backup.db");
+        write_sqlite(&path, b"payload");
+        let size = validate_backup_file(path.to_string_lossy().to_string()).unwrap();
+        assert_eq!(size, 23);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn validate_backup_file_rejects_a_text_file() {
+        let dir = backup_dir("validate-text");
+        let path = dir.join("notes.txt");
+        std::fs::write(&path, b"not a database at all").unwrap();
+        let error = validate_backup_file(path.to_string_lossy().to_string()).unwrap_err();
+        assert!(error.message.contains("SQLite"), "{error}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn validate_backup_file_rejects_a_missing_file() {
+        let path = std::env::temp_dir().join("kindclip-t5-definitely-missing.db");
+        let error = validate_backup_file(path.to_string_lossy().to_string()).unwrap_err();
+        assert!(error.message.contains("cannot read file"), "{error}");
+    }
+
+    #[test]
+    fn clear_backup_target_removes_an_existing_file() {
+        let dir = backup_dir("clear-existing");
+        let path = dir.join("backup.db");
+        std::fs::write(&path, b"old").unwrap();
+        clear_backup_target(path.to_string_lossy().to_string()).unwrap();
+        assert!(!path.exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn clear_backup_target_accepts_a_missing_file() {
+        let dir = backup_dir("clear-missing");
+        let path = dir.join("backup.db");
+        clear_backup_target(path.to_string_lossy().to_string()).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}

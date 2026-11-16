@@ -118,3 +118,81 @@ pub fn restore_database_file(
     log::info!("restore: restarting the app to reopen the restored database");
     app.restart()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::test_support::{backup_dir, sqlite_bytes, write_sqlite};
+
+    #[test]
+    fn restore_database_at_copies_the_snapshot_and_keeps_the_previous_database() {
+        let dir = backup_dir("restore-ok");
+        let db = dir.join("kindclip.db");
+        let backup = dir.join("backup.db");
+        std::fs::write(&db, b"old database").unwrap();
+        // Stale sidecars from the replaced file must never reach the new one.
+        std::fs::write(dir.join("kindclip.db-wal"), b"wal").unwrap();
+        std::fs::write(dir.join("kindclip.db-shm"), b"shm").unwrap();
+        std::fs::write(dir.join("kindclip.db-journal"), b"journal").unwrap();
+        write_sqlite(&backup, b"new database");
+
+        let safety = restore_database_at(&backup, &db).unwrap();
+
+        assert_eq!(std::fs::read(&db).unwrap(), sqlite_bytes(b"new database"));
+        assert_eq!(std::fs::read(&safety).unwrap(), b"old database");
+        assert!(safety
+            .to_string_lossy()
+            .ends_with("kindclip.db.before-restore"));
+        assert!(!dir.join("kindclip.db-wal").exists());
+        assert!(!dir.join("kindclip.db-shm").exists());
+        assert!(!dir.join("kindclip.db-journal").exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_rejects_a_non_sqlite_backup_without_touching_the_database() {
+        let dir = backup_dir("restore-invalid");
+        let db = dir.join("kindclip.db");
+        let backup = dir.join("backup.db");
+        std::fs::write(&db, b"old database").unwrap();
+        std::fs::write(&backup, b"not a database").unwrap();
+
+        let error = restore_database_at(&backup, &db).unwrap_err();
+
+        assert!(error.contains("SQLite"), "{error}");
+        assert_eq!(std::fs::read(&db).unwrap(), b"old database");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_refuses_the_live_database_as_its_own_backup() {
+        let dir = backup_dir("restore-self");
+        let db = dir.join("kindclip.db");
+        write_sqlite(&db, b"only copy");
+
+        let error = restore_database_at(&db, &db).unwrap_err();
+
+        assert!(error.contains("live database"), "{error}");
+        assert_eq!(std::fs::read(&db).unwrap(), sqlite_bytes(b"only copy"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn restore_database_at_accepts_the_safety_copy_as_the_backup() {
+        let dir = backup_dir("restore-safety-source");
+        let db = dir.join("kindclip.db");
+        let safety = dir.join("kindclip.db.before-restore");
+        std::fs::write(&db, b"current database").unwrap();
+        write_sqlite(&safety, b"previous database");
+
+        let kept = restore_database_at(&safety, &db).unwrap();
+
+        assert_eq!(
+            std::fs::read(&db).unwrap(),
+            sqlite_bytes(b"previous database")
+        );
+        assert_eq!(std::fs::read(&kept).unwrap(), b"current database");
+        assert!(!dir.join("kindclip.db.restore-source").exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}
