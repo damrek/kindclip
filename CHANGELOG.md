@@ -10,6 +10,21 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-11-16
+
+### Changed
+
+- **Reading stats**: the by-kind distribution is now an interactive donut. The
+  legend keeps each kind's clipping count and share, hovering or focusing a
+  slice (or its row) highlights both, and clicking either filters the list to
+  that kind and returns to it.
+
+### Fixed
+
+- **Restore**: a file whose name looks like a dated snapshot but carries an
+  impossible month or day (such as `kindclip-backup-2026-13-01.db`) is no longer
+  offered as a backup.
+
 ## [1.21.0] - 2026-11-15
 
 ### Changed

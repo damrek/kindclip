@@ -71,7 +71,8 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
   actions confirm; re-importing restores the clippings, but not favorites, tags
   or edited notes.
 - **Reading stats** (sidebar footer): library-wide totals plus clippings per
-  year, kind and top book, with undated clippings grouped as “no date”.
+  year, an interactive kind donut (hover for counts and percentages, click to
+  filter the list) and top book, with undated clippings grouped as “no date”.
 
 ### Search & Filter
 - **Unified Filters menu** with a badge, removable chips and **Clear all**.
