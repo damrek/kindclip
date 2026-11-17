@@ -3,6 +3,7 @@
   import { I18N_CONTEXT_KEY, type I18nContext } from "../lib/i18n";
   import { selectOnInteraction } from "../lib/focus";
   import { formatAddedOn, referenceText } from "../lib/format";
+  import { formatReminderAt } from "../lib/reminders";
   import { tagOverflow } from "../lib/library";
   import type { ClippingKind, ClippingRow, Tag } from "../lib/types";
   import HighlightedText from "./HighlightedText.svelte";
@@ -15,6 +16,8 @@
     quoted: boolean;
     /** Search query that produced the visible list, for highlight marks. */
     query: string;
+    /** Pending reminder for this clipping (ISO UTC), or null. */
+    reminderAt: string | null;
     /** Click or focus inside the card makes it the keyboard selection. */
     onSelect: (id: number) => void;
     onOpen: (id: number) => void;
@@ -28,6 +31,7 @@
     onFilterByTag: (tagId: number) => void;
     onFilterByKind: (kind: ClippingKind) => void;
     onFilterEdited: () => void;
+    onRemind: (id: number) => void;
   }
 
   const {
@@ -36,6 +40,7 @@
     copied,
     quoted,
     query,
+    reminderAt,
     onSelect,
     onOpen,
     onToggleFavorite,
@@ -48,6 +53,7 @@
     onFilterByTag,
     onFilterByKind,
     onFilterEdited,
+    onRemind,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const reference = $derived(referenceText(i18n.t, clipping.page, clipping.location));
@@ -149,7 +155,7 @@
   data-clipping-id={clipping.id}
   tabindex="-1"
   use:selectOnInteraction={() => onSelect(clipping.id)}
-  class="clipping-card rounded-2xl border border-line bg-surface-raised p-4 transition-colors hover:border-line-strong"
+  class="clipping-card rounded-2xl border border-line bg-surface-raised p-[var(--card-padding)] transition-colors hover:border-line-strong"
 >
   <div class="flex items-start gap-2.5">
     <div class="min-w-0 flex-1">
@@ -204,14 +210,14 @@
     </button>
   </div>
 
-  <div class="mt-3.5 text-sm">
+  <div class="mt-[var(--card-section-gap)] text-sm">
     <span class="block font-medium text-fg"><HighlightedText text={clipping.title} {query} /></span>
     {#if clipping.author}
       <span class="block text-fg-muted"><HighlightedText text={clipping.author} {query} /></span>
     {/if}
   </div>
 
-  <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+  <div class="mt-[var(--card-meta-gap)] flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
     <button
       type="button"
       onclick={(event) => {
@@ -374,12 +380,28 @@
           <Icon name="restore" class="h-[18px] w-[18px]" />
         </button>
       {/if}
+      <button
+        type="button"
+        onclick={() => onRemind(clipping.id)}
+        aria-label={reminderAt
+          ? i18n.t("card.reminderAt", { date: formatReminderAt(reminderAt, i18n.locale) })
+          : i18n.t("card.remind")}
+        aria-pressed={reminderAt !== null}
+        title={reminderAt
+          ? i18n.t("card.reminderAt", { date: formatReminderAt(reminderAt, i18n.locale) })
+          : i18n.t("card.remind")}
+        class="ml-auto grid h-[34px] w-[34px] place-items-center rounded-[10px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ring-offset-surface {reminderAt
+          ? 'text-accent hover:text-accent-hover'
+          : 'text-fg-muted hover:bg-surface-hover hover:text-fg'}"
+      >
+        <Icon name="bell" filled={reminderAt !== null} class="h-[18px] w-[18px]" />
+      </button>
       {#if displayContent}
         <!-- One object, two real buttons: the shared well groups the two copies
              without turning them into a menu. The hairline is a ring, not a
              border, so the pill stays as tall as the halves plus 1 px. -->
         <div
-          class="ml-auto inline-flex items-center gap-0.5 rounded-xl bg-surface-inset p-px ring-1 ring-line-strong/50"
+          class="inline-flex items-center gap-0.5 rounded-xl bg-surface-inset p-px ring-1 ring-line-strong/50"
         >
           <button
             type="button"

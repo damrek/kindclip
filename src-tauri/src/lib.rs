@@ -59,6 +59,12 @@ pub fn run() {
             sql: include_str!("../migrations/005_search_folding.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "clipping_reminders",
+            sql: include_str!("../migrations/006_reminders.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
@@ -102,6 +108,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let db_path = app.path().app_config_dir()?.join("kindclip.db");
             log::info!(

@@ -74,6 +74,10 @@
     rename: async (tag, draft) => toOutcome(await onRenameTag(tag.id, draft.name)),
     merge: (sourceId, targetId) => onMergeTags(sourceId, targetId),
     remove: (tag) => onDeleteTag(tag),
+    // Same rule as the book list: its panels sit next to the file removal.
+    onCancel: () => {
+      removeFileTarget = null;
+    },
   });
 
   /** The panel reports `merge-required` with its own field name per entity. */
@@ -125,7 +129,24 @@
 
   function startFileRemove(file: ImportedFile): void {
     bookActions.deleteTarget = null;
+    tagActions.deleteTarget = null;
     removeFileTarget = file;
+  }
+
+  /** Tag actions follow the book ones: starting one closes the file panel. */
+  function startTagRename(tag: TagCount): void {
+    removeFileTarget = null;
+    tagActions.startRename(tag);
+  }
+
+  function startTagMerge(tag: TagCount): void {
+    removeFileTarget = null;
+    tagActions.startMerge(tag);
+  }
+
+  function startTagDelete(tag: TagCount): void {
+    removeFileTarget = null;
+    tagActions.startDelete(tag);
   }
 
   async function confirmRemoveFile(): Promise<void> {
@@ -435,7 +456,7 @@
                         </span>
                         <button
                           type="button"
-                          onclick={() => tagActions.startRename(tag)}
+                          onclick={() => startTagRename(tag)}
                           disabled={working}
                           class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                         >
@@ -443,7 +464,7 @@
                         </button>
                         <button
                           type="button"
-                          onclick={() => tagActions.startMerge(tag)}
+                          onclick={() => startTagMerge(tag)}
                           disabled={working || tags.length < 2}
                           class="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
                         >
@@ -451,7 +472,7 @@
                         </button>
                         <button
                           type="button"
-                          onclick={() => tagActions.startDelete(tag)}
+                          onclick={() => startTagDelete(tag)}
                           disabled={working}
                           class="rounded-full border border-danger-border px-2.5 py-1 text-xs font-medium text-danger transition hover:bg-danger-soft disabled:opacity-40"
                         >

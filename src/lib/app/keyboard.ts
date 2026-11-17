@@ -68,11 +68,19 @@ export function dispatchShortcut(action: ShortcutAction, handlers: ShortcutHandl
 
 export interface EscapeHandlers {
   /** Writes in flight refuse their close. */
-  busy: () => { export: boolean; library: boolean; restore: boolean };
+  busy: () => {
+    export: boolean;
+    library: boolean;
+    restore: boolean;
+    reminder: boolean;
+    reminderList: boolean;
+  };
   closePalette: () => void;
   closeShortcuts: () => void;
   closeReset: () => void;
   closeExport: () => void;
+  closeReminder: () => void;
+  closeReminderList: () => void;
   closeLibrary: () => void;
   closeStats: () => void;
   closeRestore: () => void;
@@ -100,6 +108,12 @@ export function dispatchEscape(layer: EscapeLayer, handlers: EscapeHandlers): vo
       return;
     case "export":
       if (!busy.export) handlers.closeExport();
+      return;
+    case "reminder":
+      if (!busy.reminder) handlers.closeReminder();
+      return;
+    case "reminderList":
+      if (!busy.reminderList) handlers.closeReminderList();
       return;
     case "library":
       if (!busy.library) handlers.closeLibrary();

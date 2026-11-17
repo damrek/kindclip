@@ -10,9 +10,11 @@ import {
 
 describe("resolveFontPercent", () => {
   it("maps each scale to a root percentage", () => {
+    expect(resolveFontPercent("xs")).toBe(75);
     expect(resolveFontPercent("small")).toBe(87.5);
     expect(resolveFontPercent("medium")).toBe(100);
     expect(resolveFontPercent("large")).toBe(112.5);
+    expect(resolveFontPercent("xl")).toBe(125);
   });
 
   it("falls back to 100 on unknown stored values", () => {
@@ -21,14 +23,16 @@ describe("resolveFontPercent", () => {
 });
 
 describe("nextFontScale", () => {
-  it("cycles small -> medium -> large -> small", () => {
+  it("cycles through the five steps and wraps around", () => {
+    expect(nextFontScale("xs")).toBe("small");
     expect(nextFontScale("small")).toBe("medium");
     expect(nextFontScale("medium")).toBe("large");
-    expect(nextFontScale("large")).toBe("small");
+    expect(nextFontScale("large")).toBe("xl");
+    expect(nextFontScale("xl")).toBe("xs");
   });
 
-  it("exposes the three supported scales in order", () => {
-    expect(FONT_SCALES).toEqual(["small", "medium", "large"]);
+  it("exposes the five supported scales in order", () => {
+    expect(FONT_SCALES).toEqual(["xs", "small", "medium", "large", "xl"]);
   });
 });
 
@@ -39,8 +43,10 @@ describe("loadFontScale", () => {
     expect(loadFontScale("")).toBe("medium");
   });
 
-  it("keeps a supported stored choice", () => {
-    expect(loadFontScale("large")).toBe("large");
+  it("keeps every supported stored choice", () => {
+    for (const scale of FONT_SCALES) {
+      expect(loadFontScale(scale)).toBe(scale);
+    }
   });
 });
 

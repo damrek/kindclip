@@ -9,6 +9,8 @@
   import Modal from "./components/Modal.svelte";
   import Pagination from "./components/Pagination.svelte";
   import PreferencesDialog from "./components/PreferencesDialog.svelte";
+  import ReminderDialog from "./components/ReminderDialog.svelte";
+  import RemindersDialog from "./components/RemindersDialog.svelte";
   import ReadingView from "./components/ReadingView.svelte";
   import RestoreDialog from "./components/RestoreDialog.svelte";
   import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
@@ -55,8 +57,10 @@
   } from "./lib/shortcuts";
   import type { BookSortKey } from "./lib/sorting";
 import type { Book, ClippingKind, ClippingRow } from "./lib/types";
+  import type { ReminderItem } from "./lib/reminders";
   import { createBookShelf, createClippingList } from "./lib/app/catalog.svelte";
   import { createPreferences } from "./lib/app/preferences.svelte";
+  import { createReminders } from "./lib/app/reminders.svelte";
   import { createReadingState } from "./lib/app/reading.svelte";
   import { createLibraryPanel } from "./lib/app/library.svelte";
   import { createSnapshotState } from "./lib/app/snapshot.svelte";
@@ -85,6 +89,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 
   const prefs = createPreferences();
   const t = prefs.t;
+  /** One system notification per clipping, delivered while the app runs. */
+  const reminders = createReminders(() => t("reminder.noContent"));
   /** Running version, shown beside the settings button; hidden outside Tauri. */
   let appVersion = $state<string | null>(null);
 
@@ -110,6 +116,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     shelf,
     overlays,
     snapshot,
+    reminders,
     getPort: () => getDb(),
     setTags: (tags) => {
       allTags = tags;
@@ -126,6 +133,10 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   let searchInput = $state<HTMLInputElement | null>(null);
 
   let importStatus = $state<string | null>(null);
+  /** Clipping whose reminder dialog is open; null when closed. */
+  let reminderTarget = $state<{ id: number; title: string } | null>(null);
+  /** The dialog was opened from the reminders panel and must return to it. */
+  let reminderFromList = $state(false);
   /** Full-window reading session; null when closed. */
   const reading = createReadingState();
   /** Element that opened the reading view; focus returns to it on close. */
@@ -199,7 +210,9 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       stats.open ||
       snapshot.open ||
       overlays.preferences ||
-      overlays.shortcuts,
+      overlays.shortcuts ||
+      overlays.reminder ||
+      overlays.reminderList,
   );
   const pages = $derived(Math.max(1, Math.ceil((list.result?.total ?? 0) / filters.values.pageSize)));
 
@@ -325,6 +338,39 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   const openPalette = (): void => overlays.openPalette(modalOpen);
   const closePalette = (): void => overlays.closePalette(listRegion);
 
+  function openReminders(): void {
+    overlays.openReminderList();
+  }
+
+  function closeReminders(): void {
+    if (!overlays.reminderList) return;
+    overlays.closeReminderList(listRegion);
+  }
+
+  function openReminder(target: { id: number; title: string }): void {
+    reminderTarget = target;
+    reminderFromList = false;
+    overlays.openReminder();
+  }
+
+  /** Edit from the panel: the list gives way to the dialog, opener intact. */
+  function editReminder(item: ReminderItem): void {
+    reminderTarget = { id: item.clippingId, title: item.bookTitle };
+    reminderFromList = true;
+    overlays.handOffReminderListToDialog();
+  }
+
+  function closeReminder(): void {
+    if (!overlays.reminder) return;
+    reminderTarget = null;
+    if (reminderFromList) {
+      reminderFromList = false;
+      overlays.returnToReminderList();
+      return;
+    }
+    overlays.closeReminder(listRegion);
+  }
+
   function closeReset(): void {
     if (actions.closeReset()) {
       restoreOpener();
@@ -423,11 +469,15 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       export: exports.task.busy,
       library: library.busy,
       restore: snapshot.busy,
+      reminder: reminders.busyId !== null,
+      reminderList: reminders.busyId !== null,
     }),
     closePalette,
     closeShortcuts,
     closeReset,
     closeExport,
+    closeReminder,
+    closeReminderList: closeReminders,
     closeLibrary,
     closeStats,
     closeRestore,
@@ -453,6 +503,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
         shortcuts: overlays.shortcuts,
         reset: actions.resetTarget !== null,
         exportOpen: exports.open,
+        reminder: overlays.reminder,
+        reminderList: overlays.reminderList,
         library: library.open,
         stats: stats.open,
         restore: snapshot.open,
@@ -753,6 +805,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
           importing={imports.busy}
           onOpenLibrary={openLibrary}
           onOpenStats={openStats}
+          onOpenReminders={openReminders}
+          reminderCount={reminders.pending.length}
           libraryActionsDisabled={!view.hasLibrary}
         />
       </aside>
@@ -899,7 +953,9 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
         <div
           bind:this={listRegion}
           tabindex="-1"
-          class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {list.loading ? 'opacity-50' : ''}"
+          class="flex flex-1 flex-col gap-[var(--list-gap)] overflow-y-auto px-6 py-4 {list.loading
+            ? 'opacity-50'
+            : ''}"
         >
           {#if list.result && list.result.items.length > 0}
             {#each list.result.items as clipping (clipping.id)}
@@ -909,6 +965,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
                 copied={actions.copyFlash?.id === clipping.id && actions.copyFlash.kind === "content"}
                 quoted={actions.copyFlash?.id === clipping.id && actions.copyFlash.kind === "quote"}
                 query={list.resultFilter.query}
+                reminderAt={reminders.at(clipping.id)}
+                onRemind={() => openReminder({ id: clipping.id, title: clipping.title })}
                 onSelect={(id) => (overlays.selectedId = id)}
                 onOpen={startReading}
                 onToggleFavorite={toggleStar}
@@ -1096,12 +1154,34 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   />
 {/if}
 
+{#if overlays.reminderList}
+  <RemindersDialog
+    items={reminders.pending}
+    busyId={reminders.busyId}
+    onEdit={editReminder}
+    onRemove={(clippingId) => reminders.cancel(clippingId)}
+    onClose={closeReminders}
+  />
+{/if}
+
+{#if reminderTarget}
+  <ReminderDialog
+    title={reminderTarget.title}
+    reminderAt={reminders.at(reminderTarget.id)}
+    busy={reminders.busyId === reminderTarget.id}
+    onSchedule={(at) => reminders.schedule(reminderTarget!.id, at)}
+    onCancelReminder={() => reminders.cancel(reminderTarget!.id)}
+    onClose={closeReminder}
+  />
+{/if}
+
 {#if overlays.preferences}
   <PreferencesDialog
     locale={prefs.locale}
     theme={prefs.themeMode}
     palette={prefs.darkPalette}
     font={prefs.fontScale}
+    density={prefs.density}
     backingUp={snapshot.backup.busy}
     backupStatus={snapshot.backup.status}
     autoBackup={prefs.autoBackupEnabled}
@@ -1109,6 +1189,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     onTheme={prefs.setTheme}
     onPalette={prefs.setDarkPalette}
     onFont={prefs.setFontScale}
+    onDensity={prefs.setDensity}
     onAutoBackup={prefs.setAutoBackup}
     onOpenDb={revealDatabase}
     onBackup={onBackup}

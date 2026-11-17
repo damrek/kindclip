@@ -19,7 +19,7 @@
     <meta property="og:title" content="kindclip — your Kindle highlights, finally in one place" />
     <meta
       property="og:description"
-      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, Markdown quotes and Obsidian exports. Local-first, no account, free."
+      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, reading stats, reminders, Markdown quotes and Obsidian exports. Local-first, no account, free."
     />
     <meta property="og:image" content="https://damrek.github.io/kindclip/og.png" />
     <meta property="og:image:type" content="image/png" />
@@ -27,18 +27,18 @@
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="kindclip: the library view in a dark theme, next to the tagline “Your Kindle highlights, finally in one place.”"
+      content="kindclip: the library view in the Tokyo Night palette, next to the tagline “Your Kindle highlights, finally in one place.”"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="kindclip — your Kindle highlights, finally in one place" />
     <meta
       name="twitter:description"
-      content="A free desktop viewer for My Clippings.txt: search, tag, edit notes, export to Markdown, JSON or CSV. Windows, macOS and Linux."
+      content="A free desktop viewer for My Clippings.txt: search, tag, edit notes, get reminders, export to Markdown, JSON or CSV. Windows, macOS and Linux."
     />
     <meta name="twitter:image" content="https://damrek.github.io/kindclip/og.png" />
     <meta
       name="twitter:image:alt"
-      content="kindclip: the library view in a dark theme, next to the tagline “Your Kindle highlights, finally in one place.”"
+      content="kindclip: the library view in the Tokyo Night palette, next to the tagline “Your Kindle highlights, finally in one place.”"
     />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1f26" />
@@ -63,7 +63,7 @@
           "price": "0",
           "priceCurrency": "USD"
         },
-        "screenshot": "https://damrek.github.io/kindclip/screen_1.png",
+        "screenshot": "https://damrek.github.io/kindclip/screens/dark_theme.png",
         "image": "https://damrek.github.io/kindclip/og.png",
         "author": {
           "@type": "Person",
@@ -78,7 +78,10 @@
           "Copy a clipping as a Markdown quote",
           "Export to Markdown, JSON or CSV",
           "One Markdown file per book for Obsidian",
-          "Verified backups and restore"
+          "Verified backups and restore",
+          "Seven dark palettes, five text sizes and a list density",
+          "System reminders for any clipping",
+          "Reading stats with an interactive kind donut"
         ]
       }
     </script>
@@ -612,6 +615,21 @@
         margin-top: 32px;
       }
 
+      .version-pill {
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+        padding: 3px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--page-alt);
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 550;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.01em;
+      }
+
       .micro {
         display: flex;
         flex-wrap: wrap;
@@ -974,6 +992,39 @@
         --p-soft: #0d4154;
       }
 
+      .p-rose-pine {
+        --p-surface: #191724;
+        --p-raised: #1f1d2e;
+        --p-line: #403d52;
+        --p-fg: #e0def4;
+        --p-muted: #a6a2bf;
+        --p-accent: #c4a7e7;
+        --p-accent-text: #dcc8f7;
+        --p-soft: #302c44;
+      }
+
+      .p-gruvbox {
+        --p-surface: #282828;
+        --p-raised: #32302f;
+        --p-line: #504945;
+        --p-fg: #ebdbb2;
+        --p-muted: #bdae93;
+        --p-accent: #fabd2f;
+        --p-accent-text: #ffd166;
+        --p-soft: #453722;
+      }
+
+      .p-tokyo {
+        --p-surface: #1a1b26;
+        --p-raised: #1f2335;
+        --p-line: #2f334d;
+        --p-fg: #c0caf5;
+        --p-muted: #a9b1d6;
+        --p-accent: #7aa2f7;
+        --p-accent-text: #7dcfff;
+        --p-soft: #2b3350;
+      }
+
       /* ------------------------------------------------------------------
          Shortcuts split
          ------------------------------------------------------------------ */
@@ -1066,6 +1117,18 @@
         display: block;
         width: 100%;
         border-radius: 10px;
+      }
+
+      .theme-shot,
+      .feature-shot {
+        max-width: 640px;
+        margin: clamp(28px, 4vw, 44px) auto 0;
+      }
+
+      /* The palette grid follows the light-theme shot: keep clear air between
+         them instead of stacking the two blocks edge to edge. */
+      .theme-shot {
+        margin-bottom: clamp(32px, 5vw, 52px);
       }
 
       /* ------------------------------------------------------------------
@@ -1537,7 +1600,8 @@
 
           <p class="lede">
             kindclip reads <code>My Clippings.txt</code> once and turns years of
-            highlights, notes and bookmarks into a fast, searchable library.
+            highlights, notes and bookmarks into a fast, searchable library,
+            with reading stats and reminders for what you mean to revisit.
             Local-first, keyboard-first, and native on Windows, Linux and macOS.
           </p>
 
@@ -1546,6 +1610,12 @@
               class="btn btn-primary"
               href="https://github.com/damrek/kindclip/releases/latest"
               >Download latest release</a
+            >
+            <span
+              class="version-pill"
+              data-release-version="v2.0.0"
+              title="Latest release"
+              >v2.0.0</span
             >
             <a class="btn btn-ghost" href="https://github.com/damrek/kindclip"
               >View on GitHub</a
@@ -1561,13 +1631,13 @@
 
           <figure class="hero-shot">
             <img
-              src="screen_1.png"
-              width="1315"
-              height="1011"
-              alt="kindclip library view in the Atom One Dark palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
+              src="screens/dark_theme.png"
+              width="1250"
+              height="998"
+              alt="kindclip in the Tokyo Night palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
             />
             <figcaption>
-              Library view in Atom One Dark: book sidebar, clipping cards with
+              Library view in Tokyo Night: book sidebar, clipping cards with
               page and date, and the active filters as removable chips.
             </figcaption>
           </figure>
@@ -1585,8 +1655,8 @@
             <span>accounts, servers or sync</span>
           </div>
           <div class="stat">
-            <b>5</b>
-            <span>themes, each checked for WCAG AA</span>
+            <b>8</b>
+            <span>palettes, each checked for WCAG AA</span>
           </div>
           <div class="stat">
             <b>6</b>
@@ -1692,6 +1762,40 @@
             <article class="feature">
               <span class="feature-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
+              </span>
+              <div>
+                <h3>Reminders that resurface</h3>
+                <p>
+                  Schedule a system notification for any clipping: tonight,
+                  tomorrow, in a week or an exact time.
+                </p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                  <circle cx="9" cy="6" r="2" />
+                  <circle cx="15" cy="12" r="2" />
+                  <circle cx="7" cy="18" r="2" />
+                </svg>
+              </span>
+              <div>
+                <h3>Make it yours</h3>
+                <p>
+                  Seven dark palettes, five text sizes and a list density, all
+                  tuned to clear WCAG AA.
+                </p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="4" width="18" height="12" rx="2" />
                   <path d="M8 20h8M12 16v4" />
                 </svg>
@@ -1705,6 +1809,20 @@
               </div>
             </article>
           </div>
+
+          <figure class="shot-card feature-shot">
+            <img
+              src="screens/dark_theme_stats.png"
+              width="1525"
+              height="1073"
+              loading="lazy"
+              alt="Reading stats dialog: clippings per year, a kind donut with counts and shares, and the top books."
+            />
+            <figcaption class="sr-only">
+              Reading stats: library totals, clippings per year, by kind and by
+              book.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
@@ -1783,13 +1901,28 @@
         <div class="wrap">
           <div class="section-head">
             <span class="section-label">Themes</span>
-            <h2>Five themes, one design system</h2>
+            <h2>Eight palettes, one design system</h2>
             <p>
-              A light theme and four dark palettes — Atom One Dark, Darcula,
-              Nord and Solarized Dark — ported token by token. Every text pair
-              is tuned to clear WCAG AA on the surfaces it lands on.
+              A light theme and seven dark palettes — Atom One Dark, Darcula,
+              Nord, Solarized Dark, Rosé Pine, Gruvbox Dark and Tokyo Night —
+              ported token by token. Every text pair is tuned to clear WCAG AA
+              on the surfaces it lands on.
             </p>
           </div>
+
+          <figure class="shot-card theme-shot">
+            <img
+              src="screens/light_theme.png"
+              width="1525"
+              height="1073"
+              loading="lazy"
+              alt="kindclip in the light theme: the same library view, sidebar and clipping cards over white surfaces."
+            />
+            <figcaption class="sr-only">
+              The light theme shares the layout and tokens with every dark
+              palette.
+            </figcaption>
+          </figure>
 
           <div class="palettes">
             <article class="palette p-light">
@@ -1906,6 +2039,75 @@
                 <span class="palette-name">Solarized Dark</span>
               </div>
             </article>
+
+            <article class="palette p-rose-pine">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    The happiness of your life depends upon the quality of your
+                    thoughts.
+                  </p>
+                  <p class="mini-title">Meditations</p>
+                  <p class="mini-meta">Marcus Aurelius · p. 34</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Rosé Pine</span>
+              </div>
+            </article>
+
+            <article class="palette p-gruvbox">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    It is not that we have a short time to live, but that we
+                    waste a lot of it.
+                  </p>
+                  <p class="mini-title">On the Shortness of Life</p>
+                  <p class="mini-meta">Seneca · p. 7</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Gruvbox Dark</span>
+              </div>
+            </article>
+
+            <article class="palette p-tokyo">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    No man ever steps in the same river twice, for it is not the
+                    same river and he is not the same man.
+                  </p>
+                  <p class="mini-title">Fragments</p>
+                  <p class="mini-meta">Heraclitus · p. 12</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Tokyo Night</span>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -1955,11 +2157,11 @@
 
           <figure class="shot-card">
             <img
-              src="screen_2.png"
-              width="1315"
-              height="1011"
+              src="screens/dark_theme_search.png"
+              width="1525"
+              height="1073"
               loading="lazy"
-              alt="The global search palette over the library, listing two matching clippings from different books with their match counts."
+              alt="The global search palette over the library, listing two matching clippings from different books with the searched word highlighted."
             />
             <figcaption class="sr-only">
               The global palette searches every clipping regardless of the active

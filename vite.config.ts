@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
+import { svelteTesting } from "@testing-library/svelte/vite";
 
 const { TAURI_DEV_HOST: host, TAURI_ENV_PLATFORM } =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
@@ -8,7 +9,11 @@ const isTauri = !!TAURI_ENV_PLATFORM;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [svelte(), tailwindcss()],
+  // `svelteTesting` makes Vitest resolve Svelte's browser runtime (component
+  // tests mount for real) instead of its server build. It is inert outside
+  // Vitest. Cleanup stays manual so node-environment suites never load the DOM
+  // library: each component test calls `setup`/`cleanup` itself.
+  plugins: [svelte(), tailwindcss(), svelteTesting({ autoCleanup: false })],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

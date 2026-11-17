@@ -11,7 +11,14 @@
 import { readStored, writeStored } from "./storage";
 
 export type ThemeMode = "system" | "light" | "dark";
-export type DarkPalette = "atom-one-dark" | "darcula" | "nord" | "solarized-dark";
+export type DarkPalette =
+  | "atom-one-dark"
+  | "darcula"
+  | "nord"
+  | "solarized-dark"
+  | "rose-pine"
+  | "gruvbox-dark"
+  | "tokyo-night";
 export type ThemePalette = DarkPalette | "light";
 export type EffectiveMode = "light" | "dark";
 
@@ -26,6 +33,9 @@ export const DARK_PALETTES: DarkPalette[] = [
   "darcula",
   "nord",
   "solarized-dark",
+  "rose-pine",
+  "gruvbox-dark",
+  "tokyo-night",
 ];
 export const DEFAULT_DARK_PALETTE: DarkPalette = "atom-one-dark";
 
@@ -35,6 +45,9 @@ export const DARK_PALETTE_NAMES: Record<DarkPalette, string> = {
   darcula: "Darcula",
   nord: "Nord",
   "solarized-dark": "Solarized Dark",
+  "rose-pine": "Rosé Pine",
+  "gruvbox-dark": "Gruvbox Dark",
+  "tokyo-night": "Tokyo Night",
 };
 
 const MODE_STORAGE_KEY = "kindclip-theme";

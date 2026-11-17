@@ -23,7 +23,8 @@
     | "copy"
     | "quote"
     | "check"
-    | "star";
+    | "star"
+    | "bell";
 
   interface Props {
     name: IconName;
@@ -79,6 +80,10 @@
     ],
     check: ["M20 6L9 17l-5-5"],
     // Five-point star, symmetric around x=12: outer r=9.4, inner r=4.0.
+    bell: [
+      "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9",
+      "M13.73 21a2 2 0 0 1-3.46 0",
+    ],
     star: ["M12 2.7 L14.35 8.86 L20.94 9.2 L15.8 13.34 L17.53 19.7 L12 16.1 L6.47 19.7 L8.2 13.34 L3.06 9.2 L9.65 8.86z"],
   };
 </script>
