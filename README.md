@@ -237,8 +237,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
-- **Clipping reminders**: schedule a system notification for one clipping so it
-  resurfaces on a chosen date.
 - **Desktop polish**: signed auto-update.
 
 The layered architecture (parser → commands → SQL → UI) keeps additions local.

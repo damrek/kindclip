@@ -78,7 +78,9 @@
           "Copy a clipping as a Markdown quote",
           "Export to Markdown, JSON or CSV",
           "One Markdown file per book for Obsidian",
-          "Verified backups and restore"
+          "Verified backups and restore",
+          "Seven dark palettes, five text sizes and a list density",
+          "System reminders for any clipping"
         ]
       }
     </script>
@@ -974,6 +976,39 @@
         --p-soft: #0d4154;
       }
 
+      .p-rose-pine {
+        --p-surface: #191724;
+        --p-raised: #1f1d2e;
+        --p-line: #403d52;
+        --p-fg: #e0def4;
+        --p-muted: #a6a2bf;
+        --p-accent: #c4a7e7;
+        --p-accent-text: #dcc8f7;
+        --p-soft: #302c44;
+      }
+
+      .p-gruvbox {
+        --p-surface: #282828;
+        --p-raised: #32302f;
+        --p-line: #504945;
+        --p-fg: #ebdbb2;
+        --p-muted: #bdae93;
+        --p-accent: #fabd2f;
+        --p-accent-text: #ffd166;
+        --p-soft: #453722;
+      }
+
+      .p-tokyo {
+        --p-surface: #1a1b26;
+        --p-raised: #1f2335;
+        --p-line: #2f334d;
+        --p-fg: #c0caf5;
+        --p-muted: #a9b1d6;
+        --p-accent: #7aa2f7;
+        --p-accent-text: #7dcfff;
+        --p-soft: #2b3350;
+      }
+
       /* ------------------------------------------------------------------
          Shortcuts split
          ------------------------------------------------------------------ */
@@ -1692,6 +1727,40 @@
             <article class="feature">
               <span class="feature-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
+              </span>
+              <div>
+                <h3>Reminders that resurface</h3>
+                <p>
+                  Schedule a system notification for any clipping: tonight,
+                  tomorrow, in a week or an exact time.
+                </p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                  <circle cx="9" cy="6" r="2" />
+                  <circle cx="15" cy="12" r="2" />
+                  <circle cx="7" cy="18" r="2" />
+                </svg>
+              </span>
+              <div>
+                <h3>Make it yours</h3>
+                <p>
+                  Seven dark palettes, five text sizes and a list density, all
+                  tuned to clear WCAG AA.
+                </p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="4" width="18" height="12" rx="2" />
                   <path d="M8 20h8M12 16v4" />
                 </svg>
@@ -1783,11 +1852,12 @@
         <div class="wrap">
           <div class="section-head">
             <span class="section-label">Themes</span>
-            <h2>Five themes, one design system</h2>
+            <h2>Eight palettes, one design system</h2>
             <p>
-              A light theme and four dark palettes — Atom One Dark, Darcula,
-              Nord and Solarized Dark — ported token by token. Every text pair
-              is tuned to clear WCAG AA on the surfaces it lands on.
+              A light theme and seven dark palettes — Atom One Dark, Darcula,
+              Nord, Solarized Dark, Rosé Pine, Gruvbox Dark and Tokyo Night —
+              ported token by token. Every text pair is tuned to clear WCAG AA
+              on the surfaces it lands on.
             </p>
           </div>
 
@@ -1904,6 +1974,75 @@
                   <i style="background: var(--p-fg)"></i>
                 </span>
                 <span class="palette-name">Solarized Dark</span>
+              </div>
+            </article>
+
+            <article class="palette p-rose-pine">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    The happiness of your life depends upon the quality of your
+                    thoughts.
+                  </p>
+                  <p class="mini-title">Meditations</p>
+                  <p class="mini-meta">Marcus Aurelius · p. 34</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Rosé Pine</span>
+              </div>
+            </article>
+
+            <article class="palette p-gruvbox">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    It is not that we have a short time to live, but that we
+                    waste a lot of it.
+                  </p>
+                  <p class="mini-title">On the Shortness of Life</p>
+                  <p class="mini-meta">Seneca · p. 7</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Gruvbox Dark</span>
+              </div>
+            </article>
+
+            <article class="palette p-tokyo">
+              <div class="palette-frame">
+                <div class="mini-card">
+                  <p class="mini-quote">
+                    No man ever steps in the same river twice, for it is not the
+                    same river and he is not the same man.
+                  </p>
+                  <p class="mini-title">Fragments</p>
+                  <p class="mini-meta">Heraclitus · p. 12</p>
+                  <span class="mini-kind">Highlight</span>
+                </div>
+              </div>
+              <div class="palette-meta">
+                <span class="swatches" aria-hidden="true">
+                  <i style="background: var(--p-surface)"></i>
+                  <i style="background: var(--p-raised)"></i>
+                  <i style="background: var(--p-accent)"></i>
+                  <i style="background: var(--p-fg)"></i>
+                </span>
+                <span class="palette-name">Tokyo Night</span>
               </div>
             </article>
           </div>

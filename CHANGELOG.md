@@ -10,6 +10,20 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-17
+
+### Added
+
+- **Appearance options**: three dark palettes join the set — Rosé Pine, Gruvbox
+  Dark and Tokyo Night — the text size offers five steps (XS–XL), and a list
+  density control (compact, comfortable, spacious) changes the space the
+  clipping list spends per card. Every palette keeps the WCAG AA contract.
+- **Clipping reminders**: the bell on a clipping schedules a system
+  notification for a chosen date and time, with presets for tonight, tomorrow
+  and next week. Reminders are delivered while the app runs and caught up on
+  launch; the sidebar lists and edits them, and removing one asks for
+  confirmation.
+
 ## [1.22.0] - 2026-11-16
 
 ### Changed
