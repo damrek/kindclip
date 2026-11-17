@@ -232,8 +232,6 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
-- **Note ↔ highlight pairing** and **bulk actions** (tag, favorite or export a
-  selection).
 - **Desktop polish**: signed auto-update.
 
 The layered architecture (parser → commands → SQL → UI) keeps additions local.
