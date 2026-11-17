@@ -19,12 +19,14 @@
     type ThemeMode,
   } from "../lib/theme";
   import { FONT_SCALES, type FontScale } from "../lib/font";
+  import { DENSITIES, type Density } from "../lib/density";
 
   interface Props {
     locale: Locale;
     theme: ThemeMode;
     palette: DarkPalette;
     font: FontScale;
+    density: Density;
     backingUp: boolean;
     backupStatus: string | null;
     autoBackup: boolean;
@@ -32,6 +34,7 @@
     onTheme: (choice: ThemeMode) => void;
     onPalette: (palette: DarkPalette) => void;
     onFont: (scale: FontScale) => void;
+    onDensity: (level: Density) => void;
     onAutoBackup: (enabled: boolean) => void;
     /** Resolves to the failure message, or null when the reveal worked. */
     onOpenDb: () => Promise<string | null>;
@@ -46,6 +49,7 @@
     theme,
     palette,
     font,
+    density,
     backingUp,
     backupStatus,
     autoBackup,
@@ -53,6 +57,7 @@
     onTheme,
     onPalette,
     onFont,
+    onDensity,
     onAutoBackup,
     onOpenDb,
     onBackup,
@@ -137,8 +142,8 @@
           {i18n.t("prefs.appearance")}
         </h3>
 
-        <!-- Language and text size share a row: both are short, reading-related
-             choices, and the saved height keeps the dialog out of scroll. -->
+        <!-- Language and density share a row; text size needs the full width
+             because the five steps are the longest labels in this section. -->
         <div class="mt-2 grid grid-cols-2 gap-3">
           <label class="block min-w-0">
             <span class="text-xs text-fg-muted">{i18n.t("lang.label")}</span>
@@ -155,25 +160,48 @@
           </label>
 
           <div class="min-w-0">
-            <span class="text-xs text-fg-muted">{i18n.t("prefs.font")}</span>
+            <span class="text-xs text-fg-muted">{i18n.t("prefs.density")}</span>
             <div
               class="mt-0.5 flex rounded-lg border border-line p-0.5"
               role="group"
-              aria-label={i18n.t("prefs.font")}
+              aria-label={i18n.t("prefs.density")}
             >
-              {#each FONT_SCALES as scale (scale)}
+              {#each DENSITIES as level (level)}
                 <button
                   type="button"
-                  onclick={() => onFont(scale)}
-                  aria-pressed={font === scale}
-                  class="flex-1 rounded-md px-2 py-1 text-xs font-medium transition {font === scale
+                  onclick={() => onDensity(level)}
+                  aria-pressed={density === level}
+                  class="flex-1 rounded-md px-1.5 py-1 text-xs font-medium transition {density ===
+                  level
                     ? 'bg-inverse text-inverse-fg'
                     : 'text-fg-muted hover:bg-surface-hover'}"
                 >
-                  {i18n.t(`font.${scale}`)}
+                  {i18n.t(`density.${level}`)}
                 </button>
               {/each}
             </div>
+          </div>
+        </div>
+
+        <div class="mt-3 min-w-0">
+          <span class="text-xs text-fg-muted">{i18n.t("prefs.font")}</span>
+          <div
+            class="mt-0.5 flex rounded-lg border border-line p-0.5"
+            role="group"
+            aria-label={i18n.t("prefs.font")}
+          >
+            {#each FONT_SCALES as scale (scale)}
+              <button
+                type="button"
+                onclick={() => onFont(scale)}
+                aria-pressed={font === scale}
+                class="flex-1 rounded-md px-1.5 py-1 text-xs font-medium transition {font === scale
+                  ? 'bg-inverse text-inverse-fg'
+                  : 'text-fg-muted hover:bg-surface-hover'}"
+              >
+                {i18n.t(`font.${scale}`)}
+              </button>
+            {/each}
           </div>
         </div>
 

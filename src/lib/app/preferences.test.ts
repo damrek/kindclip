@@ -12,6 +12,7 @@ function fakeDeps(stored: Record<string, string> = {}) {
     },
     applyTheme: (mode, palette) => applied.push({ kind: "theme", value: `${mode}:${palette}` }),
     applyFontScale: (scale) => applied.push({ kind: "font", value: scale }),
+    applyDensity: (level) => applied.push({ kind: "density", value: level }),
     log: () => {},
   };
   return { deps, settings, applied };
@@ -24,6 +25,7 @@ describe("Preferences.hydrate", () => {
       [SETTINGS_KEYS.theme]: "dark",
       [SETTINGS_KEYS.darkPalette]: "nord",
       [SETTINGS_KEYS.fontScale]: "large",
+      [SETTINGS_KEYS.density]: "compact",
       [SETTINGS_KEYS.autoBackup]: "0",
     });
     const prefs = new Preferences(deps);
@@ -33,9 +35,11 @@ describe("Preferences.hydrate", () => {
     expect(prefs.themeMode).toBe("dark");
     expect(prefs.darkPalette).toBe("nord");
     expect(prefs.fontScale).toBe("large");
+    expect(prefs.density).toBe("compact");
     expect(prefs.autoBackupEnabled).toBe(false);
     expect(applied).toContainEqual({ kind: "theme", value: "dark:nord" });
     expect(applied).toContainEqual({ kind: "font", value: "large" });
+    expect(applied).toContainEqual({ kind: "density", value: "compact" });
     expect(settings.get(SETTINGS_KEYS.theme)).toBe("dark");
   });
 
@@ -45,6 +49,7 @@ describe("Preferences.hydrate", () => {
       [SETTINGS_KEYS.theme]: "neon",
       [SETTINGS_KEYS.darkPalette]: "neon",
       [SETTINGS_KEYS.fontScale]: "huge",
+      [SETTINGS_KEYS.density]: "crowded",
     });
     const prefs = new Preferences(deps);
     await prefs.hydrate();
@@ -53,7 +58,9 @@ describe("Preferences.hydrate", () => {
     expect(settings.get(SETTINGS_KEYS.theme)).toBe(prefs.themeMode);
     expect(settings.get(SETTINGS_KEYS.darkPalette)).toBe(prefs.darkPalette);
     expect(settings.get(SETTINGS_KEYS.fontScale)).toBe(prefs.fontScale);
+    expect(settings.get(SETTINGS_KEYS.density)).toBe(prefs.density);
     expect(prefs.fontScale).not.toBe("huge");
+    expect(prefs.density).toBe("comfortable");
   });
 
   it("defaults the auto-backup preference to on and records it", async () => {
@@ -81,6 +88,7 @@ describe("Preferences.hydrate", () => {
       setSetting: async () => {},
       applyTheme: () => {},
       applyFontScale: () => {},
+      applyDensity: () => {},
       log: () => {},
     };
     const prefs = new Preferences(deps);
@@ -95,19 +103,23 @@ describe("Preferences mutators as plain callbacks", () => {
     const prefs = new Preferences(deps);
     // `onTheme={prefs.setTheme}` hands Svelte a receiver-less function;
     // destructuring reproduces exactly that call shape.
-    const { setLocale, setTheme, setDarkPalette, setFontScale, setAutoBackup } = prefs;
+    const { setLocale, setTheme, setDarkPalette, setFontScale, setDensity, setAutoBackup } =
+      prefs;
 
     expect(() => setLocale("en")).not.toThrow();
     expect(() => setTheme("dark")).not.toThrow();
     expect(() => setDarkPalette("nord")).not.toThrow();
     expect(() => setFontScale("large")).not.toThrow();
+    expect(() => setDensity("spacious")).not.toThrow();
     expect(() => setAutoBackup(false)).not.toThrow();
 
     expect(prefs.themeMode).toBe("dark");
     expect(prefs.darkPalette).toBe("nord");
     expect(prefs.fontScale).toBe("large");
+    expect(prefs.density).toBe("spacious");
     expect(prefs.autoBackupEnabled).toBe(false);
     expect(applied).toContainEqual({ kind: "theme", value: "dark:nord" });
     expect(applied).toContainEqual({ kind: "font", value: "large" });
+    expect(applied).toContainEqual({ kind: "density", value: "spacious" });
   });
 });

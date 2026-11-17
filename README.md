@@ -112,11 +112,12 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
   and the settings gear; search, filters, sort and export sit above the list
   they act on; the sidebar footer carries import, library management and
   statistics.
-- **Preferences dialog**: language, system/light/dark theme with four dark
-  palettes — Atom One Dark, Darcula, Nord and Solarized Dark — text size S/M/L,
-  DB location, logs folder and shortcuts.
+- **Preferences dialog**: language, system/light/dark theme with seven dark
+  palettes — Atom One Dark, Darcula, Nord, Solarized Dark, Rosé Pine, Gruvbox
+  Dark and Tokyo Night — five text sizes (XS–XL) and a list density
+  (compact/comfortable/spacious), DB location, logs folder and shortcuts.
 - **WCAG AA palettes**: body, muted, accent and status text clear 4.5:1 on
-  every surface they land on, in all five themes; search marks and text
+  every surface they land on, in all eight palettes; search marks and text
   selection are tuned the same way.
 - **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
   `Ctrl/Cmd+F` focus search; `Ctrl/Cmd+P` searches every clipping across all

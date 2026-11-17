@@ -150,6 +150,9 @@ export class ShellBoot {
       deps.prefs.applyCurrentFont();
     });
     $effect(() => {
+      deps.prefs.applyCurrentDensity();
+    });
+    $effect(() => {
       const media = window.matchMedia("(prefers-color-scheme: dark)");
       const apply = (): void => deps.prefs.applyCurrentTheme();
       apply();

@@ -149,7 +149,7 @@
   data-clipping-id={clipping.id}
   tabindex="-1"
   use:selectOnInteraction={() => onSelect(clipping.id)}
-  class="clipping-card rounded-2xl border border-line bg-surface-raised p-4 transition-colors hover:border-line-strong"
+  class="clipping-card rounded-2xl border border-line bg-surface-raised p-[var(--card-padding)] transition-colors hover:border-line-strong"
 >
   <div class="flex items-start gap-2.5">
     <div class="min-w-0 flex-1">
@@ -204,14 +204,14 @@
     </button>
   </div>
 
-  <div class="mt-3.5 text-sm">
+  <div class="mt-[var(--card-section-gap)] text-sm">
     <span class="block font-medium text-fg"><HighlightedText text={clipping.title} {query} /></span>
     {#if clipping.author}
       <span class="block text-fg-muted"><HighlightedText text={clipping.author} {query} /></span>
     {/if}
   </div>
 
-  <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+  <div class="mt-[var(--card-meta-gap)] flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
     <button
       type="button"
       onclick={(event) => {

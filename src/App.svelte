@@ -899,7 +899,9 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
         <div
           bind:this={listRegion}
           tabindex="-1"
-          class="flex-1 space-y-3 overflow-y-auto px-6 py-4 {list.loading ? 'opacity-50' : ''}"
+          class="flex flex-1 flex-col gap-[var(--list-gap)] overflow-y-auto px-6 py-4 {list.loading
+            ? 'opacity-50'
+            : ''}"
         >
           {#if list.result && list.result.items.length > 0}
             {#each list.result.items as clipping (clipping.id)}
@@ -1102,6 +1104,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     theme={prefs.themeMode}
     palette={prefs.darkPalette}
     font={prefs.fontScale}
+    density={prefs.density}
     backingUp={snapshot.backup.busy}
     backupStatus={snapshot.backup.status}
     autoBackup={prefs.autoBackupEnabled}
@@ -1109,6 +1112,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     onTheme={prefs.setTheme}
     onPalette={prefs.setDarkPalette}
     onFont={prefs.setFontScale}
+    onDensity={prefs.setDensity}
     onAutoBackup={prefs.setAutoBackup}
     onOpenDb={revealDatabase}
     onBackup={onBackup}
