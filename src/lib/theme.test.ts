@@ -135,12 +135,13 @@ describe("isDarkPalette", () => {
     }
     expect(isDarkPalette("light")).toBe(false);
     expect(isDarkPalette("dracula")).toBe(false);
+    expect(isDarkPalette("tokyo-night")).toBe(true);
     expect(isDarkPalette(undefined)).toBe(false);
   });
 
   it("defaults to Atom One Dark", () => {
     expect(DEFAULT_DARK_PALETTE).toBe("atom-one-dark");
-    expect(DARK_PALETTES).toHaveLength(4);
+    expect(DARK_PALETTES).toHaveLength(7);
   });
 });
 
@@ -152,6 +153,9 @@ describe("DARK_PALETTE_NAMES", () => {
       darcula: "Darcula",
       nord: "Nord",
       "solarized-dark": "Solarized Dark",
+      "rose-pine": "Rosé Pine",
+      "gruvbox-dark": "Gruvbox Dark",
+      "tokyo-night": "Tokyo Night",
     });
   });
 });

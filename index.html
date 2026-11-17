@@ -12,15 +12,35 @@
         var dark =
           mode === "dark" ||
           (mode !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-        var palettes = ["atom-one-dark", "darcula", "nord", "solarized-dark"];
+        var palettes = [
+          "atom-one-dark",
+          "darcula",
+          "nord",
+          "solarized-dark",
+          "rose-pine",
+          "gruvbox-dark",
+          "tokyo-night",
+        ];
         var storedPalette = localStorage.getItem("kindclip-dark-palette");
         var palette =
           palettes.indexOf(storedPalette) >= 0 ? storedPalette : "atom-one-dark";
         document.documentElement.dataset.mode = dark ? "dark" : "light";
         document.documentElement.dataset.palette = dark ? palette : "light";
+        var fontPercents = {
+          xs: "75%",
+          small: "87.5%",
+          medium: "100%",
+          large: "112.5%",
+          xl: "125%",
+        };
         var fontScale = localStorage.getItem("kindclip-font-scale");
-        if (fontScale === "small") document.documentElement.style.fontSize = "87.5%";
-        else if (fontScale === "large") document.documentElement.style.fontSize = "112.5%";
+        if (fontPercents[fontScale]) {
+          document.documentElement.style.fontSize = fontPercents[fontScale];
+        }
+        var densities = ["compact", "comfortable", "spacious"];
+        var storedDensity = localStorage.getItem("kindclip-density");
+        document.documentElement.dataset.density =
+          densities.indexOf(storedDensity) >= 0 ? storedDensity : "comfortable";
       } catch (e) {}
     </script>
   </head>

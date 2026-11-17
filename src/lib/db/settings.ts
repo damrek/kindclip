@@ -16,6 +16,7 @@ export const SETTINGS_KEYS = {
   theme: "theme",
   darkPalette: "darkPalette",
   fontScale: "fontScale",
+  density: "density",
   filter: "filter",
   searchFolding: "searchFolding",
   autoBackup: "autoBackup",

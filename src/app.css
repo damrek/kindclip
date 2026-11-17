@@ -275,6 +275,159 @@
   --chart-3: #9aa5e0;
 }
 
+[data-palette="rose-pine"] {
+  color-scheme: dark;
+
+  --surface: #191724;
+  --surface-raised: #1f1d2e;
+  --surface-hover: #26233a;
+  --surface-active: #2a273f;
+  --surface-inset: #16141f;
+  --inverse: #e0def4;
+  --inverse-fg: #191724;
+
+  --fg: #e0def4;
+  --fg-muted: #a6a2bf;
+  --fg-subtle: #908caa;
+  --fg-faint: #6e6a86;
+
+  --line: #403d52;
+  --line-subtle: #34314a;
+  --line-strong: #524f67;
+
+  --accent: #c4a7e7;
+  --accent-hover: #d2b9f0;
+  --accent-text: #dcc8f7;
+  --accent-soft: #302c44;
+  --accent-soft-strong: #3b3555;
+  --mark-bg: #3c3558;
+  --selection: #3c3558;
+  --focus-ring: var(--accent);
+
+  --danger: #eb6f92;
+  --danger-solid: #eb6f92;
+  --danger-solid-hover: #f08ba8;
+  --danger-soft: #3a2634;
+  --danger-border: #5c3a4b;
+
+  --success: #9ccfd8;
+
+  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
+  --chart-1: #c4a7e7;
+  --chart-2: #9ccfd8;
+  --chart-3: #f6c177;
+}
+
+[data-palette="gruvbox-dark"] {
+  color-scheme: dark;
+
+  --surface: #282828;
+  --surface-raised: #32302f;
+  --surface-hover: #3c3836;
+  --surface-active: #504945;
+  --surface-inset: #1d2021;
+  --inverse: #ebdbb2;
+  --inverse-fg: #282828;
+
+  --fg: #ebdbb2;
+  --fg-muted: #bdae93;
+  --fg-subtle: #a89984;
+  --fg-faint: #7c6f64;
+
+  --line: #504945;
+  --line-subtle: #3c3836;
+  --line-strong: #665c54;
+
+  --accent: #fabd2f;
+  --accent-hover: #ffc94d;
+  --accent-text: #ffd166;
+  --accent-soft: #453722;
+  --accent-soft-strong: #57451f;
+  --mark-bg: #54431f;
+  --selection: #54431f;
+  --focus-ring: var(--accent);
+
+  --danger: #fb6a5c;
+  --danger-solid: #fb6a5c;
+  --danger-solid-hover: #ff8574;
+  --danger-soft: #3a2622;
+  --danger-border: #5c3a33;
+
+  --success: #b8bb26;
+
+  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
+  --chart-1: #fabd2f;
+  --chart-2: #b8bb26;
+  --chart-3: #83a598;
+}
+
+[data-palette="tokyo-night"] {
+  color-scheme: dark;
+
+  --surface: #1a1b26;
+  --surface-raised: #1f2335;
+  --surface-hover: #292e42;
+  --surface-active: #2f344d;
+  --surface-inset: #16161e;
+  --inverse: #c0caf5;
+  --inverse-fg: #1a1b26;
+
+  --fg: #c0caf5;
+  --fg-muted: #a9b1d6;
+  --fg-subtle: #737aa2;
+  --fg-faint: #565f89;
+
+  --line: #2f334d;
+  --line-subtle: #262b3f;
+  --line-strong: #3b4261;
+
+  --accent: #7aa2f7;
+  --accent-hover: #89b4fa;
+  --accent-text: #7dcfff;
+  --accent-soft: #2b3350;
+  --accent-soft-strong: #31406b;
+  --mark-bg: #33467c;
+  --selection: #33467c;
+  --focus-ring: var(--accent);
+
+  --danger: #f7768e;
+  --danger-solid: #f7768e;
+  --danger-solid-hover: #ff8fa3;
+  --danger-soft: #3a2731;
+  --danger-border: #5c3a47;
+
+  --success: #9ece6a;
+
+  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
+  --chart-1: #7aa2f7;
+  --chart-2: #9ece6a;
+  --chart-3: #bb9af7;
+}
+
+/* List density: the clipping list reads these. `data-density` on <html> picks
+   the step; comfortable reproduces the spacing the list always had. */
+:root,
+[data-density="comfortable"] {
+  --list-gap: 0.75rem;
+  --card-padding: 1rem;
+  --card-section-gap: 0.875rem;
+  --card-meta-gap: 0.5rem;
+}
+
+[data-density="compact"] {
+  --list-gap: 0.5rem;
+  --card-padding: 0.75rem;
+  --card-section-gap: 0.625rem;
+  --card-meta-gap: 0.375rem;
+}
+
+[data-density="spacious"] {
+  --list-gap: 1rem;
+  --card-padding: 1.25rem;
+  --card-section-gap: 1.125rem;
+  --card-meta-gap: 0.625rem;
+}
+
 /* `inline` is required: utilities must emit `var(--surface)` so a nested
    `data-palette` block (the picker previews) can re-scope the whole theme. */
 @theme inline {

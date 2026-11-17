@@ -5,6 +5,14 @@
  * dependency so `hydrate` can be tested without a document. */
 import { getDb, getSetting, SETTINGS_KEYS, setSetting } from "../db";
 import { applyFontScale, loadFontScale, saveFontScale, type FontScale } from "../font";
+import {
+  applyDensity,
+  DENSITY_STORAGE_KEY,
+  isDensity,
+  loadDensity,
+  saveDensity,
+  type Density,
+} from "../density";
 import { logger } from "../log";
 import { readStored, writeStored } from "../storage";
 import {
@@ -39,6 +47,7 @@ export interface PreferencesDeps {
   /** Apply to the document element (or a stub in tests). */
   applyTheme: (mode: ThemeMode, palette: DarkPalette) => void;
   applyFontScale: (scale: FontScale) => void;
+  applyDensity: (level: Density) => void;
   log: (scope: string, error: unknown) => void;
 }
 
@@ -50,6 +59,7 @@ export function createPreferences(): Preferences {
     applyTheme: (mode, palette) =>
       applyTheme(document.documentElement, resolveTheme(mode, systemPrefersDark(), palette)),
     applyFontScale: (scale) => applyFontScale(document.documentElement, scale),
+    applyDensity: (level) => applyDensity(document.documentElement, level),
     log: logger.error,
   });
 }
@@ -59,6 +69,7 @@ export class Preferences {
   themeMode = $state<ThemeMode>(loadThemeMode());
   darkPalette = $state<DarkPalette>(loadDarkPalette());
   fontScale = $state<FontScale>(loadFontScale(readStored(FONT_KEY)));
+  density = $state<Density>(loadDensity(readStored(DENSITY_STORAGE_KEY)));
   /** Daily snapshot preference; on unless the user turned it off. */
   autoBackupEnabled = $state(true);
 
@@ -97,6 +108,13 @@ export class Preferences {
     void this.persistSetting(SETTINGS_KEYS.fontScale, next);
   };
 
+  setDensity = (next: Density): void => {
+    this.density = next;
+    saveDensity(next);
+    this.deps.applyDensity(next);
+    void this.persistSetting(SETTINGS_KEYS.density, next);
+  };
+
   setAutoBackup = (next: boolean): void => {
     this.autoBackupEnabled = next;
     void this.persistSetting(SETTINGS_KEYS.autoBackup, next ? "1" : "0");
@@ -111,17 +129,23 @@ export class Preferences {
     this.deps.applyFontScale(this.fontScale);
   }
 
+  applyCurrentDensity(): void {
+    this.deps.applyDensity(this.density);
+  }
+
   /** DB is the source of truth; the localStorage cache only seeds first paint.
    * Unknown or invalid stored values are replaced with the default in the DB. */
   async hydrate(): Promise<void> {
     try {
-      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbAutoBackup] = await Promise.all([
-        this.deps.getSetting(SETTINGS_KEYS.locale),
-        this.deps.getSetting(SETTINGS_KEYS.theme),
-        this.deps.getSetting(SETTINGS_KEYS.darkPalette),
-        this.deps.getSetting(SETTINGS_KEYS.fontScale),
-        this.deps.getSetting(SETTINGS_KEYS.autoBackup),
-      ]);
+      const [dbLocale, dbTheme, dbPalette, dbFontScale, dbDensity, dbAutoBackup] =
+        await Promise.all([
+          this.deps.getSetting(SETTINGS_KEYS.locale),
+          this.deps.getSetting(SETTINGS_KEYS.theme),
+          this.deps.getSetting(SETTINGS_KEYS.darkPalette),
+          this.deps.getSetting(SETTINGS_KEYS.fontScale),
+          this.deps.getSetting(SETTINGS_KEYS.density),
+          this.deps.getSetting(SETTINGS_KEYS.autoBackup),
+        ]);
 
       if (dbLocale !== null && isLocale(dbLocale)) {
         this.locale = dbLocale;
@@ -150,6 +174,13 @@ export class Preferences {
         await this.deps.setSetting(SETTINGS_KEYS.fontScale, this.fontScale);
       }
 
+      if (isDensity(dbDensity)) {
+        this.density = dbDensity;
+        saveDensity(dbDensity);
+      } else {
+        await this.deps.setSetting(SETTINGS_KEYS.density, this.density);
+      }
+
       if (dbAutoBackup === "0") {
         this.autoBackupEnabled = false;
       } else {
@@ -161,6 +192,7 @@ export class Preferences {
 
       this.applyCurrentTheme();
       this.applyCurrentFont();
+      this.applyCurrentDensity();
     } catch (error) {
       // Non-fatal: the app works with the cached/default values.
       this.deps.log("preferences-load", error);

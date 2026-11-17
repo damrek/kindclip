@@ -1,16 +1,19 @@
-/** Font-size accessibility control (V1.2): small/medium/large root scaling. */
+/** Font-size accessibility control: a five-step root scaling. */
 import { writeStored } from "./storage";
 
-export type FontScale = "small" | "medium" | "large";
+export type FontScale = "xs" | "small" | "medium" | "large" | "xl";
 
-export const FONT_SCALES: FontScale[] = ["small", "medium", "large"];
+export const FONT_SCALES: FontScale[] = ["xs", "small", "medium", "large", "xl"];
 
 const STORAGE_KEY = "kindclip-font-scale";
 
+/** Equal 12.5-point steps; the three original values keep their exact size. */
 const PERCENTS: Record<FontScale, number> = {
+  xs: 75,
   small: 87.5,
   medium: 100,
   large: 112.5,
+  xl: 125,
 };
 
 export function resolveFontPercent(scale: FontScale): number {
@@ -28,10 +31,7 @@ export function applyFontScale(element: HTMLElement, scale: FontScale): void {
 }
 
 export function loadFontScale(stored: string | null): FontScale {
-  if (stored === "small" || stored === "medium" || stored === "large") {
-    return stored;
-  }
-  return "medium";
+  return FONT_SCALES.find((scale) => scale === stored) ?? "medium";
 }
 
 export function saveFontScale(scale: FontScale): void {
