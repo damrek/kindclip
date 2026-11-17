@@ -43,6 +43,11 @@ function make(overrides: Partial<ShellBootDeps> = {}, port?: DbPort) {
     shelf,
     overlays: new Overlays(dom()),
     snapshot: { autoBackup: async () => {} } as unknown as SnapshotState,
+    reminders: {
+      hydrate: async () => {},
+      deliverDue: async () => {},
+      nextDelayMs: () => 30_000,
+    },
     getPort: async () => port ?? fakePort([], []),
     setTags: (next) => tags.push(...next),
     autoBackupEnabled: () => false,

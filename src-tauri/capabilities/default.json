@@ -9,6 +9,7 @@
     "clipboard-manager:allow-write-text",
     "log:default",
     "opener:default",
+    "notification:default",
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
