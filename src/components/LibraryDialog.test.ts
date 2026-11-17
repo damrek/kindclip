@@ -125,6 +125,23 @@ describe("LibraryDialog book and file wiring", () => {
     await waitFor(() => expect(screen.queryByText(/Remove the import of/)).toBeNull());
   });
 
+  it("closes the tag delete panel when a file removal starts", async () => {
+    renderDialog();
+    await fireEvent.click(screen.getByRole("button", { name: "Tags" }));
+    await fireEvent.click(within(rowOf("focus")).getByRole("button", { name: "Delete" }));
+    expect(screen.getByText(/Delete the tag “focus”/)).not.toBeNull();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Imported files" }));
+    await fireEvent.click(
+      within(screen.getByTitle("/tmp/alpha.txt").closest("li") as HTMLElement).getByRole("button", {
+        name: "Remove",
+      }),
+    );
+
+    expect(screen.queryByText(/Delete the tag “focus”/)).toBeNull();
+    expect(screen.getByText(/Remove the import of/)).not.toBeNull();
+  });
+
   it("closes the book delete panel when a file removal starts", async () => {
     renderDialog();
     await fireEvent.click(within(rowOf("Alpha")).getByRole("button", { name: "Delete" }));
@@ -294,5 +311,60 @@ describe("LibraryDialog book start paths close the file panel", () => {
 
     expect(screen.queryByText(/Remove the import of/)).toBeNull();
     expect(screen.getByText(/Delete “Alpha”/)).not.toBeNull();
+  });
+});
+
+describe("LibraryDialog tag actions close the file panel", () => {
+  /** Leave the file-removal panel open and come back to the tag list. */
+  async function openFileRemove(): Promise<void> {
+    await fireEvent.click(screen.getByRole("button", { name: "Imported files" }));
+    await fireEvent.click(
+      within(screen.getByTitle("/tmp/alpha.txt").closest("li") as HTMLElement).getByRole("button", {
+        name: "Remove",
+      }),
+    );
+    expect(screen.getByText(/Remove the import of \/tmp\/alpha.txt/)).not.toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Tags" }));
+  }
+
+  it("closes the file-removal panel when a tag rename succeeds", async () => {
+    renderDialog();
+    await fireEvent.click(screen.getByRole("button", { name: "Tags" }));
+    await fireEvent.click(within(rowOf("focus")).getByRole("button", { name: "Rename" }));
+
+    await openFileRemove();
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(screen.queryByText(/Remove the import of/)).toBeNull());
+  });
+
+  it("closes the file-removal panel when a tag rename starts", async () => {
+    renderDialog();
+    await openFileRemove();
+
+    await fireEvent.click(within(rowOf("focus")).getByRole("button", { name: "Rename" }));
+
+    expect(screen.queryByText(/Remove the import of/)).toBeNull();
+    expect((screen.getByLabelText("Tag") as HTMLInputElement).value).toBe("focus");
+  });
+
+  it("closes the file-removal panel when a tag merge starts", async () => {
+    renderDialog();
+    await openFileRemove();
+
+    await fireEvent.click(within(rowOf("focus")).getByRole("button", { name: "Merge" }));
+
+    expect(screen.queryByText(/Remove the import of/)).toBeNull();
+    expect(screen.getByLabelText("Merge into")).not.toBeNull();
+  });
+
+  it("closes the file-removal panel when a tag delete starts", async () => {
+    renderDialog();
+    await openFileRemove();
+
+    await fireEvent.click(within(rowOf("focus")).getByRole("button", { name: "Delete" }));
+
+    expect(screen.queryByText(/Remove the import of/)).toBeNull();
+    expect(screen.getByText(/Delete the tag “focus”/)).not.toBeNull();
   });
 });
