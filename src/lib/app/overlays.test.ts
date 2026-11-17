@@ -7,6 +7,8 @@ const closed: EscapeState = {
   shortcuts: false,
   reset: false,
   exportOpen: false,
+  reminder: false,
+  reminderList: false,
   library: false,
   stats: false,
   restore: false,
@@ -25,6 +27,11 @@ describe("escapeLayer", () => {
   it("closes the innermost layer first", () => {
     expect(escapeLayer({ ...closed, palette: true, library: true })).toBe("palette");
     expect(escapeLayer({ ...closed, library: true, stats: true })).toBe("library");
+    expect(escapeLayer({ ...closed, reminder: true, library: true })).toBe("reminder");
+    expect(escapeLayer({ ...closed, reminder: true, reminderList: true })).toBe("reminder");
+    expect(escapeLayer({ ...closed, reminderList: true, library: true })).toBe(
+      "reminderList",
+    );
     expect(escapeLayer({ ...closed, filters: true, query: "aurora" })).toBe("filters");
   });
 

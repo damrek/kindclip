@@ -11,6 +11,8 @@ export type EscapeLayer =
   | "shortcuts"
   | "reset"
   | "export"
+  | "reminder"
+  | "reminderList"
   | "library"
   | "stats"
   | "restore"
@@ -27,6 +29,8 @@ export interface EscapeState {
   shortcuts: boolean;
   reset: boolean;
   exportOpen: boolean;
+  reminder: boolean;
+  reminderList: boolean;
   library: boolean;
   stats: boolean;
   restore: boolean;
@@ -43,6 +47,8 @@ export function escapeLayer(state: EscapeState): EscapeLayer {
   if (state.shortcuts) return "shortcuts";
   if (state.reset) return "reset";
   if (state.exportOpen) return "export";
+  if (state.reminder) return "reminder";
+  if (state.reminderList) return "reminderList";
   if (state.library) return "library";
   if (state.stats) return "stats";
   if (state.restore) return "restore";
@@ -88,6 +94,8 @@ export class Overlays {
   /** Popover that filters the list; it never makes the shell inert. */
   filters = $state(false);
   preferences = $state(false);
+  reminder = $state(false);
+  reminderList = $state(false);
   selectedId = $state<number | null>(null);
   #opener: HTMLElement | null = null;
 
@@ -149,6 +157,44 @@ export class Overlays {
     if (!this.palette) return;
     this.palette = false;
     this.restoreOpener(fallback);
+  }
+
+  /** The reminder dialog belongs to one clipping; the shell owns which. */
+  openReminder(): void {
+    if (this.reminder) return;
+    this.rememberOpener();
+    this.reminder = true;
+  }
+
+  closeReminder(fallback: HTMLElement | null): void {
+    if (!this.reminder) return;
+    this.reminder = false;
+    this.restoreOpener(fallback);
+  }
+
+  /** The reminders panel: one layer above the shell, below the edit dialog. */
+  openReminderList(): void {
+    if (this.reminderList) return;
+    this.rememberOpener();
+    this.reminderList = true;
+  }
+
+  closeReminderList(fallback: HTMLElement | null): void {
+    if (!this.reminderList) return;
+    this.reminderList = false;
+    this.restoreOpener(fallback);
+  }
+
+  /** Edit from the panel: hide the list and show the dialog, same opener. */
+  handOffReminderListToDialog(): void {
+    this.reminderList = false;
+    this.reminder = true;
+  }
+
+  /** The dialog closed back into the panel it came from. */
+  returnToReminderList(): void {
+    this.reminder = false;
+    this.reminderList = true;
   }
 
   openFilters(): void {

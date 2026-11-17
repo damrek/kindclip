@@ -21,12 +21,18 @@ import type { Overlays } from "./overlays.svelte";
 import type { Preferences } from "./preferences.svelte";
 import type { SnapshotState } from "./snapshot.svelte";
 
+
 export interface ShellBootDeps {
   prefs: Preferences;
   list: ClippingList;
   shelf: BookShelf;
   overlays: Overlays;
   snapshot: SnapshotState;
+  reminders: {
+    hydrate: () => Promise<void>;
+    deliverDue: () => Promise<void>;
+    nextDelayMs: () => number;
+  };
   getPort: () => Promise<DbPort>;
   setTags: (tags: TagCount[]) => void;
   autoBackupEnabled: () => boolean;
@@ -39,6 +45,8 @@ export class ShellBoot {
   ready = $state(false);
   readonly filters: FilterState;
   #autoBackupStarted = false;
+  /** Bumped after every timer firing so the reminder timer re-arms. */
+  #reminderTick = $state(0);
   #saveFilters: (state: StoredFilterState) => void;
 
   constructor(private readonly deps: ShellBootDeps) {
@@ -70,6 +78,8 @@ export class ShellBoot {
   async hydrate(): Promise<void> {
     try {
       await this.deps.prefs.hydrate();
+      // Pending reminders load and any overdue one is delivered on launch.
+      await this.deps.reminders.hydrate();
       const port = await this.deps.getPort();
       const [stored, tags] = await Promise.all([loadFilterState(port), listTags(port)]);
       this.deps.setTags(tags);
@@ -148,6 +158,19 @@ export class ShellBoot {
     });
     $effect(() => {
       deps.prefs.applyCurrentFont();
+    });
+    // Arm one timer for the earliest pending reminder instead of a fixed
+    // interval: a reminder due now is delivered within a second. Reads the
+    // pending list (a schedule or cancel re-arms it) and the tick (a firing
+    // re-arms it), and the clamp keeps the clock drift bounded.
+    $effect(() => {
+      void this.#reminderTick;
+      const delay = deps.reminders.nextDelayMs();
+      const timer = setTimeout(() => {
+        this.#reminderTick += 1;
+        void deps.reminders.deliverDue();
+      }, delay);
+      return () => clearTimeout(timer);
     });
     $effect(() => {
       deps.prefs.applyCurrentDensity();

@@ -73,6 +73,10 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 - **Reading stats** (sidebar footer): library-wide totals plus clippings per
   year, an interactive kind donut (hover for counts and percentages, click to
   filter the list) and top book, with undated clippings grouped as “no date”.
+- **Clipping reminders**: the bell on a card schedules a system notification
+  for that clipping — this evening, tomorrow morning, in a week or a custom
+  date. The app delivers it while running and catches up on launch; the same
+  bell shows the pending time and removes it.
 
 ### Search & Filter
 - **Unified Filters menu** with a badge, removable chips and **Clear all**.

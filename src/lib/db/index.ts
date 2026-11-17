@@ -7,5 +7,6 @@ export * from "./books";
 export * from "./tags";
 export * from "./files";
 export * from "./settings";
+export * from "./reminders";
 
 

@@ -27,6 +27,9 @@
     importing?: boolean;
     onOpenLibrary?: () => void;
     onOpenStats?: () => void;
+    onOpenReminders?: () => void;
+    /** Pending reminders, shown as a small counter. */
+    reminderCount?: number;
     /** Library-scoped actions need an imported library to act on. */
     libraryActionsDisabled?: boolean;
   }
@@ -47,6 +50,8 @@
     importing = false,
     onOpenLibrary,
     onOpenStats,
+    onOpenReminders,
+    reminderCount = 0,
     libraryActionsDisabled = false,
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
@@ -294,6 +299,19 @@
     >
       <Icon name="stats" />
       <span class="min-w-0 flex-1 truncate">{i18n.t("stats.open")}</span>
+    </button>
+    <button
+      type="button"
+      onclick={() => onOpenReminders?.()}
+      class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-fg-muted transition hover:bg-surface-hover"
+    >
+      <Icon name="bell" />
+      <span class="min-w-0 flex-1 truncate">{i18n.t("reminders.open")}</span>
+      {#if reminderCount > 0}
+        <span class="rounded-full bg-surface-hover px-1.5 py-0.5 text-[10px] tabular-nums text-fg-muted">
+          {reminderCount}
+        </span>
+      {/if}
     </button>
   </div>
 </div>

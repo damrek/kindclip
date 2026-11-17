@@ -57,11 +57,13 @@ describe("dispatchShortcut", () => {
 function escapeSpy(overrides: Partial<EscapeHandlers> = {}) {
   const calls: string[] = [];
   const handlers: EscapeHandlers = {
-    busy: () => ({ export: false, library: false, restore: false }),
+    busy: () => ({ export: false, library: false, restore: false, reminder: false }),
     closePalette: () => calls.push("palette"),
     closeShortcuts: () => calls.push("shortcuts"),
     closeReset: () => calls.push("reset"),
     closeExport: () => calls.push("export"),
+    closeReminder: () => calls.push("reminder"),
+    closeReminderList: () => calls.push("reminderList"),
     closeLibrary: () => calls.push("library"),
     closeStats: () => calls.push("stats"),
     closeRestore: () => calls.push("restore"),
@@ -82,6 +84,8 @@ describe("dispatchEscape", () => {
       "shortcuts",
       "reset",
       "export",
+      "reminder",
+      "reminderList",
       "library",
       "stats",
       "restore",
@@ -106,12 +110,13 @@ describe("dispatchEscape", () => {
 
   it("refuses to close a dialog whose write is in flight", () => {
     const { calls, handlers } = escapeSpy({
-      busy: () => ({ export: true, library: true, restore: true }),
+      busy: () => ({ export: true, library: true, restore: true, reminder: true }),
     });
 
     dispatchEscape("export", handlers);
     dispatchEscape("library", handlers);
     dispatchEscape("restore", handlers);
+    dispatchEscape("reminder", handlers);
 
     expect(calls).toEqual([]);
   });
