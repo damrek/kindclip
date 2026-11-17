@@ -134,7 +134,7 @@ the footer counts the matches, and Enter opens the selected one.</em></p>
 
 ## Development
 
-**Requirements**: Node.js 22.5+ and a stable Rust toolchain.
+**Requirements**: Node.js 22.22+, 24.15+ or 26+ and a stable Rust toolchain.
 
 **Linux deps** (Ubuntu):
 ```bash
@@ -159,6 +159,10 @@ cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
 ```
+
+Component tests mount Svelte in jsdom: a file opts in with
+`// @vitest-environment jsdom` and reuses `src/test/component.ts` for the
+browser seams jsdom lacks. Every other suite keeps the fast node environment.
 
 CI (`.github/workflows/ci.yml`) runs on every pull request and again on every
 commit that lands on `main`: the PR run validates a synthetic merge preview, the
@@ -228,8 +232,8 @@ Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
-- **Note ↔ highlight pairing** and **bulk actions** (tag, favorite or export a
-  selection).
+- **Clipping reminders**: schedule a system notification for one clipping so it
+  resurfaces on a chosen date.
 - **Desktop polish**: signed auto-update.
 
 The layered architecture (parser → commands → SQL → UI) keeps additions local.
