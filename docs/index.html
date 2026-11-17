@@ -19,7 +19,7 @@
     <meta property="og:title" content="kindclip — your Kindle highlights, finally in one place" />
     <meta
       property="og:description"
-      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, Markdown quotes and Obsidian exports. Local-first, no account, free."
+      content="Import My Clippings.txt once and get a fast, searchable library with tags, edited notes, reading stats, reminders, Markdown quotes and Obsidian exports. Local-first, no account, free."
     />
     <meta property="og:image" content="https://damrek.github.io/kindclip/og.png" />
     <meta property="og:image:type" content="image/png" />
@@ -27,18 +27,18 @@
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="kindclip: the library view in a dark theme, next to the tagline “Your Kindle highlights, finally in one place.”"
+      content="kindclip: the library view in the Tokyo Night palette, next to the tagline “Your Kindle highlights, finally in one place.”"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="kindclip — your Kindle highlights, finally in one place" />
     <meta
       name="twitter:description"
-      content="A free desktop viewer for My Clippings.txt: search, tag, edit notes, export to Markdown, JSON or CSV. Windows, macOS and Linux."
+      content="A free desktop viewer for My Clippings.txt: search, tag, edit notes, get reminders, export to Markdown, JSON or CSV. Windows, macOS and Linux."
     />
     <meta name="twitter:image" content="https://damrek.github.io/kindclip/og.png" />
     <meta
       name="twitter:image:alt"
-      content="kindclip: the library view in a dark theme, next to the tagline “Your Kindle highlights, finally in one place.”"
+      content="kindclip: the library view in the Tokyo Night palette, next to the tagline “Your Kindle highlights, finally in one place.”"
     />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1f26" />
@@ -63,7 +63,7 @@
           "price": "0",
           "priceCurrency": "USD"
         },
-        "screenshot": "https://damrek.github.io/kindclip/screen_1.png",
+        "screenshot": "https://damrek.github.io/kindclip/screens/dark_theme.png",
         "image": "https://damrek.github.io/kindclip/og.png",
         "author": {
           "@type": "Person",
@@ -80,7 +80,8 @@
           "One Markdown file per book for Obsidian",
           "Verified backups and restore",
           "Seven dark palettes, five text sizes and a list density",
-          "System reminders for any clipping"
+          "System reminders for any clipping",
+          "Reading stats with an interactive kind donut"
         ]
       }
     </script>
@@ -614,6 +615,21 @@
         margin-top: 32px;
       }
 
+      .version-pill {
+        display: inline-flex;
+        align-items: center;
+        align-self: center;
+        padding: 3px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--page-alt);
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 550;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.01em;
+      }
+
       .micro {
         display: flex;
         flex-wrap: wrap;
@@ -1103,6 +1119,18 @@
         border-radius: 10px;
       }
 
+      .theme-shot,
+      .feature-shot {
+        max-width: 640px;
+        margin: clamp(28px, 4vw, 44px) auto 0;
+      }
+
+      /* The palette grid follows the light-theme shot: keep clear air between
+         them instead of stacking the two blocks edge to edge. */
+      .theme-shot {
+        margin-bottom: clamp(32px, 5vw, 52px);
+      }
+
       /* ------------------------------------------------------------------
          Install
          ------------------------------------------------------------------ */
@@ -1572,7 +1600,8 @@
 
           <p class="lede">
             kindclip reads <code>My Clippings.txt</code> once and turns years of
-            highlights, notes and bookmarks into a fast, searchable library.
+            highlights, notes and bookmarks into a fast, searchable library,
+            with reading stats and reminders for what you mean to revisit.
             Local-first, keyboard-first, and native on Windows, Linux and macOS.
           </p>
 
@@ -1581,6 +1610,12 @@
               class="btn btn-primary"
               href="https://github.com/damrek/kindclip/releases/latest"
               >Download latest release</a
+            >
+            <span
+              class="version-pill"
+              data-release-version="v2.0.0"
+              title="Latest release"
+              >v2.0.0</span
             >
             <a class="btn btn-ghost" href="https://github.com/damrek/kindclip"
               >View on GitHub</a
@@ -1596,13 +1631,13 @@
 
           <figure class="hero-shot">
             <img
-              src="screen_1.png"
-              width="1315"
-              height="1011"
-              alt="kindclip library view in the Atom One Dark palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
+              src="screens/dark_theme.png"
+              width="1250"
+              height="998"
+              alt="kindclip in the Tokyo Night palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
             />
             <figcaption>
-              Library view in Atom One Dark: book sidebar, clipping cards with
+              Library view in Tokyo Night: book sidebar, clipping cards with
               page and date, and the active filters as removable chips.
             </figcaption>
           </figure>
@@ -1620,8 +1655,8 @@
             <span>accounts, servers or sync</span>
           </div>
           <div class="stat">
-            <b>5</b>
-            <span>themes, each checked for WCAG AA</span>
+            <b>8</b>
+            <span>palettes, each checked for WCAG AA</span>
           </div>
           <div class="stat">
             <b>6</b>
@@ -1774,6 +1809,20 @@
               </div>
             </article>
           </div>
+
+          <figure class="shot-card feature-shot">
+            <img
+              src="screens/dark_theme_stats.png"
+              width="1525"
+              height="1073"
+              loading="lazy"
+              alt="Reading stats dialog: clippings per year, a kind donut with counts and shares, and the top books."
+            />
+            <figcaption class="sr-only">
+              Reading stats: library totals, clippings per year, by kind and by
+              book.
+            </figcaption>
+          </figure>
         </div>
       </section>
 
@@ -1860,6 +1909,20 @@
               on the surfaces it lands on.
             </p>
           </div>
+
+          <figure class="shot-card theme-shot">
+            <img
+              src="screens/light_theme.png"
+              width="1525"
+              height="1073"
+              loading="lazy"
+              alt="kindclip in the light theme: the same library view, sidebar and clipping cards over white surfaces."
+            />
+            <figcaption class="sr-only">
+              The light theme shares the layout and tokens with every dark
+              palette.
+            </figcaption>
+          </figure>
 
           <div class="palettes">
             <article class="palette p-light">
@@ -2094,11 +2157,11 @@
 
           <figure class="shot-card">
             <img
-              src="screen_2.png"
-              width="1315"
-              height="1011"
+              src="screens/dark_theme_search.png"
+              width="1525"
+              height="1073"
               loading="lazy"
-              alt="The global search palette over the library, listing two matching clippings from different books with their match counts."
+              alt="The global search palette over the library, listing two matching clippings from different books with the searched word highlighted."
             />
             <figcaption class="sr-only">
               The global palette searches every clipping regardless of the active

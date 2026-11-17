@@ -1,9 +1,9 @@
 # <img src="src/assets/icon.png" width="32" height="32" alt="kindclip logo"> kindclip
 
-Desktop viewer for your Kindle highlights. Import `My Clippings.txt`, search
-across text, books and authors, filter, star favorites, tag, edit notes, export
-to Markdown, JSON or CSV, and track your reading stats. Native look, tiny
-binaries, on Windows, Linux and macOS.
+Desktop viewer for your Kindle highlights. Import `My Clippings.txt`, search and
+filter across text, books and authors, star favorites, tag, edit notes, schedule
+reminders, export to Markdown, JSON or CSV, and track your reading stats.
+Native look, tiny binaries, local-only, on Windows, Linux and macOS.
 
 **[https://damrek.github.io/kindclip/](https://damrek.github.io/kindclip/)** ·
 screenshots, palettes and downloads.
@@ -17,189 +17,146 @@ screenshots, palettes and downloads.
 ![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 
 <p>
-  <img src="docs/screen_1.png" width="80%" alt="kindclip library view in a dark theme: book sidebar with clipping counts, removable filter chips and clipping cards">
+  <img src="docs/og.png" width="100%" alt="kindclip social card: the app in the Tokyo Night palette beside the tagline “Your Kindle highlights, finally in one place.”">
 </p>
-*Library view in a dark theme: book sidebar, clipping cards with page and date,
-and the active filters as removable chips.*
 
 <details>
-<summary>Global search (<code>Ctrl/Cmd+P</code>)</summary>
+<summary>More screenshots</summary>
 
-<p>
-  <img src="docs/screen_2.png" width="80%" alt="kindclip global search palette open over the library, listing matching clippings from different books">
+<p align="center">
+  <img src="docs/screens/light_theme.png" width="49%" alt="kindclip in the light theme: book sidebar with clipping counts, removable filter chips, and clipping cards with page, date and tags">
+  <img src="docs/screens/dark_theme.png" width="49%" alt="kindclip in the Tokyo Night palette: the same library view with the sidebar and clipping cards">
 </p>
-<p><em>Every clipping in the library, across all books and filters, newest first;
-the footer counts the matches, and Enter opens the selected one.</em></p>
+<p align="center">
+  <img src="docs/screens/dark_theme_search.png" width="49%" alt="Global search palette (Ctrl/Cmd+P) open over the library, matching two clippings and highlighting the searched word">
+  <img src="docs/screens/dark_theme_stats.png" width="49%" alt="Reading stats dialog: clippings per year, a kind donut with counts and shares, and the top books">
+</p>
 
 </details>
 
 ## Usage
 
 1. Install from [Releases](https://github.com/damrek/kindclip/releases/latest):
-   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS). What
-   changed in each version is in [CHANGELOG.md](CHANGELOG.md).
+   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS). Changes
+   per version live in [CHANGELOG.md](CHANGELOG.md).
 2. Copy `documents/My Clippings.txt` from your Kindle.
 3. **Import** → pick the file, or drag a `.txt` onto the window. Re-import any
-   time: duplicates are skipped by content hash, and new highlights are added.
-4. Search, filter and read: `?` shows every shortcut and each card's **Read**
-   button opens a clipping full-window.
-5. Export the current view, or back up the database from **Preferences → Data**.
+   time: duplicates are skipped by content hash and new highlights are added.
+4. Search and filter (`?` lists every shortcut), open a clipping with **Read**,
+   export the current view, or back up from **Preferences → Data**.
 
 ## Features
 
-### Core
-- **Robust parser**: UTF-8/16 (BOM or mid-file), localized dates (en/es/de/fr/it/pt),
-  Highlight/Note/Bookmark kinds, including modern Spanish firmware («Tu resaltado»).
-- **Multi-file library** with content-hash deduplication across imports.
-- **Drag & drop import**: drop a `.txt` anywhere on the window — same parse,
-  dedupe and progress report as the Import button.
-- **Reading view**: any clipping full-window, ←/→ through the filtered list,
-  Esc closes and keeps your place.
-- **Note editing**: inline rewrite with an **Edited** badge, reset to the
-  original, and an edited-notes filter. `My Clippings.txt` is never modified.
+### Import & read
+- **Parser** for UTF-8/16 (BOM or mid-file) and six date locales, with
+  highlight, note and bookmark kinds, including modern Spanish firmware
+  («Tu resaltado»). Multi-file libraries dedupe by content hash.
+- **Drag & drop** anywhere on the window runs the same parse, dedupe and
+  progress report as the Import button.
+- **Reading view** opens any clipping full-window, moves through the filtered
+  list with ←/→, and Esc returns you to your place.
+- **Note editing** rewrites a note inline with an **Edited** badge, resets it to
+  the original, and filters edited notes. `My Clippings.txt` is never modified.
 
-### Library & Organization
-- **Favorites** stored in SQLite, with a copy button on every highlight and note.
-- **Copy as quote**: any highlight or note goes to the clipboard as a Markdown
-  blockquote citing author, book title and page (or position when the page is
-  unknown). Same action from the reading view.
-- **Tags**: free-form per clipping, inline add/remove with suggestions, click a
-  tag to filter (AND logic). Rename, merge or delete in **Library → Tags**;
-  orphan tags stay listed for cleanup but are hidden from filters.
-- **Library management**: filter books by title or author, rename or merge
-  books, delete a book with its clippings, and undo one import. Destructive
-  actions confirm; re-importing restores the clippings, but not favorites, tags
-  or edited notes.
-- **Reading stats** (sidebar footer): library-wide totals plus clippings per
-  year, an interactive kind donut (hover for counts and percentages, click to
-  filter the list) and top book, with undated clippings grouped as “no date”.
-- **Clipping reminders**: the bell on a card schedules a system notification
-  for that clipping — this evening, tomorrow morning, in a week or a custom
-  date. The app delivers it while running and catches up on launch; the same
-  bell shows the pending time and removes it.
+### Organize & find
+- **Favorites** live in SQLite; any highlight or note copies as a Markdown
+  blockquote citing author, book and page (or position).
+- **Tags** are free-form per clipping, added inline with suggestions and
+  clickable to filter (AND logic). Rename, merge or delete them in
+  **Library → Tags**; orphan tags stay listed for cleanup.
+- **Library management** filters books by title or author, renames or merges
+  books, deletes a book with its clippings and undoes one import. Destructive
+  actions confirm; re-importing restores clippings but not favorites, tags or
+  edited notes.
+- **Search** covers content, title and author, ignoring accents and case, with
+  every word required and every hit highlighted. Combine it with book,
+  author, type, status and tag filters; chips remove them one by one, sorting
+  persists, and pages hold 20, 50 or 100 rows.
+- **Reading stats** (sidebar footer) show library totals, clippings per year,
+  an interactive kind donut (hover for counts and shares, click to filter) and
+  the top books, grouping undated clippings as “no date”.
+- **Reminders** schedule a system notification from any card's bell — tonight,
+  tomorrow, in a week or an exact time. Delivery happens while the app runs and
+  catches up on launch; the sidebar lists, edits and removes them, asking for
+  confirmation before deleting.
 
-### Search & Filter
-- **Unified Filters menu** with a badge, removable chips and **Clear all**.
-  Full-text search covers content, title and author, accent- and
-  case-insensitive; every word must match and hits are highlighted in the list
-  and the reading view. Combine with book, multi-select author/type/status/tag
-  filters; the author and tag lists have their own search and a five-row scroll
-  window with a bottom fade; click a card's type or **Edited** badge to toggle
-  it. Pagination 20/50/100.
-- **Sorting**: books by title or author (↑/↓); clippings by newest/oldest, book
-  title (A–Z/Z–A) or page. All persisted.
+### Export & data
+- **Export** the filtered view to Markdown, JSON or CSV grouped by book, with
+  favorites and tags marked. Markdown can also write one file per book into a
+  folder, with Obsidian-ready frontmatter. Labels follow the app language;
+  JSON/CSV fields stay in English for scripting.
+- **Backup & restore** (Preferences → Data) saves a consistent `kindclip.db`
+  snapshot. A restore verifies the file is real SQLite with the kindclip tables
+  and no failed migrations, previews it, and keeps the replaced database as
+  `kindclip.db.before-restore`; older snapshots migrate on launch, newer ones
+  are refused.
+- **Daily snapshots** land in `backups/` next to the database, keeping the
+  newest seven; a manual backup saved there counts for the day. **Open database
+  location** reveals the file in your file manager.
 
-### Export & Data
-- **Export** the filtered view to Markdown, JSON or CSV as one file grouped by
-  book, with favorites and tags marked. Markdown can also be written as one file
-  per book into a folder you choose, with YAML frontmatter (title, author, tags,
-  clipping count, export date) ready for an Obsidian-style vault. Markdown labels
-  follow the app language; JSON/CSV keep stable English fields (original and
-  edited notes, tags) for scripting.
-- **Backup & restore** (Preferences → Data): save a consistent snapshot of
-  `kindclip.db` (default `kindclip-backup-YYYY-MM-DD.db`). Restores verify the
-  file is real SQLite with the kindclip tables and no failed migrations, preview
-  its contents, then keep the replaced database as `kindclip.db.before-restore`.
-  Older snapshots migrate on launch; newer ones are refused, and the app
-  restarts.
-- **Daily backups**: once per launch (unless turned off in Preferences → Data),
-  kindclip snapshots the database into `backups/` next to `kindclip.db`, keeps
-  the newest 7 and lists them in the restore dialog. A manual backup saved into
-  that folder also counts as the day's snapshot.
-- **Open database location** reveals `kindclip.db` in your file manager.
-
-### UI & Accessibility
-- **Collapsible shell**: sidebar toggle (remembered), and the sidebar switches
-  between the flat book list and collapsible author groups (remembered); search
-  collapses to an icon until clicked or filled.
-- **Grouped chrome**: the top bar keeps the sidebar toggle, the running version
-  and the settings gear; search, filters, sort and export sit above the list
-  they act on; the sidebar footer carries import, library management and
-  statistics.
-- **Preferences dialog**: language, system/light/dark theme with seven dark
-  palettes — Atom One Dark, Darcula, Nord, Solarized Dark, Rosé Pine, Gruvbox
-  Dark and Tokyo Night — five text sizes (XS–XL) and a list density
-  (compact/comfortable/spacious), DB location, logs folder and shortcuts.
-- **WCAG AA palettes**: body, muted, accent and status text clear 4.5:1 on
-  every surface they land on, in all eight palettes; search marks and text
-  selection are tuned the same way.
-- **Keyboard-first**: `?` opens the shortcut sheet; `/`, `Ctrl/Cmd+K` and
-  `Ctrl/Cmd+F` focus search; `Ctrl/Cmd+P` searches every clipping across all
-  books and filters; `j`/`k` or ↑/↓ select, `Enter`/`o` opens the reading view,
-  `*` favorites, `c` copies, `q` copies as a quote, `s`/`f` toggle sidebar and
-  filters, `n`/`p` or PageDown/PageUp page, `Ctrl/Cmd+,` opens preferences.
-  `Esc` closes one layer at a time and typing fields are never hijacked.
-- **5 languages** (es/en/fr/de/it, Spanish default), bundled **Inter** font,
-  custom icons, and a minimal macOS-style UI over the native frame.
-- **Remembered window**: size, position and maximized state are restored on
-  launch, and the window only appears once that state is applied.
-- **Diagnostic logs** (Preferences → Diagnostics): rotating local files record
-  startup, import, export, backup and restore outcomes — paths, counts, sizes
-  and errors only, never clipping text or notes. Nothing is uploaded.
+### Look, keys and language
+- **Seven dark palettes** plus light, **five text sizes** (XS–XL) and three list
+  densities (compact, comfortable, spacious). Body, muted, accent and status
+  text clear 4.5:1 on every surface they land on, in all eight palettes.
+- **Keyboard-first**: `?` lists the shortcuts; `/`, `Ctrl/Cmd+K` and
+  `Ctrl/Cmd+F` focus search; `Ctrl/Cmd+P` searches every clipping; `j`/`k` or
+  ↑/↓ select, `Enter`/`o` reads, `*` favorites, `c` copies, `q` quotes,
+  `s`/`f` toggle sidebar and filters, `n`/`p` page, `Ctrl/Cmd+,` opens
+  preferences. Esc closes one layer at a time.
+- **5 languages** (es/en/fr/de/it, Spanish default), the bundled **Inter** font,
+  custom icons and a minimal macOS-style shell over the native frame, with the
+  window size, position and state remembered.
+- **Diagnostic logs** rotate locally and record paths, counts, sizes and errors
+  only — never clipping text, notes or queries. Nothing is uploaded.
 
 ## Development
 
-**Requirements**: Node.js 22.22+, 24.15+ or 26+ and a stable Rust toolchain.
+**Requirements**: Node.js 22.22+, 24.15+ or 26+, and a stable Rust toolchain.
 
-**Linux deps** (Ubuntu):
 ```bash
+# Linux build deps (Ubuntu)
 sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential \
   curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev \
   librsvg2-dev patchelf
-```
 
-```bash
 npm install
-npx tauri dev      # not `npm run dev`: no Tauri IPC bridge
-npx tauri build    # bundles land in target/release/bundle
-```
+npx tauri dev                    # not `npm run dev`: no Tauri IPC bridge
+npx tauri build                  # bundles land in target/release/bundle
 
-**Tests & checks**:
-```bash
-npm test           # vitest (frontend)
-npm run check      # svelte-check
-npm run lint       # eslint (flat config)
-npm run build      # vite build
+npm test                         # vitest (frontend)
+npm run check                    # svelte-check
+npm run lint                     # eslint (flat config)
+npm run build                    # vite build
 cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
 ```
 
 Component tests mount Svelte in jsdom: a file opts in with
-`// @vitest-environment jsdom` and reuses `src/test/component.ts` for the
-browser seams jsdom lacks. Every other suite keeps the fast node environment.
+`// @vitest-environment jsdom` and reuses `src/test/component.ts`. Every other
+suite keeps the fast node environment.
 
-CI (`.github/workflows/ci.yml`) runs on every pull request and again on every
-commit that lands on `main`: the PR run validates a synthetic merge preview, the
-`main` run validates the exact commit a release tags. All three matrix jobs are
-required status checks on `main`, so a red run blocks the merge. The Ubuntu leg
-also runs the release-notes script tests, so a broken `CHANGELOG.md` parser fails
-before a release.
-
-Releases (`.github/workflows/release.yml`) run from a `workflow_dispatch` or a
-`v*` tag. Before anything is built, the workflow refuses a commit that is not on
-`main` or whose version files disagree with the resolved version. The release
-body is the released version's `CHANGELOG.md` section, unwrapped for GitHub's
-line-break rendering; when the section is missing, the workflow warns and falls
-back to GitHub's generated notes. It then syncs the version, runs the checks and
-tests, and bundles for macOS (ARM + Intel), Linux and Windows. Windows ships the
-NSIS `.exe` only — the WiX `.msi` is deliberately not built, since it exists for
-enterprise `msiexec`/GPO deployment and this app has no such channel.
-*macOS/Windows artifacts are unsigned, so Gatekeeper/SmartScreen will warn.*
+CI (`.github/workflows/ci.yml`) runs the checks on every pull request and on
+every commit that lands on `main`; all three matrix jobs are required. The
+Ubuntu leg also covers the release-notes script. Releases
+(`.github/workflows/release.yml`) run from `workflow_dispatch` or a `v*` tag,
+refuse a commit outside `main` or version files that disagree, build the
+platforms, and publish the `CHANGELOG.md` section as the release body.
+Windows ships the NSIS `.exe` only; macOS/Windows artifacts are unsigned, so
+Gatekeeper and SmartScreen will warn.
 
 ## Structure
 
 ```
 src/                        # Svelte 5 + Tailwind v4 frontend
   App.svelte                # shell: layout, dialogs and list orchestration
-  lib/                      # domain modules (filters, sorting, library, reading, …)
-    db/                     # data layer split by entity (clippings, books, tags, files, settings)
-  components/               # BookSidebar, ClippingCard, FilterMenu, dialogs, ...
-  assets/icon.png
+  lib/                      # domain modules (filters, sorting, library, reading, reminders, …)
+    db/                     # data layer split by entity (clippings, books, tags, files, reminders, settings)
+  components/               # BookSidebar, ClippingCard, dialogs, …
 src-tauri/
-  src/                      # migrations, plugin/command registration, file I/O
-  migrations/               # 001 init … 005 search folding
-  capabilities/             # least-privilege: sql, dialog, clipboard, opener, log
+  src/                      # plugin/command registration, file I/O
+  migrations/               # 001 init … 006 reminders
+  capabilities/             # least privilege: sql, dialog, clipboard, opener, log, notification
 crates/clippings-parser/    # pure My Clippings.txt parser (no Tauri deps)
 ```
 
@@ -213,23 +170,13 @@ Resolved to the standard per-OS config dir (`identifier: app.kindclip`):
 | Windows | `%APPDATA%\app.kindclip\kindclip.db` |
 | macOS | `~/Library/Application Support/app.kindclip/kindclip.db` |
 
-Delete the file to wipe the library and note edits, then re-import from scratch.
-A restore keeps the replaced file as `kindclip.db.before-restore`, so you can
-undo it by hand while the app is closed. Daily snapshots live in the `backups/`
-folder next to the database and are pruned to the newest seven.
-
-Quick count:
-```bash
-python3 -c "import sqlite3, os; con=sqlite3.connect(os.path.expanduser('~/.config/app.kindclip/kindclip.db')); print(con.execute('SELECT COUNT(*) FROM clippings').fetchone())"
-```
-
-Diagnostic logs live in the standard per-OS log dir — `~/.local/share/app.kindclip/logs`
-(Linux), `%LOCALAPPDATA%\app.kindclip\logs` (Windows), `~/Library/Logs/app.kindclip`
-(macOS). Installed builds write `kindclip.log` and `tauri dev` writes
-`kindclip-dev.log`, rotated at 1 MB over three files. Open the folder from
-**Preferences → Diagnostics → Open logs**. They hold paths, counts, sizes
-and error messages only — never clipping text, notes, search queries, tags or
-book titles.
+Delete the file to wipe the library and note edits, then re-import. A restore
+keeps the replaced file as `kindclip.db.before-restore`; daily snapshots live in
+`backups/` next to the database, pruned to the newest seven. Logs live under the
+per-OS log dir (`~/.local/share/app.kindclip/logs` on Linux,
+`%LOCALAPPDATA%\app.kindclip\logs` on Windows,
+`~/Library/Logs/app.kindclip` on macOS), rotated at 1 MB over three files and
+opened from **Preferences → Diagnostics**.
 
 ## Roadmap
 
@@ -238,8 +185,6 @@ Planned, no dates attached:
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
 - **Desktop polish**: signed auto-update.
-
-The layered architecture (parser → commands → SQL → UI) keeps additions local.
 
 ## License
 
