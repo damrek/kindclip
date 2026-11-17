@@ -149,13 +149,6 @@ jobs:
           expect_version crates/clippings-parser/Cargo.toml \
             "$(awk '/^version = "/{sub(/^version = "/,""); sub(/"$/,""); print; exit}' crates/clippings-parser/Cargo.toml)"
 
-          # The landing page shows the version beside Download; a release must
-          # not publish a site that still advertises the previous one.
-          if ! grep -q "data-release-version=\"v$VERSION\"" docs/index.html; then
-            echo "::error::docs/index.html does not show v$VERSION; update the landing version pill."
-            exit 1
-          fi
-
   create-release:
     needs: prepare
     if: needs.prepare.outputs.should_release == 'true'

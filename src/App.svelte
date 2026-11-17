@@ -470,6 +470,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       library: library.busy,
       restore: snapshot.busy,
       reminder: reminders.busyId !== null,
+      reminderList: reminders.busyId !== null,
     }),
     closePalette,
     closeShortcuts,

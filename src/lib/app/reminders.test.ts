@@ -232,6 +232,19 @@ describe("Reminders.deliverDue", () => {
     expect(db.rows.get(1)?.notified).not.toBeNull();
   });
 
+  it("never sends when the delivery cannot be recorded", async () => {
+    const db = fakeDeps({
+      markNotified: async () => {
+        throw new Error("db down");
+      },
+    });
+    db.add(1, "2026-11-17T09:00:00.000Z");
+
+    await new Reminders(db.deps).deliverDue();
+
+    expect(db.notified).toEqual([]);
+  });
+
   it("drops a delivered reminder from the panel", async () => {
     const db = fakeDeps();
     db.add(1, "2026-11-17T09:00:00.000Z");

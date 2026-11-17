@@ -111,11 +111,14 @@ export class Reminders {
       const nowIso = this.deps.now().toISOString();
       let delivered = 0;
       for (const row of await this.deps.listDue(nowIso)) {
+        // Mark first: the desktop plugin reports no send failure, so a row
+        // whose delivery cannot be recorded is skipped instead of notified
+        // twice on the next pass.
+        await this.deps.markNotified(row.clipping_id, nowIso);
         this.deps.notify(
           row.book_title,
           reminderExcerpt(row.content, this.deps.noContent()),
         );
-        await this.deps.markNotified(row.clipping_id, nowIso);
         this.#forget(row.clipping_id);
         delivered += 1;
       }

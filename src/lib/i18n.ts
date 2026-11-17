@@ -307,7 +307,7 @@ const es = {
   "reminders.hint": "Se avisan con la app abierta; si estaba cerrada, al abrirla.",
   "reminders.edit": "Cambiar",
   "reminders.remove": "Quitar",
-  "reminders.confirm": "¿Quitar el recordatorio de “{title}”? No se puede deshacer.",
+  "reminders.confirm": "¿Quitar el recordatorio de “{title}”? Puedes programarlo de nuevo.",
 };
 
 export type I18nKey = keyof typeof es;
@@ -697,7 +697,7 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "reminders.hint": "Delivered while the app is open; on launch if it was closed.",
     "reminders.edit": "Change",
     "reminders.remove": "Remove",
-    "reminders.confirm": "Remove the reminder for “{title}”? This cannot be undone.",
+    "reminders.confirm": "Remove the reminder for “{title}”? You can schedule it again.",
   },
   fr: {
   "reference.page": "p. {n}",
@@ -993,7 +993,7 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "reminders.hint": "Ils arrivent avec l'application ouverte ; au lancement si elle était fermée.",
     "reminders.edit": "Modifier",
     "reminders.remove": "Supprimer",
-    "reminders.confirm": "Supprimer le rappel de « {title} » ? Action irréversible.",
+    "reminders.confirm": "Supprimer le rappel de « {title} » ? Vous pouvez le reprogrammer.",
   },
   de: {
   "reference.page": "S. {n}",
@@ -1289,7 +1289,7 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "reminders.hint": "Zustellung bei geöffneter App; beim Start, wenn sie geschlossen war.",
     "reminders.edit": "Ändern",
     "reminders.remove": "Entfernen",
-    "reminders.confirm": "Erinnerung für „{title}“ entfernen? Das lässt sich nicht rückgängig machen.",
+    "reminders.confirm": "Erinnerung für „{title}“ entfernen? Du kannst sie erneut planen.",
   },
   it: {
   "reference.page": "p. {n}",
@@ -1584,7 +1584,7 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "reminders.hint": "Arrivano con l'app aperta; all'avvio se era chiusa.",
     "reminders.edit": "Modifica",
     "reminders.remove": "Rimuovi",
-    "reminders.confirm": "Rimuovere il promemoria per «{title}»? Non è reversibile.",
+    "reminders.confirm": "Rimuovere il promemoria per «{title}»? Puoi programmarlo di nuovo.",
   },
 };
 
