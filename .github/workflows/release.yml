@@ -344,8 +344,8 @@ jobs:
           # true). It merges each leg's platform entry into the existing file
           # and knows the v2 artifact names, which a hand-written manifest got
           # wrong twice: it looked for the v1Compatible `.AppImage.tar.gz` and
-          # dropped the deb/rpm/nsis entries. The job below only verifies what
-          # it published.
+          # dropped the deb/rpm/nsis entries. The job below adds the notes the
+          # action cannot know and checks the result.
           args: ${{ matrix.args }}
 
   finalize-updater-manifest:
