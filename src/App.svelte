@@ -64,6 +64,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   import { createReadingState } from "./lib/app/reading.svelte";
   import { createLibraryPanel } from "./lib/app/library.svelte";
   import { createSnapshotState } from "./lib/app/snapshot.svelte";
+  import { createUpdatePanel, plainNotes } from "./lib/app/updates.svelte";
   import { createImportState, type ImportRunner } from "./lib/app/import.svelte";
   import { createExportState } from "./lib/app/export.svelte";
   import { createStatsState } from "./lib/app/stats.svelte";
@@ -156,6 +157,31 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       filters.values.tagIds = withoutTagId(filters.values.tagIds, tagId);
     },
   });
+  /** Signed auto-update: the launch check and the Preferences control. */
+  const updates = createUpdatePanel(t);
+
+  /** The version button is also the update control: its tooltip says what a
+   * click would do right now. */
+  const updateTitle = $derived(
+    updates.available
+      ? t("updates.available", { version: updates.version ?? "" })
+      : t("updates.check"),
+  );
+  const updateHeadline = $derived.by(() => {
+    switch (updates.status) {
+      case "available":
+        return t("updates.available", { version: updates.version ?? "" });
+      case "current":
+        return t("updates.current");
+      case "checking":
+        return t("updates.checking");
+      case "installing":
+        return t("updates.installing");
+      default:
+        return t("updates.title");
+    }
+  });
+  const updateNotes = $derived(plainNotes(updates.notes));
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
       return prefs.locale;
@@ -682,6 +708,10 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 
   boot.mount();
 
+  // The launch check is deliberately not awaited: a cold start must never
+  // wait on the network, and a failure stays silent (see UpdatePanel).
+  void updates.checkOnLaunch();
+
   /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading.current);
 
@@ -725,9 +755,27 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     </div>
     <div class="flex items-center gap-2">
       {#if appVersion}
-        <span class="text-xs tabular-nums text-fg-subtle">
-          {t("prefs.versionShort", { version: appVersion })}
-        </span>
+        <!-- The version doubles as the update control: a click looks for a
+             release and always answers, and the dot appears when the launch
+             check already found one. -->
+        <button
+          type="button"
+          onclick={() => void updates.open()}
+          title={updateTitle}
+          aria-label={updateTitle}
+          aria-haspopup="dialog"
+          disabled={updates.status === "checking" || updates.busy}
+          class="relative flex h-9 items-center gap-1.5 rounded-lg px-2 text-xs tabular-nums text-fg-subtle transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
+        >
+          <Icon name="download" />
+          <span>{t("prefs.versionShort", { version: appVersion })}</span>
+          {#if updates.available}
+            <span
+              class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent ring-2 ring-surface"
+              aria-hidden="true"
+            ></span>
+          {/if}
+        </button>
       {/if}
       <button
         type="button"
@@ -1173,6 +1221,45 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     onCancelReminder={() => reminders.cancel(reminderTarget!.id)}
     onClose={closeReminder}
   />
+{/if}
+
+{#if updates.prompt}
+  <Modal
+    label={t("updates.title")}
+    onClose={() => updates.dismiss()}
+    busy={updates.busy}
+    panel="w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
+  >
+    <p class="text-sm font-medium text-fg">{updateHeadline}</p>
+    {#if updateNotes}
+      <p class="mt-2 max-h-56 overflow-y-auto text-sm whitespace-pre-line text-fg-muted">
+        {updateNotes}
+      </p>
+    {/if}
+    {#if updates.error}
+      <p class="mt-2 text-xs text-danger" role="alert">{updates.error}</p>
+    {/if}
+    <div class="mt-4 flex items-center justify-end gap-2">
+      <button
+        type="button"
+        onclick={() => updates.dismiss()}
+        disabled={updates.busy}
+        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+      >
+        {updates.available ? t("updates.later") : t("updates.close")}
+      </button>
+      {#if updates.available}
+        <button
+          type="button"
+          onclick={() => void updates.install()}
+          disabled={updates.busy}
+          class="rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
+        >
+          {t("updates.install")}
+        </button>
+      {/if}
+    </div>
+  </Modal>
 {/if}
 
 {#if overlays.preferences}

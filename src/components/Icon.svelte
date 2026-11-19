@@ -24,7 +24,8 @@
     | "quote"
     | "check"
     | "star"
-    | "bell";
+    | "bell"
+    | "download";
 
   interface Props {
     name: IconName;
@@ -50,6 +51,7 @@
     export: ["M12 3v12", "M8 11l4 4 4-4", "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"],
     backup: ["M3 4h18v4H3z", "M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8", "M10 12h4"],
     restore: ["M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5"],
+    download: ["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3"],
     chevron: ["M9 18l6-6-6-6"],
     chevronsDown: ["M7 6l5 5 5-5", "M7 13l5 5 5-5"],
     chevronsUp: ["M17 11l-5-5-5 5", "M17 18l-5-5-5 5"],

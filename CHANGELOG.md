@@ -10,6 +10,17 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-19
+
+### Added
+
+- **Signed auto-update**: the version in the header is now a button. A dot on it
+  means a newer release is waiting; clicking it shows what changed in that
+  release and offers to install and restart. Every release is signed, and the
+  app verifies the signature against a key embedded in the binary, so an update
+  served from anywhere else is refused. On Linux only the AppImage can update
+  itself: `.deb` and `.rpm` installs need the next release downloaded by hand.
+
 ## [2.0.0] - 2026-11-17
 
 ### Added

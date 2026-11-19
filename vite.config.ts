@@ -45,5 +45,17 @@ export default defineConfig(async () => ({
         // Persist transformed modules between runs. The cache lives inside
         // node_modules, so reinstalling dependencies invalidates it naturally.
         fsModuleCache: true,
+        coverage: {
+          provider: "v8",
+          // On demand (`npm run coverage`), never part of `npm run verify`:
+          // instrumentation costs more than the whole gate saves. The text
+          // table answers "what is not covered"; the html report drills down.
+          reporter: ["text", "html"],
+          include: ["src/**/*.{ts,svelte}"],
+          exclude: ["src/**/*.test.ts", "src/test/**", "src/**/*.d.ts"],
+          // No thresholds yet: the first report is a map of the gaps, and a
+          // number picked before seeing it would only force a fake gate.
+          reportsDirectory: "coverage",
+        },
       },
 }));

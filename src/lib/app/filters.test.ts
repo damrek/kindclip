@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { FilterState } from "./filters.svelte";
 import { CLIPPING_SORT_KEYS, SORT_DIRS } from "../sorting";
 
@@ -115,16 +115,29 @@ describe("FilterState", () => {
     expect(saved[0]).toContain('"kinds":["note"]');
   });
 
-  it("debounces the query into the list filter", async () => {
-    const { state, resets } = make();
+  it("debounces the query into the list filter", () => {
+    vi.useFakeTimers();
+    try {
+      const { state, resets } = make();
 
-    state.scheduleQuery("aurora");
-    state.scheduleQuery("aurora borealis");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+      state.scheduleQuery("aurora");
+      state.scheduleQuery("aurora borealis");
 
-    expect(state.values.debouncedQuery).toBe("aurora borealis");
-    expect(state.filter.query).toBe("aurora borealis");
-    expect(resets()).toBe(1);
+      // The pause is real: neither keystroke reaches the list on its own.
+      expect(state.values.debouncedQuery).toBe("");
+      expect(resets()).toBe(0);
+
+      vi.advanceTimersByTime(249);
+      expect(state.values.debouncedQuery).toBe("");
+      expect(resets()).toBe(0);
+
+      vi.advanceTimersByTime(1);
+      expect(state.values.debouncedQuery).toBe("aurora borealis");
+      expect(state.filter.query).toBe("aurora borealis");
+      expect(resets()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("resets the page for a new page size but not for a book sort", () => {

@@ -149,3 +149,50 @@ describe("bundle targets", () => {
     expect(tauriConfig).not.toContain('"msi"');
   });
 });
+
+// The updater fails in ways nothing else would catch: a manifest with one
+// platform leaves every other user on an old build, and a missing signature
+// only shows up when a real install refuses to update. These guards keep the
+// pieces that must agree — the signing key, the artifacts, the endpoint and
+// the single manifest — from drifting apart.
+describe("signed auto-update", () => {
+  const config = JSON.parse(tauriConfig);
+
+  it("signs every bundle and pins the public key the app verifies", () => {
+    expect(config.bundle.createUpdaterArtifacts).toBe(true);
+    expect(config.plugins.updater.pubkey).toMatch(/^[A-Za-z0-9+/=]+$/);
+    expect(config.plugins.updater.endpoints).toEqual([
+      "https://github.com/damrek/kindclip/releases/latest/download/latest.json",
+    ]);
+  });
+
+  it("hands the signing key to the build and lets one job own latest.json", () => {
+    expect(releaseWorkflow).toContain(
+      "TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+    );
+    expect(releaseWorkflow).toContain("TAURI_SIGNING_PRIVATE_KEY_PASSWORD");
+    // A leg that published its own manifest would overwrite the other two.
+    // The real input is `uploadUpdaterJson`: an unknown key is only a warning,
+    // so a typo here would bring the race back with a green run. The negative
+    // check matches the key form, not the mention in the comment above it.
+    expect(releaseWorkflow).toContain("uploadUpdaterJson: false");
+    expect(releaseWorkflow).not.toMatch(/^\s*includeUpdaterJson:/m);
+    expect(releaseWorkflow).not.toMatch(/generateReleaseNotes:/);
+  });
+
+  it("composes the manifest after every leg has uploaded its signatures", () => {
+    const job = releaseWorkflow.slice(releaseWorkflow.indexOf("\n  updater-manifest:\n"));
+    expect(job.length).toBeGreaterThan(0);
+    expect(job).toMatch(/needs: \[prepare, create-release, release\]/);
+    expect(job).toContain("updater-manifest.sh");
+    expect(job).toContain('--pattern \'*.sig\'');
+    expect(job).toContain('gh release upload "$TAG" latest.json --clobber');
+    // The app shows the release body as "what's new", so it must reach the
+    // manifest the endpoint serves.
+    expect(job).toContain('gh release view "$TAG" --json body -q .body > notes.md');
+  });
+
+  it("tests the manifest script in CI", () => {
+    expect(ciWorkflow).toContain("bash .github/scripts/updater-manifest.test.sh");
+  });
+});

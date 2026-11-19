@@ -156,7 +156,7 @@ src/                        # Svelte 5 + Tailwind v4 frontend
 src-tauri/
   src/                      # plugin/command registration, file I/O
   migrations/               # 001 init … 006 reminders
-  capabilities/             # least privilege: sql, dialog, clipboard, opener, log, notification
+  capabilities/             # least privilege: sql, dialog, clipboard, opener, log, notification, updater, process
 crates/clippings-parser/    # pure My Clippings.txt parser (no Tauri deps)
 ```
 
@@ -178,13 +178,33 @@ per-OS log dir (`~/.local/share/app.kindclip/logs` on Linux,
 `~/Library/Logs/app.kindclip` on macOS), rotated at 1 MB over three files and
 opened from **Preferences → Diagnostics**.
 
+## Updates
+
+kindclip checks for a new release when it starts, and again whenever you click
+the version in the header. A dot on that button means a release is waiting;
+clicking it shows what changed in the new version and offers to install it.
+Updates are signed, verified against the public key embedded in the app, and
+followed by a restart. Nothing is downloaded unless the version is newer and
+its signature matches.
+
+On Linux only the **AppImage** can update itself: a `.deb` or `.rpm` install
+must download the next release by hand. Windows (NSIS) and macOS (universal)
+update in place.
+
+Releases are signed with a minisign key. The public half lives in
+`src-tauri/tauri.conf.json`; the private half is the
+`TAURI_SIGNING_PRIVATE_KEY` repository secret (with
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when it has one), so a local
+`npm run tauri build` needs the same environment variable to bundle. Each
+release also publishes one `latest.json` covering every platform, composed by
+`.github/scripts/updater-manifest.sh` after the build matrix finishes.
+
 ## Roadmap
 
 Planned, no dates attached:
 
 - **Recall**: a random clipping from the current filters, plus “on this day”
   clippings from previous years.
-- **Desktop polish**: signed auto-update.
 
 ## License
 
