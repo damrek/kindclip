@@ -37,6 +37,18 @@ describe("release and CI workflow invariants", () => {
     expect(ciWorkflow).not.toContain("rust-cache");
   });
 
+  it("bounds the apt step and falls back when the Azure mirror is down", () => {
+    // azure.archive.ubuntu.com has been unreachable for hours twice, hanging
+    // the leg until the job timeout. Both workflows carry the same fallback,
+    // so a fix applied to one cannot silently miss the other.
+    for (const workflow of [ciWorkflow, releaseWorkflow]) {
+      expect(workflow).toContain("Acquire::http::Timeout=20");
+      expect(workflow).toContain("Acquire::Retries=1");
+      expect(workflow).toContain("s|azure\\.archive\\.ubuntu\\.com|archive.ubuntu.com|g");
+      expect(workflow).toContain("install_dependencies");
+    }
+  });
+
   it("gates pull requests and also validates the commit that lands on main", () => {
     // pull_request only tests a synthetic merge preview (refs/pull/N/merge), a
     // commit that never lands. The commit main receives — the one a release

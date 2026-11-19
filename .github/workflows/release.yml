@@ -247,9 +247,40 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          set -euo pipefail
+
+          # GitHub's Ubuntu runners point apt at azure.archive.ubuntu.com,
+          # which has twice been unreachable for hours and left this step
+          # hanging until the job timeout. Bound every attempt, then fall back
+          # to the public archive instead of waiting on a dead mirror.
+          apt_options=(
+            -o Acquire::http::Timeout=20
+            -o Acquire::https::Timeout=20
+            -o Acquire::Retries=1
+          )
+          packages=(libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf)
+
+          # The `&&` is deliberate: inside an `if`, bash suspends `set -e` for
+          # the whole function, so an unchecked update would let install run
+          # against a stale package list.
+          install_dependencies() {
+            sudo apt-get update "${apt_options[@]}" &&
+              sudo apt-get install -y "${apt_options[@]}" "${packages[@]}"
+          }
+
+          if install_dependencies; then
+            exit 0
+          fi
+
+          echo "::warning::apt could not reach azure.archive.ubuntu.com; retrying against archive.ubuntu.com"
+          sudo find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) \
+            -exec sed -i \
+              -e 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' \
+              -e 's|azure\.ports\.ubuntu\.com|ports.ubuntu.com|g' {} +
+
+          install_dependencies
 
       - name: Sync version from resolved release
         # bash on ALL OSes: pwsh (the windows-latest default) cannot run
