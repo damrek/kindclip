@@ -291,8 +291,64 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signed auto-update: every bundle gets a minisign signature the
+          # installed app verifies against the public key in tauri.conf.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           # The release already exists: upload to it by id instead of letting
           # each leg look it up (and create one) by tag.
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          # The three legs run in parallel, so each one publishing its own
+          # latest.json would overwrite the others and leave a manifest with a
+          # single platform. The `updater-manifest` job composes the real one
+          # once every leg has uploaded its signatures.
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+  updater-manifest:
+    needs: [prepare, create-release, release]
+    if: needs.prepare.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Download the release signatures
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p sigs
+          gh release download "$TAG" --pattern '*.sig' --dir sigs
+          ls -1 sigs
+
+      - name: Compose latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.prepare.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --json assets > assets.json
+          published=$(gh release view "$TAG" --json publishedAt -q .publishedAt)
+          bash .github/scripts/updater-manifest.sh \
+            assets.json sigs "$VERSION" "$GH_REPO" "$TAG" "$published" > latest.json
+          cat latest.json
+
+      - name: Upload latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" latest.json --clobber

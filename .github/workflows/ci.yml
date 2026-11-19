@@ -43,6 +43,11 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: bash .github/scripts/release-notes.test.sh
 
+      # release.yml composes latest.json with this script; same rule.
+      - name: Test updater manifest script
+        if: matrix.platform == 'ubuntu-22.04'
+        run: bash .github/scripts/updater-manifest.test.sh
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
