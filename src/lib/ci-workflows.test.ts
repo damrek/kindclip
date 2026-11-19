@@ -172,7 +172,11 @@ describe("signed auto-update", () => {
     );
     expect(releaseWorkflow).toContain("TAURI_SIGNING_PRIVATE_KEY_PASSWORD");
     // A leg that published its own manifest would overwrite the other two.
-    expect(releaseWorkflow).toContain("includeUpdaterJson: false");
+    // The real input is `uploadUpdaterJson`: an unknown key is only a warning,
+    // so a typo here would bring the race back with a green run. The negative
+    // check matches the key form, not the mention in the comment above it.
+    expect(releaseWorkflow).toContain("uploadUpdaterJson: false");
+    expect(releaseWorkflow).not.toMatch(/^\s*includeUpdaterJson:/m);
     expect(releaseWorkflow).not.toMatch(/generateReleaseNotes:/);
   });
 

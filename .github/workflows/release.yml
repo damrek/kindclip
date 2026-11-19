@@ -302,8 +302,10 @@ jobs:
           # The three legs run in parallel, so each one publishing its own
           # latest.json would overwrite the others and leave a manifest with a
           # single platform. The `updater-manifest` job composes the real one
-          # once every leg has uploaded its signatures.
-          includeUpdaterJson: false
+          # once every leg has uploaded its signatures. The input is
+          # `uploadUpdaterJson`; `includeUpdaterJson` does not exist and an
+          # unknown key only warns, so the legs would race again in silence.
+          uploadUpdaterJson: false
           args: ${{ matrix.args }}
 
   updater-manifest:
