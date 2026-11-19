@@ -64,6 +64,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   import { createReadingState } from "./lib/app/reading.svelte";
   import { createLibraryPanel } from "./lib/app/library.svelte";
   import { createSnapshotState } from "./lib/app/snapshot.svelte";
+  import { createUpdatePanel } from "./lib/app/updates.svelte";
   import { createImportState, type ImportRunner } from "./lib/app/import.svelte";
   import { createExportState } from "./lib/app/export.svelte";
   import { createStatsState } from "./lib/app/stats.svelte";
@@ -156,6 +157,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       filters.values.tagIds = withoutTagId(filters.values.tagIds, tagId);
     },
   });
+  /** Signed auto-update: the launch check and the Preferences control. */
+  const updates = createUpdatePanel(t);
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
       return prefs.locale;
@@ -682,6 +685,10 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 
   boot.mount();
 
+  // The launch check is deliberately not awaited: a cold start must never
+  // wait on the network, and a failure stays silent (see UpdatePanel).
+  void updates.checkOnLaunch();
+
   /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading.current);
 
@@ -1175,6 +1182,45 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   />
 {/if}
 
+{#if updates.prompt}
+  <Modal
+    label={t("prefs.updates")}
+    onClose={() => updates.dismiss()}
+    busy={updates.busy}
+    panel="w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
+  >
+    <p class="text-sm font-medium text-fg">
+      {t("updates.available", { version: updates.version ?? "" })}
+    </p>
+    {#if updates.notes}
+      <p class="mt-2 max-h-40 overflow-y-auto text-sm whitespace-pre-line text-fg-muted">
+        {updates.notes}
+      </p>
+    {/if}
+    {#if updates.error}
+      <p class="mt-2 text-xs text-danger" role="alert">{updates.error}</p>
+    {/if}
+    <div class="mt-4 flex items-center justify-end gap-2">
+      <button
+        type="button"
+        onclick={() => updates.dismiss()}
+        disabled={updates.busy}
+        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+      >
+        {t("updates.later")}
+      </button>
+      <button
+        type="button"
+        onclick={() => void updates.install()}
+        disabled={updates.busy}
+        class="rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
+      >
+        {t("updates.install")}
+      </button>
+    </div>
+  </Modal>
+{/if}
+
 {#if overlays.preferences}
   <PreferencesDialog
     locale={prefs.locale}
@@ -1182,6 +1228,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     palette={prefs.darkPalette}
     font={prefs.fontScale}
     density={prefs.density}
+    updates={updates}
     backingUp={snapshot.backup.busy}
     backupStatus={snapshot.backup.status}
     autoBackup={prefs.autoBackupEnabled}

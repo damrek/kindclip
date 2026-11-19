@@ -20,6 +20,7 @@
   } from "../lib/theme";
   import { FONT_SCALES, type FontScale } from "../lib/font";
   import { DENSITIES, type Density } from "../lib/density";
+  import type { UpdatePanel } from "../lib/app/updates.svelte";
 
   interface Props {
     locale: Locale;
@@ -27,6 +28,8 @@
     palette: DarkPalette;
     font: FontScale;
     density: Density;
+    /** Signed auto-update: the manual check and the install step. */
+    updates: UpdatePanel;
     backingUp: boolean;
     backupStatus: string | null;
     autoBackup: boolean;
@@ -50,6 +53,7 @@
     palette,
     font,
     density,
+    updates,
     backingUp,
     backupStatus,
     autoBackup,
@@ -70,6 +74,22 @@
   let logsError = $state<string | null>(null);
   let dbError = $state<string | null>(null);
   let revealing = $state(false);
+
+  /** One line under the check button; empty while nothing was asked yet. */
+  const updateLine = $derived.by(() => {
+    switch (updates.status) {
+      case "checking":
+        return i18n.t("updates.checking");
+      case "current":
+        return i18n.t("updates.current");
+      case "available":
+        return i18n.t("updates.available", { version: updates.version ?? "" });
+      case "installing":
+        return i18n.t("updates.installing");
+      default:
+        return "";
+    }
+  });
 
   /** Reveal the database without closing: a failure is reported in place. */
   async function revealDatabase(): Promise<void> {
@@ -328,6 +348,46 @@
             </p>
           {/if}
         </div>
+      </section>
+
+      <section class="border-t border-line-subtle pt-3" aria-labelledby="prefs-updates">
+        <h3
+          id="prefs-updates"
+          class="text-xs font-medium tracking-wide text-fg-muted uppercase"
+        >
+          {i18n.t("prefs.updates")}
+        </h3>
+        <div class="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onclick={() => void updates.checkNow()}
+            title={i18n.t("updates.check")}
+            disabled={updates.status === "checking" || updates.busy}
+            class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
+          >
+            <Icon name="restore" />
+            <span class="min-w-0 flex-1 truncate">{i18n.t("updates.check")}</span>
+          </button>
+          {#if updates.available}
+            <button
+              type="button"
+              onclick={() => void updates.install()}
+              disabled={updates.busy}
+              class="ml-auto shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
+            >
+              {i18n.t("updates.install")}
+            </button>
+          {/if}
+        </div>
+        {#if updateLine}
+          <p class="px-2 pt-1 text-xs text-fg-subtle" role="status">{updateLine}</p>
+        {/if}
+        {#if updates.notes}
+          <p class="px-2 pt-1 text-xs whitespace-pre-line text-fg-muted">{updates.notes}</p>
+        {/if}
+        {#if updates.error}
+          <p class="px-2 pt-1 text-xs text-danger" role="alert">{updates.error}</p>
+        {/if}
       </section>
 
       <section class="border-t border-line-subtle pt-3" aria-labelledby="prefs-diagnostics">
