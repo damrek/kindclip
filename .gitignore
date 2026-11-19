@@ -4,6 +4,11 @@ dist/
 dist-ssr/
 *.local
 
+# Local gate caches (npm run check / npm run lint / npm run coverage)
+.svelte-check/
+.eslintcache
+coverage/
+
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/

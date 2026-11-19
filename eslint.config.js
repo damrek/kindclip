@@ -7,7 +7,17 @@ import tseslint from "typescript-eslint";
  * the cross-file rules the compiler does not cover. */
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", "src-tauri/**", "odd/**", "target/**"],
+    // `.svelte-check/` holds the transpiled output `svelte-check --incremental`
+    // writes to disk; linting it would re-check generated files and, because
+    // the gate runs the two in parallel, could read it mid-write.
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "src-tauri/**",
+      "odd/**",
+      "target/**",
+      ".svelte-check/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -15,6 +25,13 @@ export default tseslint.config(
   {
     languageOptions: {
       globals: { ...globals.browser },
+    },
+  },
+  {
+    // Build and gate scripts run on Node, not in the browser.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: { ...globals.node },
     },
   },
   {
