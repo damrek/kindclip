@@ -187,17 +187,20 @@ Updates are signed, verified against the public key embedded in the app, and
 followed by a restart. Nothing is downloaded unless the version is newer and
 its signature matches.
 
-On Linux only the **AppImage** can update itself: a `.deb` or `.rpm` install
-must download the next release by hand. Windows (NSIS) and macOS (universal)
+On Linux the AppImage updates in place; `.deb` and `.rpm` installs update too,
+asking the system for authorization. Windows (NSIS) and macOS (universal)
 update in place.
 
 Releases are signed with a minisign key. The public half lives in
 `src-tauri/tauri.conf.json`; the private half is the
 `TAURI_SIGNING_PRIVATE_KEY` repository secret (with
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when it has one), so a local
-`npm run tauri build` needs the same environment variable to bundle. Each
-release also publishes one `latest.json` covering every platform, composed by
-`.github/scripts/updater-manifest.sh` after the build matrix finishes.
+`npm run tauri build` needs the same environment variable to bundle.
+
+Each release serves one `latest.json` covering every platform. The build matrix
+lets `tauri-action` assemble it, and a job after the matrix adds the CHANGELOG
+section as the "what's new" text and checks every signature against the bundles
+the release actually holds before the file goes live.
 
 ## Roadmap
 

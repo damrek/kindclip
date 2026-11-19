@@ -10,6 +10,16 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-11-19
+
+### Fixed
+
+- **Auto-update on macOS**: the release manifest kept the signature from the
+  first build attempt while the bundle behind it had been replaced, so macOS
+  refused the update. The manifest is now rebuilt from a clean file on every
+  attempt and each signature is checked against the bundle the release
+  publishes before the file goes live.
+
 ## [2.1.0] - 2026-11-19
 
 ### Added
@@ -18,8 +28,8 @@ listed. History before v1.0.0 is left to the release list.
   means a newer release is waiting; clicking it shows what changed in that
   release and offers to install and restart. Every release is signed, and the
   app verifies the signature against a key embedded in the binary, so an update
-  served from anywhere else is refused. On Linux only the AppImage can update
-  itself: `.deb` and `.rpm` installs need the next release downloaded by hand.
+  served from anywhere else is refused. On Linux the AppImage updates in place
+  and `.deb`/`.rpm` installs ask the system for authorization.
 
 ## [2.0.0] - 2026-11-17
 

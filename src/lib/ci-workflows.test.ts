@@ -178,33 +178,44 @@ describe("signed auto-update", () => {
     ]);
   });
 
-  it("hands the signing key to the build and lets one job own latest.json", () => {
+  it("keeps the v2 updater artifacts the manifest check expects", () => {
+    // `true` reuses the AppImage and the NSIS installer in place, which is why
+    // the manifest carries `linux-x86_64-deb`, `-rpm` and friends. The
+    // "v1Compatible" value would wrap them in .tar.gz/.zip instead and the
+    // check would fail every release.
+    expect(config.bundle.createUpdaterArtifacts).toBe(true);
+    expect(tauriConfig).not.toContain("v1Compatible");
+  });
+
+  it("hands the signing key to the build and drops a stale manifest first", () => {
     expect(releaseWorkflow).toContain(
       "TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
     );
     expect(releaseWorkflow).toContain("TAURI_SIGNING_PRIVATE_KEY_PASSWORD");
-    // A leg that published its own manifest would overwrite the other two.
-    // The real input is `uploadUpdaterJson`: an unknown key is only a warning,
-    // so a typo here would bring the race back with a green run. The negative
-    // check matches the key form, not the mention in the comment above it.
-    expect(releaseWorkflow).toContain("uploadUpdaterJson: false");
-    expect(releaseWorkflow).not.toMatch(/^\s*includeUpdaterJson:/m);
     expect(releaseWorkflow).not.toMatch(/generateReleaseNotes:/);
+    // latest.json is left to tauri-action. The trap: on a re-release the
+    // action merges into the manifest it finds and keeps a platform entry it
+    // cannot re-resolve, so the 2.1.0 macOS signature pointed at a bundle that
+    // had already been replaced. create-release drops the old file first.
+    expect(releaseWorkflow).not.toMatch(/^\s*(include|upload)UpdaterJson:\s*false/m);
+    expect(releaseWorkflow).toContain('gh release delete-asset "$TAG" latest.json --yes');
   });
 
-  it("composes the manifest after every leg has uploaded its signatures", () => {
-    const job = releaseWorkflow.slice(releaseWorkflow.indexOf("\n  updater-manifest:\n"));
+  it("adds the notes and checks the manifest after every leg has uploaded", () => {
+    const job = releaseWorkflow.slice(
+      releaseWorkflow.indexOf("\n  finalize-updater-manifest:\n"),
+    );
     expect(job.length).toBeGreaterThan(0);
     expect(job).toMatch(/needs: \[prepare, create-release, release\]/);
-    expect(job).toContain("updater-manifest.sh");
+    expect(job).toContain("check-updater-manifest.sh");
     expect(job).toContain('--pattern \'*.sig\'');
-    expect(job).toContain('gh release upload "$TAG" latest.json --clobber');
-    // The app shows the release body as "what's new", so it must reach the
-    // manifest the endpoint serves.
+    // The action knows only the release id, so it writes no notes: without
+    // this the update dialog shows nothing.
     expect(job).toContain('gh release view "$TAG" --json body -q .body > notes.md');
+    expect(job).toContain('gh release upload "$TAG" latest.json --clobber');
   });
 
-  it("tests the manifest script in CI", () => {
-    expect(ciWorkflow).toContain("bash .github/scripts/updater-manifest.test.sh");
+  it("tests the manifest check in CI", () => {
+    expect(ciWorkflow).toContain("bash .github/scripts/check-updater-manifest.test.sh");
   });
 });

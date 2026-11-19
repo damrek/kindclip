@@ -205,6 +205,16 @@ jobs:
               "${NOTES_ARGS[@]}" \
               --target "$GITHUB_SHA"
           fi
+          # A re-release reuses the tag but replaces every bundle, so the
+          # manifest from the previous attempt carries signatures over files
+          # that no longer exist. tauri-action merges into the manifest it
+          # finds and keeps a platform entry it cannot re-resolve, which left
+          # the 2.1.0 macOS signature pointing at the old bundle and broke
+          # that update outright. Start from a clean file instead.
+          if gh release view "$TAG" --json assets -q '.assets[].name' | grep -qx 'latest.json'; then
+            echo "Dropping the stale latest.json from a previous attempt"
+            gh release delete-asset "$TAG" latest.json --yes
+          fi
           release_id=$(gh release view "$TAG" --json databaseId --jq .databaseId)
           if [ -z "$release_id" ]; then
             echo "Could not resolve the release id for $TAG" >&2
@@ -330,16 +340,15 @@ jobs:
           # The release already exists: upload to it by id instead of letting
           # each leg look it up (and create one) by tag.
           releaseId: ${{ needs.create-release.outputs.release_id }}
-          # The three legs run in parallel, so each one publishing its own
-          # latest.json would overwrite the others and leave a manifest with a
-          # single platform. The `updater-manifest` job composes the real one
-          # once every leg has uploaded its signatures. The input is
-          # `uploadUpdaterJson`; `includeUpdaterJson` does not exist and an
-          # unknown key only warns, so the legs would race again in silence.
-          uploadUpdaterJson: false
+          # latest.json is left to the action (includeUpdaterJson defaults to
+          # true). It merges each leg's platform entry into the existing file
+          # and knows the v2 artifact names, which a hand-written manifest got
+          # wrong twice: it looked for the v1Compatible `.AppImage.tar.gz` and
+          # dropped the deb/rpm/nsis entries. The job below only verifies what
+          # it published.
           args: ${{ matrix.args }}
 
-  updater-manifest:
+  finalize-updater-manifest:
     needs: [prepare, create-release, release]
     if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-latest
@@ -349,19 +358,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 1
 
-      - name: Download the release signatures
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TAG: v${{ needs.prepare.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p sigs
-          gh release download "$TAG" --pattern '*.sig' --dir sigs
-          ls -1 sigs
-
-      - name: Compose latest.json
+      - name: Add the notes and check what tauri-action published
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -370,16 +367,26 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          gh release view "$TAG" --json assets > assets.json
-          # The body is the CHANGELOG section the release was published with;
-          # the app shows it as "what's new" in the update dialog.
-          gh release view "$TAG" --json body -q .body > notes.md
-          published=$(gh release view "$TAG" --json publishedAt -q .publishedAt)
-          bash .github/scripts/updater-manifest.sh \
-            assets.json sigs "$VERSION" "$GH_REPO" "$TAG" "$published" notes.md > latest.json
-          cat latest.json
+          mkdir -p manifest sigs
+          # The action assembles latest.json as each leg finishes. Read it back
+          # instead of trusting the upload: a leg whose update was lost, or an
+          # entry left from a previous attempt, makes the app refuse the update
+          # for that platform without a word.
+          gh release download "$TAG" --pattern 'latest.json' --dir manifest
+          gh release download "$TAG" --pattern '*.sig' --dir sigs
+          gh release view "$TAG" --json assets > manifest/assets.json
 
-      - name: Upload latest.json
+          # The action only knows the release id, so it writes no notes and the
+          # update dialog would show nothing. The body is the CHANGELOG section
+          # the release was created with, which is exactly what "what's new"
+          # should show.
+          gh release view "$TAG" --json body -q .body > notes.md
+          jq --rawfile notes notes.md '.notes = $notes' manifest/latest.json > latest.json
+
+          bash .github/scripts/check-updater-manifest.sh \
+            latest.json manifest/assets.json sigs "$VERSION"
+
+      - name: Publish the finalized manifest
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
