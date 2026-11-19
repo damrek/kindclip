@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "clippings-parser"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "serde",
  "sha2 0.11.1",
@@ -2397,7 +2397,7 @@ dependencies = [
 
 [[package]]
 name = "kindclip"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "clippings-parser",
  "log",
