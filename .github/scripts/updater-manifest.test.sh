@@ -58,9 +58,15 @@ printf 'linux-signature\n' >"$tmp/sigs/kindclip_2.0.0_amd64.AppImage.tar.gz.sig"
 printf 'windows-signature\r\n' >"$tmp/sigs/kindclip_2.0.0_x64-setup.exe.sig"
 printf 'macos-signature' >"$tmp/sigs/kindclip_universal.app.tar.gz.sig"
 
+cat >"$tmp/notes.md" <<'EOF'
+### Added
+
+- **Reminders**: one per clipping.
+EOF
+
 # 1. The full manifest: every platform key, the right URL, and the signature
 #    without a trailing newline or CR.
-run_manifest "$tmp/assets.json" "$tmp/sigs" 2.0.0 damrek/kindclip v2.0.0 2026-11-19T10:00:00Z
+run_manifest "$tmp/assets.json" "$tmp/sigs" 2.0.0 damrek/kindclip v2.0.0 2026-11-19T10:00:00Z "$tmp/notes.md"
 check "manifest: exit 0" 0 "$manifest_status"
 
 expected_version=$(jq -r '.version' <<<"$manifest_out")
@@ -70,6 +76,16 @@ check "manifest: pub_date" "2026-11-19T10:00:00Z" "$expected_date"
 
 expected_keys=$(jq -r '.platforms | keys | join(",")' <<<"$manifest_out")
 check "manifest: platform keys" "darwin-aarch64,darwin-x86_64,linux-x86_64,windows-x86_64" "$expected_keys"
+
+# The dialog shows "what's new", so the release body has to reach the manifest.
+expected_notes="$(cat <<'EOF'
+### Added
+
+- **Reminders**: one per clipping.
+EOF
+)"
+check "manifest: notes carried from the release body" "$expected_notes" \
+  "$(jq -r '.notes' <<<"$manifest_out")"
 
 expected=$(jq -r '.platforms["linux-x86_64"].url' <<<"$manifest_out")
 check "manifest: linux url" \
@@ -124,6 +140,19 @@ manifest_status=$?
 set -e
 check "usage: exit 2" 2 "$manifest_status"
 check "usage: no stdout" "" "$(cat "$tmp/stdout")"
+
+# 6b. Without a notes file the key is absent instead of empty, so the app shows
+#     no "what's new" block rather than a blank one.
+run_manifest "$tmp/assets.json" "$tmp/sigs" 2.0.0 damrek/kindclip v2.0.0 2026-11-19T10:00:00Z
+check "manifest: no notes key without a body" "null" "$(jq -r '.notes' <<<"$manifest_out")"
+
+# 6c. An unreadable notes file is a usage error.
+run_manifest "$tmp/assets.json" "$tmp/sigs" 2.0.0 damrek/kindclip v2.0.0 2026-11-19T10:00:00Z "$tmp/no-notes.md"
+check "unreadable notes: exit 2" 2 "$manifest_status"
+
+# 6d. Too many arguments is a usage error, not a silently ignored extra.
+run_manifest "$tmp/assets.json" "$tmp/sigs" 2.0.0 damrek/kindclip v2.0.0 2026-11-19T10:00:00Z "$tmp/notes.md" extra
+check "extra argument: exit 2" 2 "$manifest_status"
 
 # 7. An unreadable asset list is a usage error.
 run_manifest "$tmp/does-not-exist.json" "$tmp/sigs" 2.0.0 damrek/kindclip v2.0.0 2026-11-19T10:00:00Z

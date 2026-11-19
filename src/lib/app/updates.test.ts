@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { UpdatePanel, type PendingUpdate, type UpdateDeps } from "./updates.svelte";
+import { plainNotes, UpdatePanel, type PendingUpdate, type UpdateDeps } from "./updates.svelte";
 import type { I18nKey, TranslateParams } from "../i18n";
 
 /** Render the key with its params so a test can assert what the line says. */
@@ -34,13 +34,15 @@ function deps(
 const nothing = async (): Promise<PendingUpdate | null> => null;
 
 describe("UpdatePanel launch check", () => {
-  it("opens the prompt when a newer release exists", async () => {
+  it("marks the release as available without opening the dialog", async () => {
     const { value } = deps(async () => pending());
     const panel = new UpdatePanel(value);
 
     await panel.checkOnLaunch();
 
-    expect(panel.prompt).toBe(true);
+    // The launch check only lights the header badge; the dialog waits for a
+    // click, so a cold start is never interrupted.
+    expect(panel.prompt).toBe(false);
     expect(panel.status).toBe("available");
     expect(panel.version).toBe("2.1.0");
     expect(panel.notes).toBe("Faster imports.");
@@ -75,12 +77,36 @@ describe("UpdatePanel launch check", () => {
   it("closes the prompt without losing the pending release", async () => {
     const { value } = deps(async () => pending());
     const panel = new UpdatePanel(value);
-    await panel.checkOnLaunch();
+    await panel.open();
 
     panel.dismiss();
 
     expect(panel.prompt).toBe(false);
     expect(panel.available).toBe(true);
+  });
+
+  it("opens the dialog from the header control without asking the endpoint again", async () => {
+    const checkFn = vi.fn(async () => pending());
+    const { value } = deps(checkFn);
+    const panel = new UpdatePanel(value);
+    await panel.checkOnLaunch();
+
+    await panel.open();
+
+    expect(panel.prompt).toBe(true);
+    expect(checkFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("looks for a release when the header control has nothing pending", async () => {
+    const checkFn = vi.fn(nothing);
+    const { value } = deps(checkFn);
+    const panel = new UpdatePanel(value);
+
+    await panel.open();
+
+    expect(checkFn).toHaveBeenCalledTimes(1);
+    expect(panel.prompt).toBe(true);
+    expect(panel.status).toBe("current");
   });
 });
 
@@ -93,7 +119,8 @@ describe("UpdatePanel manual check", () => {
 
     expect(panel.status).toBe("current");
     expect(panel.error).toBeNull();
-    expect(panel.prompt).toBe(false);
+    // A manual check always answers: the dialog says "up to date".
+    expect(panel.prompt).toBe(true);
   });
 
   it("surfaces a failure with the translated message", async () => {
@@ -194,5 +221,28 @@ describe("UpdatePanel install", () => {
 
     // The install's own check plus the launch one; the manual one was ignored.
     expect(checkFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("plainNotes", () => {
+  it("drops the markdown heading marks and keeps the bullets", () => {
+    const notes = "### Added\n\n- **Reminders**: one per clipping.\n- Faster import.\n\n### Fixed\n\n- One crash.";
+
+    expect(plainNotes(notes)).toBe(
+      "Added\n\n- **Reminders**: one per clipping.\n- Faster import.\n\nFixed\n\n- One crash.",
+    );
+  });
+
+  it("trims the blank lines a release body starts and ends with", () => {
+    expect(plainNotes("\n\n### Fixed\n\n- One crash.\n\n")).toBe("Fixed\n\n- One crash.");
+  });
+
+  it("renders an absent body as an empty string", () => {
+    expect(plainNotes(null)).toBe("");
+    expect(plainNotes("")).toBe("");
+  });
+
+  it("leaves a line that only looks like a heading alone", () => {
+    expect(plainNotes("#hashtag stays")).toBe("#hashtag stays");
   });
 });

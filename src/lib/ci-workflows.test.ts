@@ -183,6 +183,9 @@ describe("signed auto-update", () => {
     expect(job).toContain("updater-manifest.sh");
     expect(job).toContain('--pattern \'*.sig\'');
     expect(job).toContain('gh release upload "$TAG" latest.json --clobber');
+    // The app shows the release body as "what's new", so it must reach the
+    // manifest the endpoint serves.
+    expect(job).toContain('gh release view "$TAG" --json body -q .body > notes.md');
   });
 
   it("tests the manifest script in CI", () => {

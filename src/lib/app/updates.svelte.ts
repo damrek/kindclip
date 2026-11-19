@@ -46,6 +46,20 @@ export function createUpdatePanel(t: Translate): UpdatePanel {
   });
 }
 
+/** The release notes are the CHANGELOG section the release was published with.
+ * Drop the markdown heading marks so the dialog reads as prose; the bullets
+ * stay, because they are the point. */
+export function plainNotes(notes: string | null): string {
+  if (notes === null) {
+    return "";
+  }
+  return notes
+    .split("\n")
+    .map((line) => line.replace(/^#{1,6}\s+/, ""))
+    .join("\n")
+    .trim();
+}
+
 export class UpdatePanel {
   status = $state<UpdateStatus>("idle");
   version = $state<string | null>(null);
@@ -64,18 +78,27 @@ export class UpdatePanel {
     return this.#pending !== null;
   }
 
-  /** Launch check: silent unless there is something to install. */
+  /** Launch check: silent unless there is something to install, and it only
+   * lights the header badge — the dialog waits for a click. */
   async checkOnLaunch(): Promise<void> {
     if (this.busy) return;
     try {
-      const pending = await this.deps.check();
-      this.#adopt(pending);
-      this.prompt = pending !== null;
+      this.#adopt(await this.deps.check());
     } catch (cause) {
       // A cold start is never interrupted: the manual check is where a
       // misconfigured endpoint or a network failure becomes visible.
       this.deps.log("update-check", cause);
     }
+  }
+
+  /** The header control: show what is pending, or look for something new.
+   * Either way the dialog opens, so a click always gets an answer. */
+  async open(): Promise<void> {
+    if (this.#pending !== null) {
+      this.prompt = true;
+      return;
+    }
+    await this.checkNow();
   }
 
   /** Manual check: always reports its outcome, "up to date" included. */
@@ -94,6 +117,7 @@ export class UpdatePanel {
       this.error = this.deps.t("updates.error", { message: describeError(cause) });
       this.deps.log("update-check", cause);
     }
+    this.prompt = true;
   }
 
   /** Download and apply the pending release, then restart into it. */

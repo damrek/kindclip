@@ -338,9 +338,12 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "$TAG" --json assets > assets.json
+          # The body is the CHANGELOG section the release was published with;
+          # the app shows it as "what's new" in the update dialog.
+          gh release view "$TAG" --json body -q .body > notes.md
           published=$(gh release view "$TAG" --json publishedAt -q .publishedAt)
           bash .github/scripts/updater-manifest.sh \
-            assets.json sigs "$VERSION" "$GH_REPO" "$TAG" "$published" > latest.json
+            assets.json sigs "$VERSION" "$GH_REPO" "$TAG" "$published" notes.md > latest.json
           cat latest.json
 
       - name: Upload latest.json

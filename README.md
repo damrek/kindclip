@@ -180,10 +180,12 @@ opened from **Preferences → Diagnostics**.
 
 ## Updates
 
-kindclip checks for a new release when it starts and from **Preferences →
-Updates**. An available update is signed, verified against the public key
-embedded in the app, installed and followed by a restart. Nothing is downloaded
-unless the version is newer and its signature matches.
+kindclip checks for a new release when it starts, and again whenever you click
+the version in the header. A dot on that button means a release is waiting;
+clicking it shows what changed in the new version and offers to install it.
+Updates are signed, verified against the public key embedded in the app, and
+followed by a restart. Nothing is downloaded unless the version is newer and
+its signature matches.
 
 On Linux only the **AppImage** can update itself: a `.deb` or `.rpm` install
 must download the next release by hand. Windows (NSIS) and macOS (universal)

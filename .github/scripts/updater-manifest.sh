@@ -7,20 +7,21 @@
 # platform (tauri-action#1270). The release therefore builds with
 # `includeUpdaterJson: false` and one job runs this script afterwards.
 #
-# Usage: updater-manifest.sh <assets-json> <sig-dir> <version> <repo> <tag> <pub-date>
+# Usage: updater-manifest.sh <assets-json> <sig-dir> <version> <repo> <tag> <pub-date> [notes-file]
 #   assets-json  output of `gh release view <tag> --json assets`
 #   sig-dir      directory holding the downloaded `<asset>.sig` files
 #   version      the released version, without the leading `v`
 #   repo         owner/name, e.g. damrek/kindclip
 #   tag          the release tag, e.g. v2.1.0
 #   pub-date     RFC 3339 timestamp the manifest should carry
+#   notes-file   optional; the release body, which the app shows as "what's new"
 #
 # Exits 2 on a usage or input error, 1 when an expected asset or signature is
 # missing, 0 with the manifest on stdout.
 set -euo pipefail
 
-if [ "$#" -ne 6 ]; then
-  echo "usage: updater-manifest.sh <assets-json> <sig-dir> <version> <repo> <tag> <pub-date>" >&2
+if [ "$#" -lt 6 ] || [ "$#" -gt 7 ]; then
+  echo "usage: updater-manifest.sh <assets-json> <sig-dir> <version> <repo> <tag> <pub-date> [notes-file]" >&2
   exit 2
 fi
 
@@ -30,6 +31,7 @@ version=$3
 repo=$4
 tag=$5
 pub_date=$6
+notes_file=${7:-}
 
 for value in "$version" "$repo" "$tag" "$pub_date"; do
   if [ -z "$value" ]; then
@@ -37,6 +39,15 @@ for value in "$version" "$repo" "$tag" "$pub_date"; do
     exit 2
   fi
 done
+
+notes=""
+if [ -n "$notes_file" ]; then
+  if [ ! -r "$notes_file" ]; then
+    echo "updater-manifest: cannot read $notes_file" >&2
+    exit 2
+  fi
+  notes=$(cat "$notes_file")
+fi
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "updater-manifest: jq is required" >&2
@@ -102,15 +113,16 @@ macos_sig=$(signature_of "$macos_asset")
 jq -n \
   --arg version "$version" \
   --arg pub_date "$pub_date" \
+  --arg notes "$notes" \
   --arg linux_url "$(url_of "$linux_asset")" \
   --arg linux_sig "$linux_sig" \
   --arg windows_url "$(url_of "$windows_asset")" \
   --arg windows_sig "$windows_sig" \
   --arg macos_url "$(url_of "$macos_asset")" \
   --arg macos_sig "$macos_sig" \
-  '{
-    version: $version,
-    pub_date: $pub_date,
+  '{ version: $version, pub_date: $pub_date }
+   + (if $notes == "" then {} else { notes: $notes } end)
+   + {
     platforms: {
       "linux-x86_64": { signature: $linux_sig, url: $linux_url },
       "windows-x86_64": { signature: $windows_sig, url: $windows_url },
