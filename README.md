@@ -199,8 +199,8 @@ Releases are signed with a minisign key. The public half lives in
 
 Each release serves one `latest.json` covering every platform. The build matrix
 lets `tauri-action` assemble it, and a job after the matrix adds the CHANGELOG
-section as the "what's new" text and checks every signature against the bundles
-the release actually holds before the file goes live.
+section as the "what's new" text, checks every entry against the assets and
+`.sig` files the release publishes, and only then uploads the final file.
 
 ## Roadmap
 

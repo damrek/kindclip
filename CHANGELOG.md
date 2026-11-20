@@ -17,8 +17,9 @@ listed. History before v1.0.0 is left to the release list.
 - **Auto-update on macOS**: the release manifest kept the signature from the
   first build attempt while the bundle behind it had been replaced, so macOS
   refused the update. The manifest is now rebuilt from a clean file on every
-  attempt and each signature is checked against the bundle the release
-  publishes before the file goes live.
+  attempt, and the final file is only uploaded after every platform entry
+  points at an asset the release holds and carries that asset's published
+  signature.
 - **Update dialog localization**: the dialog title and close button appeared in
   Spanish for English, French, German and Italian users. A failed update check
   also claimed an update was available; the dialog now uses a neutral title.
