@@ -223,3 +223,29 @@ describe("preferences compact labels", () => {
     }
   });
 });
+
+describe("update dialog labels", () => {
+  it("translates the dialog title and the close button in every locale", () => {
+    // The title is the dialog's accessible name and the neutral headline on a
+    // failed check; the close button is visible. Neither may leak Spanish into
+    // en/fr/de/it. A copy-paste of the es values used to ship in every locale.
+    const titles: Record<Locale, string> = {
+      es: "Actualizaciones",
+      en: "Updates",
+      fr: "Mises à jour",
+      de: "Aktualisierungen",
+      it: "Aggiornamenti",
+    };
+    const closes: Record<Locale, string> = {
+      es: "Cerrar",
+      en: "Close",
+      fr: "Fermer",
+      de: "Schließen",
+      it: "Chiudi",
+    };
+    for (const locale of LOCALES) {
+      expect(translate(locale, "updates.title"), `${locale}.updates.title`).toBe(titles[locale]);
+      expect(translate(locale, "updates.close"), `${locale}.updates.close`).toBe(closes[locale]);
+    }
+  });
+});

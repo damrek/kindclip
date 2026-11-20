@@ -237,6 +237,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       snapshot.open ||
       overlays.preferences ||
       overlays.shortcuts ||
+      updates.prompt ||
       overlays.reminder ||
       overlays.reminderList,
   );
@@ -500,6 +501,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     }),
     closePalette,
     closeShortcuts,
+    closeUpdates: () => updates.dismiss(),
     closeReset,
     closeExport,
     closeReminder,
@@ -527,6 +529,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
         reading: reading.session !== null,
         palette: overlays.palette,
         shortcuts: overlays.shortcuts,
+        updates: updates.prompt,
         reset: actions.resetTarget !== null,
         exportOpen: exports.open,
         reminder: overlays.reminder,

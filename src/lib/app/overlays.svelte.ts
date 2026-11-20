@@ -9,6 +9,7 @@ export type EscapeLayer =
   | "reading"
   | "palette"
   | "shortcuts"
+  | "updates"
   | "reset"
   | "export"
   | "reminder"
@@ -27,6 +28,7 @@ export interface EscapeState {
   reading: boolean;
   palette: boolean;
   shortcuts: boolean;
+  updates: boolean;
   reset: boolean;
   exportOpen: boolean;
   reminder: boolean;
@@ -45,6 +47,7 @@ export function escapeLayer(state: EscapeState): EscapeLayer {
   if (state.reading) return "reading";
   if (state.palette) return "palette";
   if (state.shortcuts) return "shortcuts";
+  if (state.updates) return "updates";
   if (state.reset) return "reset";
   if (state.exportOpen) return "export";
   if (state.reminder) return "reminder";

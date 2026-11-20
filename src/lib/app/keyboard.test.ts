@@ -66,6 +66,7 @@ function escapeSpy(overrides: Partial<EscapeHandlers> = {}) {
     }),
     closePalette: () => calls.push("palette"),
     closeShortcuts: () => calls.push("shortcuts"),
+    closeUpdates: () => calls.push("updates"),
     closeReset: () => calls.push("reset"),
     closeExport: () => calls.push("export"),
     closeReminder: () => calls.push("reminder"),
@@ -88,6 +89,7 @@ describe("dispatchEscape", () => {
     for (const layer of [
       "palette",
       "shortcuts",
+      "updates",
       "reset",
       "export",
       "reminder",
