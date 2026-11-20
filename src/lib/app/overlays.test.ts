@@ -5,6 +5,7 @@ const closed: EscapeState = {
   reading: false,
   palette: false,
   shortcuts: false,
+  updates: false,
   reset: false,
   exportOpen: false,
   reminder: false,
@@ -37,6 +38,15 @@ describe("escapeLayer", () => {
 
   it("leaves Escape to the reading view", () => {
     expect(escapeLayer({ ...closed, reading: true, palette: true })).toBe("reading");
+  });
+
+  it("closes the update dialog before the layers behind it", () => {
+    expect(escapeLayer({ ...closed, updates: true })).toBe("updates");
+    expect(escapeLayer({ ...closed, updates: true, selection: true })).toBe("updates");
+    expect(escapeLayer({ ...closed, updates: true, preferences: true })).toBe("updates");
+    // A dialog opened on top with the keyboard still closes first.
+    expect(escapeLayer({ ...closed, updates: true, palette: true })).toBe("palette");
+    expect(escapeLayer({ ...closed, updates: true, shortcuts: true })).toBe("shortcuts");
   });
 
   it("clears the query, then folds the field, then the selection", () => {

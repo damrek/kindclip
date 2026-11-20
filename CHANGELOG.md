@@ -10,7 +10,7 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
-## [2.1.1] - 2026-11-19
+## [2.1.1] - 2026-11-20
 
 ### Fixed
 
@@ -19,6 +19,11 @@ listed. History before v1.0.0 is left to the release list.
   refused the update. The manifest is now rebuilt from a clean file on every
   attempt and each signature is checked against the bundle the release
   publishes before the file goes live.
+- **Update dialog localization**: the dialog title and close button appeared in
+  Spanish for English, French, German and Italian users. A failed update check
+  also claimed an update was available; the dialog now uses a neutral title.
+- **Update dialog keyboard behavior**: Escape now closes the update dialog, and
+  keyboard shortcuts no longer fire behind it while it is open.
 
 ## [2.1.0] - 2026-11-19
 

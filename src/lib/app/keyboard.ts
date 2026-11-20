@@ -77,6 +77,7 @@ export interface EscapeHandlers {
   };
   closePalette: () => void;
   closeShortcuts: () => void;
+  closeUpdates: () => void;
   closeReset: () => void;
   closeExport: () => void;
   closeReminder: () => void;
@@ -102,6 +103,9 @@ export function dispatchEscape(layer: EscapeLayer, handlers: EscapeHandlers): vo
       return;
     case "shortcuts":
       handlers.closeShortcuts();
+      return;
+    case "updates":
+      handlers.closeUpdates();
       return;
     case "reset":
       handlers.closeReset();
