@@ -35,7 +35,7 @@ const LIST_FROM =
   "JOIN books b ON b.id = c.book_id " +
   "LEFT JOIN favorites f ON f.clipping_id = c.id";
 
-/** Columns returned by the list and the export query (same shape, S2). */
+/** Columns returned by the list and the export query (same shape). */
 const LIST_SELECT =
   "SELECT c.id, b.title, b.author, c.kind, c.page, c.location, " +
   "c.added_on_raw, c.added_on, c.content, c.content_hash, " +
@@ -65,7 +65,7 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
   if (filter.bookId !== null) {
     conditions.push(`b.id = ${next(filter.bookId)}`);
   }
-  // Author filter (S4): the folded key also covers the unknown author ("").
+  // Author filter: the folded key also covers the unknown author ("").
   // Duplicates are dropped so the clause always holds distinct keys.
   const authorKeys = [...new Set(filter.authors)];
   if (authorKeys.length > 0) {
@@ -82,7 +82,7 @@ function buildWhere(filter: ClippingFilter): { sql: string; params: unknown[] } 
   if (filter.editedOnly) {
     conditions.push("c.content_edited IS NOT NULL");
   }
-  // Tag intersection (S2): the clipping must carry every selected tag.
+  // Tag intersection: the clipping must carry every selected tag.
   // Duplicates are dropped so `= N` always means N distinct tags.
   const tagIds = [...new Set(filter.tagIds ?? [])];
   if (tagIds.length > 0) {
@@ -188,7 +188,7 @@ export async function countClippings(port: DbPort, query: string): Promise<numbe
   return rows[0]?.total ?? 0;
 }
 
-/** Every row matching the filter (the whole filtered view, S2), unpaginated
+/** Every row matching the filter (the whole filtered view), unpaginated
  * for export: same SELECT as the list, ordered by book and then chronology. */
 export async function exportClippings(
   port: DbPort,
@@ -217,7 +217,7 @@ export async function toggleFavorite(port: DbPort, clippingId: number): Promise<
   return true;
 }
 
-/** Overlay edit for a note (V2): the original content and its dedupe
+/** Overlay edit for a note: the original content and its dedupe
  * hash stay untouched, so re-imports remain idempotent. */
 export async function updateNote(port: DbPort, clippingId: number, content: string): Promise<boolean> {
   const result = await port.execute(

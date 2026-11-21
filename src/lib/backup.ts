@@ -47,7 +47,6 @@ export interface AutoBackupPruneReport {
 
 const AUTO_BACKUP_NAME = /^kindclip-backup-\d{4}-\d{2}-\d{2}\.db$/;
 
-/** Whether a file name is one of the dated automatic snapshots. */
 export function isAutoBackupName(name: string): boolean {
   return AUTO_BACKUP_NAME.test(name);
 }

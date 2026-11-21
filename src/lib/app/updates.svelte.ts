@@ -73,7 +73,6 @@ export class UpdatePanel {
 
   constructor(private readonly deps: UpdateDeps) {}
 
-  /** A release is waiting to be installed. */
   get available(): boolean {
     return this.#pending !== null;
   }
@@ -120,7 +119,6 @@ export class UpdatePanel {
     this.prompt = true;
   }
 
-  /** Download and apply the pending release, then restart into it. */
   async install(): Promise<void> {
     const pending = this.#pending;
     if (pending === null || this.busy) return;

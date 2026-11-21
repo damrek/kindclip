@@ -12,7 +12,7 @@ trap 'rm -rf "$tmp"' EXIT
 failures=0
 checks=0
 
-check() { # name expected actual
+check() {
   local name="$1" expected="$2" actual="$3"
   checks=$((checks + 1))
   if [ "$expected" != "$actual" ]; then
@@ -24,7 +24,7 @@ check() { # name expected actual
   fi
 }
 
-check_status() { # name expected actual
+check_status() {
   check "$1" "$2" "$3"
 }
 

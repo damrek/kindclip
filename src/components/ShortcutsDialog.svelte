@@ -17,7 +17,6 @@
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
   const mod = commandKeyLabel(isMacPlatform(navigator.userAgent));
 
-  /** Bottom fade of the list, measured against the scroller. */
   const fade = new ScrollFade();
 
   interface Row {

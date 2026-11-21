@@ -1,4 +1,4 @@
-//! Pure parser for Kindle `My Clippings.txt` files (S2).
+//! Pure parser for Kindle `My Clippings.txt` files.
 //!
 //! Kept dependency-free apart from `serde`/`sha2` so
 //! `cargo test -p clippings-parser` runs on any machine without
@@ -15,7 +15,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// What kind of entry a clipping is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ClippingKind {
@@ -34,7 +33,6 @@ impl ClippingKind {
     }
 }
 
-/// One parsed entry from `My Clippings.txt`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Clipping {
     pub title: String,
@@ -43,18 +41,16 @@ pub struct Clipping {
     pub page: Option<u32>,
     /// Raw location token as written by Kindle, e.g. `"234-236"`.
     pub location: Option<String>,
-    /// Date string exactly as written by Kindle.
     pub added_on_raw: String,
     /// Normalized `YYYY-MM-DDTHH:MM:SS` when the locale is recognized.
     pub added_on: Option<String>,
     /// `None` for bookmarks and entries without text.
     pub content: Option<String>,
-    /// SHA-256 over the normalized fields; used for cross-file dedupe (S5).
+    /// SHA-256 over the normalized fields; used for cross-file dedupe.
     pub content_hash: String,
 }
 
 impl Clipping {
-    /// Deterministic hash over the normalized entry fields.
     pub fn hash_of(
         title: &str,
         author: Option<&str>,

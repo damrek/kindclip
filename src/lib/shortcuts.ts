@@ -1,4 +1,4 @@
-/** Keyboard-first (roadmap): pure key resolution, target classification and
+/** Keyboard-first: pure key resolution, target classification and
  * selection stepping. No DOM access, so every rule is testable under node. */
 
 export type ShortcutAction =

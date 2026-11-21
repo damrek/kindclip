@@ -35,7 +35,6 @@
   let total = $state(0);
   /** Query that produced `results`; Enter waits for a newer one. */
   let resultsQuery = $state("");
-  /** Bottom fade of the list, measured against the scroller. */
   const fade = new ScrollFade();
   let pendingOpen = false;
   let destroyed = false;

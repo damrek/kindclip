@@ -133,7 +133,7 @@ export class ClippingActions {
     }
   }
 
-  /** Assign a tag to a clipping, creating it by name when needed (S3). */
+  /** Assign a tag to a clipping, creating it by name when needed. */
   async addTag(id: number, name: string): Promise<boolean> {
     const current = this.deps.list.result?.items.find((item) => item.id === id);
     const clean = name.trim();
@@ -166,7 +166,7 @@ export class ClippingActions {
     }
   }
 
-  /** Remove one tag from a clipping, reverting the chip on failure (S3). */
+  /** Remove one tag from a clipping, reverting the chip on failure. */
   async removeTag(id: number, tagId: number): Promise<boolean> {
     const current = this.deps.list.result?.items.find((item) => item.id === id);
     if (!current || !current.tags.some((tag) => tag.id === tagId)) return false;
@@ -188,7 +188,7 @@ export class ClippingActions {
     }
   }
 
-  /** Overlay note edit (V2): reconciled write, then patch the visible row. */
+  /** Overlay note edit: reconciled write, then patch the visible row. */
   async editNote(id: number, content: string): Promise<boolean> {
     const list = this.deps.list;
     if (!list.result) return false;

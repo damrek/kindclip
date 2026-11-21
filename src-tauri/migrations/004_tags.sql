@@ -1,4 +1,4 @@
--- Clipping tags (S1): user-defined labels, many-to-many with clippings.
+-- Clipping tags: user-defined labels, many-to-many with clippings.
 -- Names are unique ignoring case; both foreign keys cascade so deleting a
 -- book, an import or a tag never leaves links behind.
 

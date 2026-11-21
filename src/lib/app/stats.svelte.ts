@@ -32,7 +32,6 @@ export class StatsState {
 
   constructor(private readonly deps: StatsStateDeps) {}
 
-  /** Reset the dialog and load a fresh aggregate set. */
   async show(): Promise<void> {
     this.open = true;
     this.data = null;

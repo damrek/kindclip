@@ -9,7 +9,7 @@ fn has_path_separator(name: &str) -> bool {
     name.contains('/') || name.contains('\\')
 }
 
-/// Reject empty export names and names containing path separators (S10).
+/// Reject empty export names and names containing path separators.
 ///
 /// Export names are joined onto the Downloads directory, so a name with a
 /// separator could point the write outside it.
@@ -23,7 +23,7 @@ pub(crate) fn validate_file_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Write the exported document to disk (S4): the frontend picks the target
+/// Write the exported document to disk: the frontend picks the target
 /// path through the native save dialog and this command persists the contents.
 #[tauri::command]
 pub fn write_export_file(path: String, contents: String) -> Result<(), CommandError> {
@@ -36,7 +36,7 @@ pub fn write_export_file(path: String, contents: String) -> Result<(), CommandEr
     Ok(())
 }
 
-/// Reject anything that is not one safe `.md` path component (S6).
+/// Reject anything that is not one safe `.md` path component.
 ///
 /// Per-book names are joined onto a user-chosen directory, so a separator,
 /// `..`, NUL or control character could escape it.
@@ -60,7 +60,6 @@ pub(crate) fn validate_export_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Resolve and validate a per-book export destination (S6).
 pub(crate) fn export_dir(dir: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(dir);
     let metadata = std::fs::metadata(&path)
@@ -78,7 +77,7 @@ pub struct ExportFile {
     pub contents: String,
 }
 
-/// Report which per-book targets already exist, before replacing anything (S7).
+/// Report which per-book targets already exist, before replacing anything.
 #[tauri::command]
 pub fn check_export_targets(dir: String, names: Vec<String>) -> Result<Vec<String>, CommandError> {
     let path = export_dir(&dir).map_err(|err| CommandError::new("export", err))?;
@@ -111,13 +110,13 @@ pub(crate) fn write_export_file_atomic(
     })
 }
 
-/// Mid-run failure log line: counts only, never a generated file name (S9).
+/// Mid-run failure log line: counts only, never a generated file name.
 pub(crate) fn per_book_failure_message(index: usize, total: usize) -> String {
     format!("export: stopped after {index}/{total} per-book files")
 }
 
 /// Write the per-book files into a chosen folder and return the written count
-/// (S6). Writes are per-file atomic, not all-or-nothing; a mid-run failure
+/// Writes are per-file atomic, not all-or-nothing; a mid-run failure
 /// reports how many files were written.
 #[tauri::command]
 pub fn write_export_files(dir: String, files: Vec<ExportFile>) -> Result<usize, CommandError> {
@@ -139,13 +138,10 @@ pub fn write_export_files(dir: String, files: Vec<ExportFile>) -> Result<usize, 
     Ok(total)
 }
 
-/// Default export target inside the Downloads directory (S10).
+/// Default export target inside the Downloads directory.
 ///
 /// Lives in Rust so the frontend never needs filesystem path APIs; the
 /// suggested name is validated before being joined.
-///
-/// Not unit tested: resolving `download_dir` requires a live `AppHandle`, which
-/// only exists inside a running Tauri app context.
 #[tauri::command]
 pub fn export_default_path(
     app: tauri::AppHandle,

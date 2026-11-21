@@ -3,7 +3,6 @@ import type { ClippingDto, ImportReport } from "../types";
 import { resolveBookId } from "./books";
 import type { DbPort } from "./port";
 
-/** One row of the imported-files list (library management). */
 export interface ImportedFile {
   id: number;
   path: string;

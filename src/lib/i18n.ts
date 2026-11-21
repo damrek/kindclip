@@ -1,4 +1,4 @@
-/** UI internationalization (T10): es, en, fr, de, it. Default: es. */
+/** UI internationalization: es, en, fr, de, it. Default: es. */
 
 export type Locale = "es" | "en" | "fr" | "de" | "it";
 
@@ -652,7 +652,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "library.statusTagsMerged": "Tags merged: {count} clippings moved.",
     "library.statusTagsMerged.one": "Tags merged: 1 clipping moved.",
     "library.statusTagDeleted": "Tag deleted.",
-    // Keyboard shortcuts dialog.
     "shortcuts.open": "Keyboard shortcuts",
     "shortcuts.title": "Keyboard shortcuts",
     "shortcuts.close": "Close the shortcut list",
@@ -678,7 +677,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "shortcuts.copy": "Copy the content",
     "shortcuts.copyQuote": "Copy as quote",
     "shortcuts.preferences": "Open preferences",
-    // Reading stats dialog.
     "stats.open": "Reading stats",
     "stats.title": "Reading stats",
     "stats.close": "Close the stats",
@@ -958,7 +956,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "library.statusTagsMerged": "Étiquettes fusionnées : {count} clippings déplacés.",
     "library.statusTagsMerged.one": "Étiquettes fusionnées : 1 clipping déplacé.",
     "library.statusTagDeleted": "Étiquette supprimée.",
-    // Keyboard shortcuts dialog.
     "shortcuts.open": "Raccourcis clavier",
     "shortcuts.title": "Raccourcis clavier",
     "shortcuts.close": "Fermer la liste des raccourcis",
@@ -984,7 +981,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "shortcuts.copy": "Copier le contenu",
     "shortcuts.copyQuote": "Copier comme citation",
     "shortcuts.preferences": "Ouvrir les préférences",
-    // Reading stats dialog.
     "stats.open": "Statistiques de lecture",
     "stats.title": "Statistiques de lecture",
     "stats.close": "Fermer les statistiques",
@@ -1264,7 +1260,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "library.statusTagsMerged": "Tags zusammengeführt: {count} Clippings verschoben.",
     "library.statusTagsMerged.one": "Tags zusammengeführt: 1 Clipping verschoben.",
     "library.statusTagDeleted": "Tag gelöscht.",
-    // Keyboard shortcuts dialog.
     "shortcuts.open": "Tastenkürzel",
     "shortcuts.title": "Tastenkürzel",
     "shortcuts.close": "Tastenkürzel schließen",
@@ -1290,7 +1285,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "shortcuts.copy": "Inhalt kopieren",
     "shortcuts.copyQuote": "Als Zitat kopieren",
     "shortcuts.preferences": "Einstellungen öffnen",
-    // Reading stats dialog.
     "stats.open": "Lesestatistik",
     "stats.title": "Lesestatistik",
     "stats.close": "Statistik schließen",
@@ -1569,7 +1563,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "library.statusTagsMerged": "Etichette unite: {count} clippings spostati.",
     "library.statusTagsMerged.one": "Etichette unite: 1 clipping spostato.",
     "library.statusTagDeleted": "Etichetta eliminata.",
-    // Keyboard shortcuts dialog.
     "shortcuts.open": "Scorciatoie da tastiera",
     "shortcuts.title": "Scorciatoie da tastiera",
     "shortcuts.close": "Chiudi l'elenco delle scorciatoie",
@@ -1595,7 +1588,6 @@ export const DICTIONARIES: Record<Locale, Record<I18nKey, string>> = {
     "shortcuts.copy": "Copia il contenuto",
     "shortcuts.copyQuote": "Copia come citazione",
     "shortcuts.preferences": "Apri le preferenze",
-    // Reading stats dialog.
     "stats.open": "Statistiche di lettura",
     "stats.title": "Statistiche di lettura",
     "stats.close": "Chiudi le statistiche",

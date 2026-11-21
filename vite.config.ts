@@ -7,7 +7,6 @@ const { TAURI_DEV_HOST: host, TAURI_ENV_PLATFORM } =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const isTauri = !!TAURI_ENV_PLATFORM;
 
-// https://vite.dev/config/
 export default defineConfig(async () => ({
   // `svelteTesting` makes Vitest resolve Svelte's browser runtime (component
   // tests mount for real) instead of its server build. It is inert outside

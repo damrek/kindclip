@@ -23,7 +23,6 @@ export type ImportOutcome =
   | { status: "empty"; path: string; skipped: number }
   | { status: "done"; report: ImportReport };
 
-/** S1+S5: pick a file, parse it in Rust, persist fresh clippings with dedupe. */
 export async function runImportFlow(
   deps: ImportDeps,
   onProgress: (done: number, total: number) => void,

@@ -12,7 +12,7 @@
 
   interface Props {
     books: Book[];
-    /** Author groups derived from the same sorted books (S5, S7). */
+    /** Author groups derived from the same sorted books. */
     groups: AuthorGroup[];
     view: SidebarView;
     onViewChange: (view: SidebarView) => void;
@@ -28,7 +28,6 @@
     onOpenLibrary?: () => void;
     onOpenStats?: () => void;
     onOpenReminders?: () => void;
-    /** Pending reminders, shown as a small counter. */
     reminderCount?: number;
     /** Library-scoped actions need an imported library to act on. */
     libraryActionsDisabled?: boolean;
@@ -56,9 +55,8 @@
   }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
-  /** Bottom fade of the book list, measured against the scroller. */
   const fade = new ScrollFade();
-  /** Author groups collapsed in this session (S7). */
+  /** Author groups collapsed in this session. */
   const collapsed = new SvelteSet<string>();
 
   function toggleGroup(key: string): void {

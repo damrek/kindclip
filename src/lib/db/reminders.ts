@@ -17,9 +17,7 @@ export interface PendingReminder {
 export interface DueReminder {
   clipping_id: number;
   remind_at: string;
-  /** Book title; the notification title. */
   book_title: string;
-  /** Edited note text when present, otherwise the original. */
   content: string | null;
 }
 

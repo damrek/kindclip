@@ -4,7 +4,7 @@ import { readStored, writeStored } from "./storage";
 const STORAGE_KEY = "kindclip-sidebar-open";
 const VIEW_KEY = "kindclip-sidebar-view";
 
-/** Flat book list (default) or books grouped by author (S7). */
+/** Flat book list (default) or books grouped by author. */
 export type SidebarView = "books" | "authors";
 
 export function loadSidebarView(stored: string | null): SidebarView {

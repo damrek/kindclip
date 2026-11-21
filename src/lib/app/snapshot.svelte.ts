@@ -113,7 +113,6 @@ export class SnapshotState {
   /** Manual backup: busy, status and error live in one task. */
   readonly backup: AsyncTask;
 
-  /** Restore dialog. */
   open = $state(false);
   busy = $state(false);
   checking = $state(false);

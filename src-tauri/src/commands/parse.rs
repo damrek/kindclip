@@ -3,18 +3,17 @@ use serde::Serialize;
 use super::CommandError;
 use sha2::{Digest, Sha256};
 
-/// A parsed clippings file, ready for the frontend import orchestration.
 #[derive(Debug, Serialize)]
 pub struct ParsedFile {
     pub path: String,
     pub file_hash: String,
     pub clippings: Vec<clippings_parser::Clipping>,
     /// Blocks the parser discarded; zero clippings with a non-zero count is
-    /// still a successful read (S2).
+    /// still a successful read.
     pub skipped: usize,
 }
 
-/// Read `My Clippings.txt` from disk, hash it (S5 dedupe key) and parse it (S2).
+/// Read `My Clippings.txt` from disk, hash it (dedupe key) and parse it.
 #[tauri::command]
 pub fn parse_clippings_file(path: String) -> Result<ParsedFile, CommandError> {
     let bytes = std::fs::read(&path).map_err(|err| {

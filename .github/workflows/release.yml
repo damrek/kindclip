@@ -44,7 +44,6 @@ jobs:
             exit 0
           fi
 
-          # workflow_dispatch
           INPUT_VERSION="${{ github.event.inputs.version }}"
           if [ -n "$INPUT_VERSION" ]; then
             VERSION="${INPUT_VERSION#v}"

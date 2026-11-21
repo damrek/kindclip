@@ -21,7 +21,6 @@ import type { StoredFilterState } from "../db";
 import type { ClippingFilter, ClippingKind } from "../types";
 
 export interface FilterStateDeps {
-  /** Return the list to its first page. */
   resetPage: () => void;
   /** Debounced write of the persisted shape. */
   persist: (state: StoredFilterState) => void;
@@ -102,13 +101,13 @@ export class FilterState {
     this.deps.resetPage();
   }
 
-  /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
+  /** Toggle one author in the OR filter; the list reloads from `filter`. */
   toggleAuthor(key: string): void {
     this.values.authors = toggleValue(this.values.authors, key);
     this.deps.resetPage();
   }
 
-  /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
+  /** Toggle one tag in the AND filter; the list reloads from `filter`. */
   toggleTag(id: number): void {
     this.values.tagIds = toggleValue(this.values.tagIds, id);
     this.deps.resetPage();

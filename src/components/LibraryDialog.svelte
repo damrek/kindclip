@@ -103,7 +103,6 @@
     new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
   );
 
-  /** Bottom fade of the list, measured against the scroller. */
   const fade = new ScrollFade();
 
   function formatDate(value: string): string {
