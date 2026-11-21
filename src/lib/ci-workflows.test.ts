@@ -19,14 +19,15 @@ describe("release and CI workflow invariants", () => {
     expect(releaseWorkflow).toContain("aarch64-apple-darwin,x86_64-apple-darwin");
   });
 
-  it("tests in release mode only where tauri-action reads the same target/", () => {
-    // Linux and Windows build into target/release, so the release test compile
-    // feeds tauri-action. macOS builds --target universal-apple-darwin into
-    // target/<triple>/release, which never reads target/release: release mode
-    // there is a duplicate compile nothing reuses.
+  it("skips the Rust test compile on macOS, where nothing can reuse it", () => {
+    // Linux and Windows build into target/release, so their release test
+    // compile feeds tauri-action; macOS builds into target/<triple>/release,
+    // which never reads it. ci.yml already runs this cargo test on macOS for
+    // the pull request and again for the merged commit.
     const rustTests = releaseWorkflow.slice(releaseWorkflow.indexOf("Test Rust workspace"));
-    expect(rustTests).toMatch(/= "macos-latest"[\s\S]{0,200}cargo test --workspace/);
-    expect(rustTests).toMatch(/else[\s\S]{0,200}cargo test --release --workspace/);
+    expect(rustTests).toMatch(/if: matrix\.platform != 'macos-latest'/);
+    expect(rustTests).toMatch(/cargo test --release --workspace/);
+    expect(releaseWorkflow).not.toMatch(/cargo test --workspace/);
   });
 
   it("does not reintroduce a Rust cache a tag run could never reuse", () => {
