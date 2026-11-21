@@ -103,6 +103,8 @@ jobs:
 
       - run: npm run lint
 
+      - run: npm run comments
+
       - run: npm run test
 
       # The Rust side gets the same treatment as the TS side: formatting and

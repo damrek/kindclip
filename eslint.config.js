@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import svelte from "eslint-plugin-svelte";
 import tseslint from "typescript-eslint";
+import noComments from "./scripts/eslint/no-comments.mjs";
 
 /** TS is already gated by svelte-check (`strict`, noUnusedLocals); ESLint adds
  * the cross-file rules the compiler does not cover. */
@@ -56,6 +57,12 @@ export default tseslint.config(
       // The data layer receives plugin-sql rows with untyped columns and
       // narrows them explicitly at the mapper boundary.
       "@typescript-eslint/no-explicit-any": "warn",
+      "kindclip/no-comments": "error",
+    },
+    plugins: {
+      kindclip: {
+        rules: { "no-comments": noComments },
+      },
     },
   },
 );

@@ -15,7 +15,10 @@
     "coverage": "vitest run --coverage",
     "verify": "node scripts/verify.mjs",
     "tauri": "tauri",
-    "lint": "eslint . --cache"
+    "lint": "eslint .",
+    "comments": "node scripts/comments.mjs",
+    "comments:update": "node scripts/comments.mjs --update",
+    "comments:stats": "node scripts/comments.mjs --stats"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

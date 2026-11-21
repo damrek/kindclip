@@ -125,12 +125,19 @@ npx tauri build                  # bundles land in target/release/bundle
 
 npm test                         # vitest (frontend)
 npm run check                    # svelte-check
-npm run lint                     # eslint (flat config)
+npm run lint                     # eslint (flat config), including the comment ban
 npm run build                    # vite build
+npm run verify                   # check + lint + test + comment ratchet, in parallel
 cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
 ```
+
+Comments are banned outside `.comments-baseline.json`. The baseline lists the
+comments still allowed and may only shrink: delete a comment and run
+`npm run comments:update` to lower it. ESLint enforces the ban for JS, TS and
+Svelte; `npm run comments` covers Rust, SQL, shell, CSS, YAML and TOML.
+`npm run comments:stats` reports the current comment count.
 
 Component tests mount Svelte in jsdom: a file opts in with
 `// @vitest-environment jsdom` and reuses `src/test/component.ts`. Every other
