@@ -37,7 +37,7 @@ screenshots, palettes and downloads.
 ## Usage
 
 1. Install from [Releases](https://github.com/damrek/kindclip/releases/latest):
-   `.AppImage`/`.deb`/`.rpm` (Linux), `.exe` (Windows), `.dmg` (macOS). Changes
+   `.AppImage`/`.deb` (Linux), `.exe` (Windows), `.dmg` (macOS). Changes
    per version live in [CHANGELOG.md](CHANGELOG.md).
 2. Copy `documents/My Clippings.txt` from your Kindle.
 3. **Import** → pick the file, or drag a `.txt` onto the window. Re-import any
@@ -156,8 +156,11 @@ the header; a dot means one is waiting, and the dialog shows what changed and
 offers to install it. Bundles are signed and verified against the public key
 embedded in the app, then the app restarts. Nothing is downloaded unless the
 version is newer and its signature matches. The AppImage updates in place;
-`.deb` and `.rpm` ask the system for authorization; Windows and macOS update in
-place.
+`.deb` asks the system for authorization; Windows and macOS update in place.
+
+`.rpm` packages are no longer published. An rpm install from an earlier release
+cannot update itself — reinstall from the AppImage or the `.deb` you prefer,
+after which updates work again.
 
 Releases are signed with a minisign key: the public half is embedded in
 `src-tauri/tauri.conf.json`, the private half lives only in the repository's

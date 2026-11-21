@@ -14,6 +14,9 @@ listed. History before v1.0.0 is left to the release list.
 
 ### Changed
 
+- **Linux packages**: RPM packages are no longer published. On Fedora and RHEL,
+  install the AppImage or the `.deb` instead; an rpm install from an earlier
+  release cannot update itself.
 - **Documentation**: the README is shorter, groups features by task, and keeps
   the release-signing configuration out of the public instructions.
 

@@ -72,7 +72,7 @@
     "src/lib/asyncTask.svelte.ts": 8,
     "src/lib/backup.test.ts": 1,
     "src/lib/backup.ts": 20,
-    "src/lib/ci-workflows.test.ts": 49,
+    "src/lib/ci-workflows.test.ts": 48,
     "src/lib/db-location.ts": 4,
     "src/lib/db.sqlite.test.ts": 21,
     "src/lib/db.test.ts": 18,

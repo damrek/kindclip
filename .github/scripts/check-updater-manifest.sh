@@ -35,7 +35,6 @@ required_keys=(
   linux-x86_64
   linux-x86_64-appimage
   linux-x86_64-deb
-  linux-x86_64-rpm
   windows-x86_64
   darwin-x86_64
   darwin-aarch64

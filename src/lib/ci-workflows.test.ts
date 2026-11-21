@@ -158,8 +158,9 @@ describe("bundle targets", () => {
   it("bundles exactly the six supported targets and no WiX/Msi", () => {
     const targets: string[] = JSON.parse(tauriConfig).bundle.targets;
     // Order-independent and exact: an extra or duplicated target fails too.
-    expect([...targets].sort()).toEqual(["app", "appimage", "deb", "dmg", "nsis", "rpm"]);
+    expect([...targets].sort()).toEqual(["app", "appimage", "deb", "dmg", "nsis"]);
     expect(tauriConfig).not.toContain('"msi"');
+    // No rpm: the updater would hand an rpm install the AppImage fallback.
   });
 });
 
@@ -180,10 +181,8 @@ describe("signed auto-update", () => {
   });
 
   it("keeps the v2 updater artifacts the manifest check expects", () => {
-    // `true` reuses the AppImage and the NSIS installer in place, which is why
-    // the manifest carries `linux-x86_64-deb`, `-rpm` and friends. The
-    // "v1Compatible" value would wrap them in .tar.gz/.zip instead and the
-    // check would fail every release.
+    // `true` reuses the AppImage and NSIS installer in place; "v1Compatible"
+    // would wrap them in .tar.gz/.zip and the manifest check would fail.
     expect(config.bundle.createUpdaterArtifacts).toBe(true);
     expect(tauriConfig).not.toContain("v1Compatible");
   });
