@@ -9,9 +9,8 @@ const ciWorkflow = ciWorkflowRaw.replace(/\r\n/g, "\n");
 const releaseWorkflow = releaseWorkflowRaw.replace(/\r\n/g, "\n");
 const tauriConfig = tauriConfigRaw.replace(/\r\n/g, "\n");
 
-// Textual guards for invariants that fail SILENTLY: a wrong release profile, a
-// per-arch macOS split, or a re-added tag-scoped cache all leave CI green while
-// paying for the same compilation twice, with no error anywhere to warn you.
+// Textual guards for invariants that fail SILENTLY: a wrong release profile or a
+// per-arch macOS split leaves CI green while paying for the same compile twice.
 describe("release and CI workflow invariants", () => {
   it("builds macOS as a single universal job with both Apple targets", () => {
     expect(releaseWorkflow.match(/universal-apple-darwin/g)).toHaveLength(1);
@@ -20,22 +19,26 @@ describe("release and CI workflow invariants", () => {
   });
 
   it("skips the Rust test compile on macOS, where nothing can reuse it", () => {
-    // Linux and Windows build into target/release, so their release test
-    // compile feeds tauri-action; macOS builds into target/<triple>/release,
-    // which never reads it. ci.yml already runs this cargo test on macOS for
-    // the pull request and again for the merged commit.
+    // Linux and Windows build their release test into target/release, which
+    // tauri-action reuses; macOS builds into target/<triple>/release, which
+    // nothing reads. ci.yml runs it on macOS for the PR and the merged commit.
     const rustTests = releaseWorkflow.slice(releaseWorkflow.indexOf("Test Rust workspace"));
     expect(rustTests).toMatch(/if: matrix\.platform != 'macos-latest'/);
     expect(rustTests).toMatch(/cargo test --release --workspace/);
     expect(releaseWorkflow).not.toMatch(/cargo test --workspace/);
   });
 
-  it("does not reintroduce a Rust cache a tag run could never reuse", () => {
-    // GitHub scopes caches to a ref: a tag run can read the default-branch cache
-    // (which no longer exists) but never another tag's. Any cache here would be
-    // a silent no-op that only churns storage.
+  it("keeps the Rust cache out of the tag-scoped release workflow", () => {
+    // A tag run reads only its own tag's cache or the default branch's, never
+    // another tag's, so a cache here is a no-op that only churns storage.
     expect(releaseWorkflow).not.toContain("rust-cache");
-    expect(ciWorkflow).not.toContain("rust-cache");
+  });
+
+  it("caches Rust builds in CI, saved only from main", () => {
+    // Branch-scoped instead: a PR restores main's cache and never writes one
+    // back, so save-if keeps per-PR archives out of the 10 GB cap.
+    expect(ciWorkflow).toContain("Swatinem/rust-cache@v2");
+    expect(ciWorkflow).toContain("save-if: ${{ github.ref == 'refs/heads/main' }}");
   });
 
   it("bounds the apt step and falls back when the Azure mirror is down", () => {
@@ -60,6 +63,19 @@ describe("release and CI workflow invariants", () => {
       "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
     );
     expect(ciWorkflow).not.toContain("tauri build");
+  });
+
+  it("skips CI only for docs-only pushes to main, never for a pull request", () => {
+    // A skipped pull_request run reports no required checks and the PR can never
+    // merge, so the filter lives on push only, over exactly these passive paths.
+    const pushStart = ciWorkflow.search(/^ {2}push:$/m);
+    const pushEnd = ciWorkflow.search(/^ {2}workflow_dispatch:$/m);
+    const pushBlock = ciWorkflow.slice(pushStart, pushEnd);
+    const filter = pushBlock.slice(pushBlock.indexOf("paths-ignore:"));
+    const globs = filter.match(/^\s+- .+$/gm)?.map((line) => line.trim().slice(2)) ?? [];
+    expect(globs).toEqual(['"**.md"', '"docs/**"', '"LICENSE"']);
+    expect(ciWorkflow.slice(0, pushStart)).not.toMatch(/^\s+paths(-ignore)?:/m);
+    expect(ciWorkflow).not.toMatch(/^\s+paths:/m);
   });
 
   it("keeps the release gate steps, tests after the frontend build", () => {
@@ -167,8 +183,7 @@ describe("bundle targets", () => {
 // The updater fails in ways nothing else would catch: a manifest with one
 // platform leaves every other user on an old build, and a missing signature
 // only shows up when a real install refuses to update. These guards keep the
-// pieces that must agree — the signing key, the artifacts, the endpoint and
-// the single manifest — from drifting apart.
+// signing key, artifacts, endpoint and manifest from drifting apart.
 describe("signed auto-update", () => {
   const config = JSON.parse(tauriConfig);
 

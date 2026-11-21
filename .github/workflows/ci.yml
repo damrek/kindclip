@@ -6,14 +6,18 @@ name: CI
 # commit that never lands on main. The push:main run validates the commit main
 # actually receives — the same commit a release tags and ships.
 #
-# Deliberately NO Rust cache: CI builds debug while release.yml builds release,
-# so even a warmed default-branch cache could not feed the release build, and
-# 2-3 minute legs do not pay for the storage churn it would add.
+# A Rust cache pays off here: clippy and cargo test compile the same deps, and
+# branch scoping lets a PR restore what only main saves. release.yml stays out:
+# no tag run can reuse another tag's cache, and its profile differs anyway.
 
 on:
   pull_request:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
   workflow_dispatch:
 
 # Superseded pushes to the same PR cancel their predecessor. main never cancels:
@@ -55,6 +59,11 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
