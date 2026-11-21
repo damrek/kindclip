@@ -19,10 +19,9 @@ describe("release and CI workflow invariants", () => {
   });
 
   it("skips the Rust test compile on macOS, where nothing can reuse it", () => {
-    // Linux and Windows build into target/release, so their release test
-    // compile feeds tauri-action; macOS builds into target/<triple>/release,
-    // which never reads it. ci.yml already runs this cargo test on macOS for
-    // the pull request and again for the merged commit.
+    // Linux and Windows build their release test into target/release, which
+    // tauri-action reuses; macOS builds into target/<triple>/release, which
+    // nothing reads. ci.yml runs it on macOS for the PR and the merged commit.
     const rustTests = releaseWorkflow.slice(releaseWorkflow.indexOf("Test Rust workspace"));
     expect(rustTests).toMatch(/if: matrix\.platform != 'macos-latest'/);
     expect(rustTests).toMatch(/cargo test --release --workspace/);
@@ -64,6 +63,19 @@ describe("release and CI workflow invariants", () => {
       "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
     );
     expect(ciWorkflow).not.toContain("tauri build");
+  });
+
+  it("skips CI only for docs-only pushes to main, never for a pull request", () => {
+    // A skipped pull_request run reports no required checks and the PR can never
+    // merge, so the filter lives on push only, over exactly these passive paths.
+    const pushStart = ciWorkflow.search(/^ {2}push:$/m);
+    const pushEnd = ciWorkflow.search(/^ {2}workflow_dispatch:$/m);
+    const pushBlock = ciWorkflow.slice(pushStart, pushEnd);
+    const filter = pushBlock.slice(pushBlock.indexOf("paths-ignore:"));
+    const globs = filter.match(/^\s+- .+$/gm)?.map((line) => line.trim().slice(2)) ?? [];
+    expect(globs).toEqual(['"**.md"', '"docs/**"', '"LICENSE"']);
+    expect(ciWorkflow.slice(0, pushStart)).not.toMatch(/^\s+paths(-ignore)?:/m);
+    expect(ciWorkflow).not.toMatch(/^\s+paths:/m);
   });
 
   it("keeps the release gate steps, tests after the frontend build", () => {
@@ -171,8 +183,7 @@ describe("bundle targets", () => {
 // The updater fails in ways nothing else would catch: a manifest with one
 // platform leaves every other user on an old build, and a missing signature
 // only shows up when a real install refuses to update. These guards keep the
-// pieces that must agree — the signing key, the artifacts, the endpoint and
-// the single manifest — from drifting apart.
+// signing key, artifacts, endpoint and manifest from drifting apart.
 describe("signed auto-update", () => {
   const config = JSON.parse(tauriConfig);
 

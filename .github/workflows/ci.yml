@@ -14,6 +14,10 @@ on:
   pull_request:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
   workflow_dispatch:
 
 # Superseded pushes to the same PR cancel their predecessor. main never cancels:
