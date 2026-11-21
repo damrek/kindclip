@@ -10,6 +10,13 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-11-21
+
+### Changed
+
+- **Documentation**: the README is shorter, groups features by task, and keeps
+  the release-signing configuration out of the public instructions.
+
 ## [2.1.1] - 2026-11-20
 
 ### Fixed
