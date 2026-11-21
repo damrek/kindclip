@@ -9,9 +9,8 @@ const ciWorkflow = ciWorkflowRaw.replace(/\r\n/g, "\n");
 const releaseWorkflow = releaseWorkflowRaw.replace(/\r\n/g, "\n");
 const tauriConfig = tauriConfigRaw.replace(/\r\n/g, "\n");
 
-// Textual guards for invariants that fail SILENTLY: a wrong release profile, a
-// per-arch macOS split, or a re-added tag-scoped cache all leave CI green while
-// paying for the same compilation twice, with no error anywhere to warn you.
+// Textual guards for invariants that fail SILENTLY: a wrong release profile or a
+// per-arch macOS split leaves CI green while paying for the same compile twice.
 describe("release and CI workflow invariants", () => {
   it("builds macOS as a single universal job with both Apple targets", () => {
     expect(releaseWorkflow.match(/universal-apple-darwin/g)).toHaveLength(1);
@@ -30,12 +29,17 @@ describe("release and CI workflow invariants", () => {
     expect(releaseWorkflow).not.toMatch(/cargo test --workspace/);
   });
 
-  it("does not reintroduce a Rust cache a tag run could never reuse", () => {
-    // GitHub scopes caches to a ref: a tag run can read the default-branch cache
-    // (which no longer exists) but never another tag's. Any cache here would be
-    // a silent no-op that only churns storage.
+  it("keeps the Rust cache out of the tag-scoped release workflow", () => {
+    // A tag run reads only its own tag's cache or the default branch's, never
+    // another tag's, so a cache here is a no-op that only churns storage.
     expect(releaseWorkflow).not.toContain("rust-cache");
-    expect(ciWorkflow).not.toContain("rust-cache");
+  });
+
+  it("caches Rust builds in CI, saved only from main", () => {
+    // Branch-scoped instead: a PR restores main's cache and never writes one
+    // back, so save-if keeps per-PR archives out of the 10 GB cap.
+    expect(ciWorkflow).toContain("Swatinem/rust-cache@v2");
+    expect(ciWorkflow).toContain("save-if: ${{ github.ref == 'refs/heads/main' }}");
   });
 
   it("bounds the apt step and falls back when the Azure mirror is down", () => {
