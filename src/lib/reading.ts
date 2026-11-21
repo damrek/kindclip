@@ -1,5 +1,3 @@
-/** Reading view (roadmap): walk one clipping full-window through the filtered list. */
-
 import type { ClippingRow, PagedResult } from "./types";
 
 export type ReadingDirection = "prev" | "next";

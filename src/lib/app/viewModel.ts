@@ -89,7 +89,7 @@ export function createViewModel(deps: ViewModelDeps) {
     get selectedTags(): TagCount[] {
       return selectedTags();
     },
-    /** Filter checklist: orphans stay hidden unless already selected (S5). */
+    /** Filter checklist: orphans stay hidden unless already selected. */
     get filterTags(): TagCount[] {
       const selected = deps.values().tagIds;
       return deps.tags().filter((tag) => tag.clipping_count > 0 || selected.includes(tag.id));

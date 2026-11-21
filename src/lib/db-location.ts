@@ -25,7 +25,6 @@ export async function revealDbLocation(deps: DbLocationDeps): Promise<string> {
   return path;
 }
 
-/** Production deps backed by the Tauri runtime (commands + opener plugin). */
 export function tauriDbLocationDeps(): DbLocationDeps {
   return {
     getPath: () => invoke<string>("db_file_path"),

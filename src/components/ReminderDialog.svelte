@@ -17,7 +17,6 @@
     title: string;
     /** Existing reminder, ISO UTC, or null. */
     reminderAt: string | null;
-    /** A write is in flight for this clipping. */
     busy: boolean;
     onSchedule: (at: Date) => Promise<ScheduleResult>;
     onCancelReminder: () => Promise<boolean>;

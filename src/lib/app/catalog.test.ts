@@ -49,7 +49,7 @@ describe("ClippingList.reload", () => {
 
     expect(list.result?.items.map((item) => item.id)).toEqual([1, 2]);
     expect(list.resultFilter.kinds).toEqual(["note"]);
-    expect(list.resultFilter).not.toBe(filter); // defensive copy
+    expect(list.resultFilter).not.toBe(filter);
     expect(list.resultSort).toEqual(sort);
     expect(list.loading).toBe(false);
     expect(list.error).toBeNull();

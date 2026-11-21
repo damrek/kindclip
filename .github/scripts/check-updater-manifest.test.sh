@@ -12,7 +12,7 @@ trap 'rm -rf "$tmp"' EXIT
 failures=0
 checks=0
 
-check() { # name expected actual
+check() {
   local name="$1" expected="$2" actual="$3"
   checks=$((checks + 1))
   if [ "$expected" != "$actual" ]; then
@@ -40,8 +40,6 @@ cat >"$tmp/assets.json" <<'EOF'
     { "name": "kindclip_2.0.0_amd64.AppImage.sig" },
     { "name": "kindclip_2.0.0_amd64.deb" },
     { "name": "kindclip_2.0.0_amd64.deb.sig" },
-    { "name": "kindclip-2.0.0-1.x86_64.rpm" },
-    { "name": "kindclip-2.0.0-1.x86_64.rpm.sig" },
     { "name": "kindclip_2.0.0_x64-setup.exe" },
     { "name": "kindclip_2.0.0_x64-setup.exe.sig" },
     { "name": "kindclip_universal.app.tar.gz" },
@@ -60,7 +58,6 @@ cat >"$tmp/manifest.json" <<'EOF'
     "linux-x86_64": { "signature": "appimage-sig", "url": "https://example/kindclip_2.0.0_amd64.AppImage" },
     "linux-x86_64-appimage": { "signature": "appimage-sig", "url": "https://example/kindclip_2.0.0_amd64.AppImage" },
     "linux-x86_64-deb": { "signature": "deb-sig", "url": "https://example/kindclip_2.0.0_amd64.deb" },
-    "linux-x86_64-rpm": { "signature": "rpm-sig", "url": "https://example/kindclip-2.0.0-1.x86_64.rpm" },
     "windows-x86_64": { "signature": "exe-sig", "url": "https://example/kindclip_2.0.0_x64-setup.exe" },
     "darwin-x86_64": { "signature": "mac-sig", "url": "https://example/kindclip_universal.app.tar.gz" },
     "darwin-aarch64": { "signature": "mac-sig", "url": "https://example/kindclip_universal.app.tar.gz" }
@@ -70,7 +67,6 @@ EOF
 
 printf 'appimage-sig' >"$tmp/sigs/kindclip_2.0.0_amd64.AppImage.sig"
 printf 'deb-sig' >"$tmp/sigs/kindclip_2.0.0_amd64.deb.sig"
-printf 'rpm-sig' >"$tmp/sigs/kindclip-2.0.0-1.x86_64.rpm.sig"
 printf 'exe-sig' >"$tmp/sigs/kindclip_2.0.0_x64-setup.exe.sig"
 printf 'mac-sig' >"$tmp/sigs/kindclip_universal.app.tar.gz.sig"
 
@@ -89,8 +85,8 @@ case "$(cat "$tmp/stderr")" in
   *) check "stale signature: names the key" "message about darwin" "$(cat "$tmp/stderr")" ;;
 esac
 
-# 3. A lost update that drops the deb/rpm entries fails: without them a .deb
-#    install falls back to the AppImage and the install breaks.
+# 3. A lost update that drops the deb entry fails: without it a .deb install
+#    falls back to the AppImage and the install breaks.
 jq 'del(.platforms["linux-x86_64-deb"])' "$tmp/manifest.json" >"$tmp/no-deb.json"
 run_check "$tmp/no-deb.json" "$tmp/assets.json" "$tmp/sigs" 2.0.0
 check "missing deb entry: exit 1" 1 "$status"

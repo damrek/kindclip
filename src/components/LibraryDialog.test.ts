@@ -77,7 +77,6 @@ function renderDialog(overrides: Partial<DialogProps> = {}) {
   return mocks;
 }
 
-/** The list item that shows `text` as its title attribute. */
 function rowOf(text: string): HTMLElement {
   return screen.getByTitle(text).closest("li") as HTMLElement;
 }
@@ -271,7 +270,6 @@ describe("LibraryDialog tag wiring", () => {
 });
 
 describe("LibraryDialog book start paths close the file panel", () => {
-  /** Leave the file-removal panel open and come back to the book list. */
   async function openFileRemove(): Promise<void> {
     await fireEvent.click(screen.getByRole("button", { name: "Imported files" }));
     await fireEvent.click(
@@ -315,7 +313,6 @@ describe("LibraryDialog book start paths close the file panel", () => {
 });
 
 describe("LibraryDialog tag actions close the file panel", () => {
-  /** Leave the file-removal panel open and come back to the tag list. */
   async function openFileRemove(): Promise<void> {
     await fireEvent.click(screen.getByRole("button", { name: "Imported files" }));
     await fireEvent.click(

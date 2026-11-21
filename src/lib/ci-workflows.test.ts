@@ -19,14 +19,15 @@ describe("release and CI workflow invariants", () => {
     expect(releaseWorkflow).toContain("aarch64-apple-darwin,x86_64-apple-darwin");
   });
 
-  it("tests in release mode only where tauri-action reads the same target/", () => {
-    // Linux and Windows build into target/release, so the release test compile
-    // feeds tauri-action. macOS builds --target universal-apple-darwin into
-    // target/<triple>/release, which never reads target/release: release mode
-    // there is a duplicate compile nothing reuses.
+  it("skips the Rust test compile on macOS, where nothing can reuse it", () => {
+    // Linux and Windows build into target/release, so their release test
+    // compile feeds tauri-action; macOS builds into target/<triple>/release,
+    // which never reads it. ci.yml already runs this cargo test on macOS for
+    // the pull request and again for the merged commit.
     const rustTests = releaseWorkflow.slice(releaseWorkflow.indexOf("Test Rust workspace"));
-    expect(rustTests).toMatch(/= "macos-latest"[\s\S]{0,200}cargo test --workspace/);
-    expect(rustTests).toMatch(/else[\s\S]{0,200}cargo test --release --workspace/);
+    expect(rustTests).toMatch(/if: matrix\.platform != 'macos-latest'/);
+    expect(rustTests).toMatch(/cargo test --release --workspace/);
+    expect(releaseWorkflow).not.toMatch(/cargo test --workspace/);
   });
 
   it("does not reintroduce a Rust cache a tag run could never reuse", () => {
@@ -157,8 +158,9 @@ describe("bundle targets", () => {
   it("bundles exactly the six supported targets and no WiX/Msi", () => {
     const targets: string[] = JSON.parse(tauriConfig).bundle.targets;
     // Order-independent and exact: an extra or duplicated target fails too.
-    expect([...targets].sort()).toEqual(["app", "appimage", "deb", "dmg", "nsis", "rpm"]);
+    expect([...targets].sort()).toEqual(["app", "appimage", "deb", "dmg", "nsis"]);
     expect(tauriConfig).not.toContain('"msi"');
+    // No rpm: the updater would hand an rpm install the AppImage fallback.
   });
 });
 
@@ -179,10 +181,8 @@ describe("signed auto-update", () => {
   });
 
   it("keeps the v2 updater artifacts the manifest check expects", () => {
-    // `true` reuses the AppImage and the NSIS installer in place, which is why
-    // the manifest carries `linux-x86_64-deb`, `-rpm` and friends. The
-    // "v1Compatible" value would wrap them in .tar.gz/.zip instead and the
-    // check would fail every release.
+    // `true` reuses the AppImage and NSIS installer in place; "v1Compatible"
+    // would wrap them in .tar.gz/.zip and the manifest check would fail.
     expect(config.bundle.createUpdaterArtifacts).toBe(true);
     expect(tauriConfig).not.toContain("v1Compatible");
   });

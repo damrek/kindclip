@@ -92,7 +92,6 @@ describe("ReadingState", () => {
 
     await state.close((page) => applied.push(page), 1, null);
 
-    // The row lives on page 2, so closing moves the list there.
     expect(applied).toEqual([2]);
     expect(state.session).toBeNull();
     expect(state.query).toBe("");

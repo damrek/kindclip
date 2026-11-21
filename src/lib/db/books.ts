@@ -47,7 +47,6 @@ export async function resolveBookId(port: DbPort, clip: ClippingDto): Promise<nu
   return raced[0]?.id ?? -1;
 }
 
-/** Find the book that already owns a (title, author) pair, if any. */
 async function findBookByPair(
   port: DbPort,
   title: string,

@@ -91,7 +91,6 @@
     tags.filter((tag) => matches(tag.name, tagQuery.replace(/^#/, ""))),
   );
 
-  /** Each bounded facet gets its own bottom fade, measured on its scroller. */
   const authorsFade = new ScrollFade();
   const tagsFade = new ScrollFade();
 

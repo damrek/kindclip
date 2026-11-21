@@ -38,7 +38,6 @@ fn parses_english_file() {
     let parens_title = &clips[4];
     assert_eq!(parens_title.title, "Refactoring (2nd Edition)");
     assert_eq!(parens_title.author.as_deref(), Some("Martin Fowler"));
-    // 11:30 PM -> 23:30
     assert_eq!(
         parens_title.added_on.as_deref(),
         Some("2020-01-09T23:30:00")
@@ -136,7 +135,6 @@ fn content_hash_is_stable_and_unique() {
     hashes.dedup();
     assert_eq!(hashes.len(), first_run.len());
 
-    // Direct API determinism.
     let h1 = Clipping::hash_of(
         "T",
         Some("A"),
@@ -164,7 +162,7 @@ fn skips_malformed_entries() {
         parse_clippings("Title (Author)\nno meta line here\n\nContent\n==========\n").is_empty()
     );
 
-    // S1: the discarded entries are counted, blank blocks and the synthetic
+    // The discarded entries are counted, blank blocks and the synthetic
     // trailing separator never are.
     assert_eq!(parse_clippings_with_stats("").skipped, 0);
     assert_eq!(

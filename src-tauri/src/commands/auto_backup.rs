@@ -6,10 +6,6 @@ use serde::Serialize;
 use super::backup::read_sqlite_magic;
 use super::CommandError;
 
-/* ------------------------------------------------------------------------- *
- * Automatic rotating backups
- * ------------------------------------------------------------------------- */
-
 /// Automatic snapshots live in a `backups` folder next to the live database.
 const AUTO_BACKUP_PREFIX: &str = "kindclip-backup-";
 const AUTO_BACKUP_SUFFIX: &str = ".db";
@@ -19,7 +15,6 @@ const AUTO_BACKUP_TEMP_SUFFIX: &str = ".tmp";
 /// A crash leftover older than this is removed during the next prune.
 const AUTO_BACKUP_TEMP_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// One automatic snapshot as shown in the restore dialog.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AutoBackup {
@@ -92,7 +87,6 @@ pub(crate) fn path_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
-/// Resolve the snapshot folder and the two paths of this launch's attempt.
 pub(crate) fn prepare_auto_backup_at(dir: &Path, date: &str) -> Result<AutoBackupPaths, String> {
     let final_name = auto_backup_name(date)?;
     std::fs::create_dir_all(dir)
@@ -265,7 +259,6 @@ pub fn backup_file_name(date: String) -> Result<String, CommandError> {
     auto_backup_name(&date).map_err(|err| CommandError::new("invalid-date", err))
 }
 
-/// Resolve/create the snapshot folder and return this launch's target paths.
 #[tauri::command]
 pub fn prepare_auto_backup(
     app: tauri::AppHandle,
@@ -282,7 +275,6 @@ pub fn prepare_auto_backup(
         .map_err(|err| CommandError::new("auto-backup", err))
 }
 
-/// List the automatic snapshots for the restore dialog, newest first.
 #[tauri::command]
 pub fn list_auto_backups(app: tauri::AppHandle) -> Result<Vec<AutoBackup>, CommandError> {
     use tauri::Manager;

@@ -25,7 +25,6 @@ export function saveDensity(level: Density): void {
   writeStored(DENSITY_STORAGE_KEY, level);
 }
 
-/** Apply the level the CSS variables are keyed on. */
 export function applyDensity(element: HTMLElement, level: Density): void {
   element.dataset.density = level;
 }

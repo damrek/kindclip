@@ -1,6 +1,3 @@
-/** Reminder helpers shared by the dialog, the card and the delivery state. */
-
-/** Characters of clipping text carried in a notification body. */
 export const REMINDER_EXCERPT_LENGTH = 120;
 
 /** One-line excerpt: whitespace collapsed, code points never split. */
@@ -18,7 +15,6 @@ export function reminderExcerpt(content: string | null, fallback: string): strin
 
 const pad = (value: number): string => String(value).padStart(2, "0");
 
-/** One pending reminder, as the management panel lists it. */
 export interface ReminderItem {
   clippingId: number;
   /** ISO UTC instant. */
@@ -69,7 +65,6 @@ export function tonight(now: Date): Date {
   return date;
 }
 
-/** Tomorrow at 09:00. */
 export function tomorrowMorning(now: Date): Date {
   const date = new Date(now.getTime());
   date.setDate(date.getDate() + 1);
@@ -77,7 +72,6 @@ export function tomorrowMorning(now: Date): Date {
   return date;
 }
 
-/** One week from now, same clock time. */
 export function inOneWeek(now: Date): Date {
   const date = new Date(now.getTime());
   date.setDate(date.getDate() + 7);
@@ -85,7 +79,6 @@ export function inOneWeek(now: Date): Date {
   return date;
 }
 
-/** Human date for the tooltip and the dialog, in the active locale. */
 export function formatReminderAt(iso: string, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {

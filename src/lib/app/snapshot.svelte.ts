@@ -92,7 +92,6 @@ export interface SnapshotDeps {
   log: Logger;
 }
 
-/** Production wiring: the shared connection, the Tauri backend and the logger. */
 export function createSnapshotState(deps: {
   t: Translate;
   refresh: () => Promise<void>;
@@ -110,10 +109,8 @@ export function createSnapshotState(deps: {
 }
 
 export class SnapshotState {
-  /** Manual backup: busy, status and error live in one task. */
   readonly backup: AsyncTask;
 
-  /** Restore dialog. */
   open = $state(false);
   busy = $state(false);
   checking = $state(false);
@@ -198,7 +195,6 @@ export class SnapshotState {
     }
   }
 
-  /** Open the restore dialog with the automatic snapshots listed. */
   async openDialog(): Promise<void> {
     if (this.busy || this.backup.busy) return;
     this.#request += 1;
@@ -213,7 +209,6 @@ export class SnapshotState {
     await this.loadSnapshots();
   }
 
-  /** Read the automatic snapshots each time the dialog opens. */
   async loadSnapshots(): Promise<void> {
     this.snapshotsLoading = true;
     this.snapshotsError = null;
@@ -305,7 +300,6 @@ export class SnapshotState {
     }
   }
 
-  /** Map a rejected snapshot to the reason shown in the restore dialog. */
   #restoreFailure(error: unknown): string {
     if (isBackupError(error)) {
       if (error.code === "not-kindclip") return this.deps.t("restore.invalid");

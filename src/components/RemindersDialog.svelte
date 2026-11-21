@@ -18,7 +18,6 @@
   const { items, busyId, onEdit, onRemove, onClose }: Props = $props();
   const i18n = getContext<I18nContext>(I18N_CONTEXT_KEY);
 
-  /** Row waiting for the destructive confirmation. */
   let confirming = $state<number | null>(null);
   let working = $state(false);
   let failed = $state(false);

@@ -38,7 +38,6 @@ export interface LibraryDeps {
   log: (scope: string, error: unknown) => void;
 }
 
-/** Production wiring: the shared connection and the logger. */
 export function createLibraryPanel(
   deps: Omit<LibraryDeps, "getPort" | "log">,
 ): LibraryPanel {

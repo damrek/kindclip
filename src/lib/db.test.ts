@@ -36,9 +36,6 @@ import {
 } from "./db";
 import type { ClippingDto, ClippingFilter } from "./types";
 
-/** Backing port for the mocked plugin-sql connection: `exportClippings` is
- * the only db.ts function that goes through `getDb()`, so tests assign a
- * FakePort here before calling it. */
 const plugin = vi.hoisted(() => ({ port: null as DbPort | null }));
 
 vi.mock("@tauri-apps/plugin-sql", () => ({
@@ -223,7 +220,6 @@ describe("buildListQuery", () => {
     expect(sql).toContain("f.clipping_id IS NOT NULL");
     expect(params).toContain(3);
     expect(params).toContain("note");
-    // LIMIT 50 OFFSET 50
     expect(params.slice(-2)).toEqual([50, 50]);
   });
 

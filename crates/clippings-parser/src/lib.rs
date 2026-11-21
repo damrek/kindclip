@@ -1,4 +1,4 @@
-//! Pure parser for Kindle `My Clippings.txt` files (S2).
+//! Pure parser for Kindle `My Clippings.txt` files.
 //!
 //! Kept dependency-free apart from `serde`/`sha2` so
 //! `cargo test -p clippings-parser` runs on any machine without
@@ -15,7 +15,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// What kind of entry a clipping is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ClippingKind {
@@ -34,7 +33,6 @@ impl ClippingKind {
     }
 }
 
-/// One parsed entry from `My Clippings.txt`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Clipping {
     pub title: String,
@@ -43,18 +41,16 @@ pub struct Clipping {
     pub page: Option<u32>,
     /// Raw location token as written by Kindle, e.g. `"234-236"`.
     pub location: Option<String>,
-    /// Date string exactly as written by Kindle.
     pub added_on_raw: String,
     /// Normalized `YYYY-MM-DDTHH:MM:SS` when the locale is recognized.
     pub added_on: Option<String>,
     /// `None` for bookmarks and entries without text.
     pub content: Option<String>,
-    /// SHA-256 over the normalized fields; used for cross-file dedupe (S5).
+    /// SHA-256 over the normalized fields; used for cross-file dedupe.
     pub content_hash: String,
 }
 
 impl Clipping {
-    /// Deterministic hash over the normalized entry fields.
     pub fn hash_of(
         title: &str,
         author: Option<&str>,
@@ -233,7 +229,6 @@ fn clean_line(line: &str) -> &str {
     trimmed.strip_prefix('\u{FEFF}').unwrap_or(trimmed).trim()
 }
 
-/// Split `"Title (Author)"` on the LAST parenthesized suffix.
 fn parse_title_author(line: &str) -> (String, Option<String>) {
     let line = line.trim();
     if line.ends_with(')') {
@@ -315,7 +310,6 @@ fn detect_kind(lower_meta: &str) -> Option<ClippingKind> {
     None
 }
 
-/// First `u32` found after `keyword` (e.g. page number).
 fn number_after(haystack: &str, keyword: &str) -> Option<u32> {
     let idx = haystack.find(keyword)?;
     haystack[idx + keyword.len()..]
@@ -325,7 +319,6 @@ fn number_after(haystack: &str, keyword: &str) -> Option<u32> {
         .ok()
 }
 
-/// First location token (`"234-236"` or `"236"`) found after `keyword`.
 fn token_after(haystack: &str, keyword: &str) -> Option<String> {
     let idx = haystack.find(keyword)?;
     let token: String = haystack[idx + keyword.len()..]
@@ -359,7 +352,6 @@ fn rest_after(original: &str, lower: &str, marker: &str) -> Option<String> {
     Some(original.get(byte_idx..)?.trim().to_string())
 }
 
-/// (month name, month number) across supported Kindle locales.
 const MONTHS: &[(&str, u32)] = &[
     ("january", 1),
     ("february", 2),
@@ -440,7 +432,6 @@ const MONTHS: &[(&str, u32)] = &[
     ("dezembro", 12),
 ];
 
-/// Normalize a Kindle date to `YYYY-MM-DDTHH:MM:SS`; `None` if unrecognized.
 fn normalize_date(raw: &str) -> Option<String> {
     let lower = raw.to_lowercase();
     // Longest names first so e.g. "marzo" wins over any shorter overlap.
@@ -475,7 +466,6 @@ fn normalize_date(raw: &str) -> Option<String> {
     ))
 }
 
-/// All integer tokens with their byte positions.
 fn integer_tokens(text: &str) -> Vec<(i32, usize)> {
     let mut out = Vec::new();
     let mut start: Option<usize> = None;
@@ -498,7 +488,6 @@ fn integer_tokens(text: &str) -> Vec<(i32, usize)> {
     out
 }
 
-/// First `HH:MM:SS` token plus optional AM/PM marker.
 fn time_token(text: &str) -> Option<(u32, u32, u32)> {
     let words: Vec<&str> = text.split_whitespace().collect();
     for (i, word) in words.iter().enumerate() {

@@ -2,7 +2,6 @@ import { formatAddedOn } from "./format";
 import type { I18nKey, TranslateParams } from "./i18n";
 import type { ClippingRow } from "./types";
 
-/** Formats offered by the export dialog (S1). */
 export type ExportFormat = "markdown" | "json" | "csv";
 
 /** File extension per format; the single source for dialogs and names. */
@@ -17,7 +16,7 @@ function pad2(value: number): string {
 }
 
 /** Filesystem-safe slug: diacritics folded, anything that is not a letter or
- * a digit collapsed into single hyphens (S10 default file name). */
+ * a digit collapsed into single hyphens (default file name). */
 export function slugifyTitle(title: string | null): string {
   if (title === null) {
     return "";
@@ -30,7 +29,7 @@ export function slugifyTitle(title: string | null): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** `kindclip-export[-<slug>]-YYYY-MM-DD.<ext>` in the local timezone (S10). */
+/** `kindclip-export[-<slug>]-YYYY-MM-DD.<ext>` in the local timezone. */
 export function exportFileName(
   format: ExportFormat,
   bookTitle: string | null,
@@ -85,7 +84,7 @@ function metadataLine(row: ClippingRow, locale: string, t: MarkdownOptions["t"])
   return `— ${parts.join(" · ")}`;
 }
 
-/** One book section, shared by the single-file and per-book serializers (S5). */
+/** One book section, shared by the single-file and per-book serializers. */
 function bookSection(group: ClippingRow[], opts: MarkdownOptions): string {
   const [first] = group;
   const header =
@@ -102,13 +101,12 @@ function bookSection(group: ClippingRow[], opts: MarkdownOptions): string {
   return blocks.join("\n\n");
 }
 
-/** Markdown file with one section per book (S8), translated labels (S6). */
+/** Markdown file with one section per book, translated labels. */
 export function serializeMarkdown(rows: ClippingRow[], opts: MarkdownOptions): string {
   const sections = groupRowsByBook(rows).map((group) => bookSection(group.rows, opts));
   return sections.length === 0 ? "" : `${sections.join("\n\n")}\n`;
 }
 
-/** One book's boundary: title and author plus the clipping blocks (S5). */
 export interface BookGroup {
   title: string;
   author: string | null;
@@ -130,7 +128,7 @@ export function groupRowsByBook(rows: ClippingRow[]): BookGroup[] {
   return [...groups.values()];
 }
 
-/** Windows device names are reserved with any extension (S4). */
+/** Windows device names are reserved with any extension. */
 const RESERVED_WINDOWS_STEMS = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
 const MAX_BOOK_FILE_STEM = 80;
 
@@ -147,7 +145,7 @@ function authorStem(author: string | null): string {
   return slug === "" ? "unknown-author" : slug;
 }
 
-/** Per-book file names for a filtered view (S4): stable, collision-free and
+/** Per-book file names for a filtered view: stable, collision-free and
  * safe on Windows and macOS filesystems. */
 export function planBookFileNames(
   books: Array<{ title: string; author: string | null }>,
@@ -184,7 +182,7 @@ export interface BookMarkdownOptions extends MarkdownOptions {
 }
 
 /** Double-quoted YAML scalar: backslashes and quotes escaped, line breaks
- * collapsed into spaces (S3). */
+ * collapsed into spaces. */
 function yamlString(value: string): string {
   return `"${value
     .replaceAll("\\", "\\\\")
@@ -192,7 +190,7 @@ function yamlString(value: string): string {
     .replace(/\r\n|\r|\n/g, " ")}"`;
 }
 
-/** One Obsidian-ready file for a single book (S3, S5): YAML frontmatter with
+/** One Obsidian-ready file for a single book: YAML frontmatter with
  * the frozen key order followed by the same body as the single-file export. */
 export function serializeBookMarkdown(rows: ClippingRow[], opts: BookMarkdownOptions): string {
   if (rows.length === 0) {
@@ -212,7 +210,7 @@ export function serializeBookMarkdown(rows: ClippingRow[], opts: BookMarkdownOpt
   return `${frontmatter}\n${bookSection(rows, opts)}\n`;
 }
 
-/** JSON payload with stable English keys (S6); `now` is injectable for tests. */
+/** JSON payload with stable English keys; `now` is injectable for tests. */
 export function serializeJson(rows: ClippingRow[], opts: { now?: Date } = {}): string {
   const payload = {
     app: "kindclip",
@@ -249,7 +247,7 @@ function csvCell(value: string | number | null): string {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-/** Comma-separated file with UTF-8 BOM and CRLF rows (S5). */
+/** Comma-separated file with UTF-8 BOM and CRLF rows. */
 export function serializeCsv(rows: ClippingRow[]): string {
   const lines = [CSV_HEADER];
   for (const row of rows) {

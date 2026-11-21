@@ -3,7 +3,6 @@ import type { ClippingDto, ImportReport } from "../types";
 import { resolveBookId } from "./books";
 import type { DbPort } from "./port";
 
-/** One row of the imported-files list (library management). */
 export interface ImportedFile {
   id: number;
   path: string;
@@ -29,7 +28,6 @@ const BATCH = 500;
 
 const bookKey = (clip: ClippingDto): string => JSON.stringify([clip.title, clip.author ?? ""]);
 
-/** Content hashes of one batch that already exist, via the unique index. */
 async function knownHashes(port: DbPort, rows: ClippingDto[]): Promise<Set<string>> {
   const placeholders = rows.map((_, index) => `$${index + 1}`).join(", ");
   const found = await port.select<{ content_hash: string }>(

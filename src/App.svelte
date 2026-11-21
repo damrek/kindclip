@@ -79,7 +79,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     type ShortcutHandlers,
   } from "./lib/app/keyboard";
 
-  /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
     return run(await getDb());
   }
@@ -90,7 +89,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 
   const prefs = createPreferences();
   const t = prefs.t;
-  /** One system notification per clipping, delivered while the app runs. */
   const reminders = createReminders(() => t("reminder.noContent"));
   /** Running version, shown beside the settings button; hidden outside Tauri. */
   let appVersion = $state<string | null>(null);
@@ -138,11 +136,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   let reminderTarget = $state<{ id: number; title: string } | null>(null);
   /** The dialog was opened from the reminders panel and must return to it. */
   let reminderFromList = $state(false);
-  /** Full-window reading session; null when closed. */
   const reading = createReadingState();
-  /** Element that opened the reading view; focus returns to it on close. */
   let listRegion = $state<HTMLElement | null>(null);
-  /** Card selected with j/k; the target of Enter, * and c. */
 
   const library = createLibraryPanel({
     t,
@@ -291,11 +286,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   const toggleKind = (next: ClippingKind): void => filters.toggleKind(next);
   const toggleFavoritesOnly = (): void => filters.toggleFavoritesOnly();
   const toggleEditedOnly = (): void => filters.toggleEditedOnly();
-  /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
   const toggleAuthor = (key: string): void => filters.toggleAuthor(key);
-  /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
   const toggleTag = (id: number): void => filters.toggleTag(id);
-  /** Value shape of the sort select: `<key>:<dir>` (e.g. `page:asc`). */
   const setClippingSort = (value: string): void => filters.setSort(value);
 
   const copyContent = (id: number): Promise<void> => actions.copyContent(id);
@@ -310,7 +302,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     actions.editNote(id, content);
   const changePageSize = (size: number): void => filters.setPageSize(size);
 
-  /** Open the reset confirmation dialog for a note (rendered at app root). */
   function requestReset(id: number): void {
     rememberOpener();
     actions.requestReset(id);
@@ -340,7 +331,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     reading.openWindow(items, id, opener, query);
   }
 
-  /** Close and leave the list on the page where reading stopped. */
   function closeReading(): Promise<void> {
     return reading.close(
       (target) => {
@@ -404,7 +394,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     }
   }
 
-  /** S1: whole-library aggregates, fetched fresh each time the dialog opens. */
   async function openStats(): Promise<void> {
     if (stats.open) return;
     rememberOpener();
@@ -424,7 +413,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   }
 
   const openPreferences = (): void => overlays.openPreferences();
-  /** `restoreFocus: false` when another dialog takes over the screen. */
   const closePreferences = (restoreFocus = true): void =>
     overlays.closePreferences(listRegion, restoreFocus);
 
@@ -580,7 +568,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     dispatchShortcut(action, shortcutHandlers);
   }
 
-  /** Step one row; fetch the adjacent page only when the window runs out. */
   function stepReading(dir: ReadingDirection): Promise<void> {
     return reading.step(dir);
   }
@@ -594,14 +581,14 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     await performImport(runImportFlow);
   }
 
-  /** S1: one import run for both the picker and a native file drop. */
+  /** One import run for both the picker and a native file drop. */
   function performImport(run: ImportRunner): Promise<void> {
     return imports.run(run, (message) => {
       importStatus = message;
     });
   }
 
-  /** S1: a native file drop imports the first `.txt` it carries. */
+  /** A native file drop imports the first `.txt` it carries. */
   function onDropPaths(paths: string[]): void {
     void imports.drop(paths, modalOpen, (message) => {
       importStatus = message;
@@ -638,7 +625,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     };
   });
 
-  /** Open the export dialog from the header (clears the previous outcome). */
   function openExport(): void {
     if (exports.openDialog()) {
       rememberOpener();
@@ -715,7 +701,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   // wait on the network, and a failure stays silent (see UpdatePanel).
   void updates.checkOnLaunch();
 
-  /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading.current);
 
   const view = createViewModel({

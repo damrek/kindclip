@@ -7,7 +7,6 @@ const { TAURI_DEV_HOST: host, TAURI_ENV_PLATFORM } =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const isTauri = !!TAURI_ENV_PLATFORM;
 
-// https://vite.dev/config/
 export default defineConfig(async () => ({
   // `svelteTesting` makes Vitest resolve Svelte's browser runtime (component
   // tests mount for real) instead of its server build. It is inert outside
@@ -32,7 +31,6 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
@@ -53,8 +51,8 @@ export default defineConfig(async () => ({
           reporter: ["text", "html"],
           include: ["src/**/*.{ts,svelte}"],
           exclude: ["src/**/*.test.ts", "src/test/**", "src/**/*.d.ts"],
-          // No thresholds yet: the first report is a map of the gaps, and a
-          // number picked before seeing it would only force a fake gate.
+          // A number picked before the first report would only force a fake
+          // gate, so coverage stays a map of the gaps for now.
           reportsDirectory: "coverage",
         },
       },

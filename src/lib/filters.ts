@@ -108,13 +108,11 @@ export function fromStored(stored: StoredFilterState): FilterValues {
   };
 }
 
-/** Drop selected tag ids whose tag no longer exists. */
 export function keepKnownTags(tagIds: number[], knownTagIds: number[]): number[] {
   const known = new Set(knownTagIds);
   return tagIds.filter((id) => known.has(id));
 }
 
-/** Add or remove one value from a multi-select filter. */
 export function toggleValue<T>(values: T[], value: T): T[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }

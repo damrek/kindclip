@@ -1,4 +1,3 @@
-/** Page sizes offered by the pagination control (S4). */
 export const PAGE_SIZES = [20, 50, 100];
 
 export function totalPages(total: number, pageSize: number): number {

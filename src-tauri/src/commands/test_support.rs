@@ -12,7 +12,6 @@ pub(crate) fn fresh_dir(name: &str) -> PathBuf {
     dir
 }
 
-/// Directory for the backup and restore fixtures (`kindclip-t5-<name>`).
 pub(crate) fn backup_dir(name: &str) -> PathBuf {
     fresh_dir(&format!("kindclip-t5-{name}"))
 }

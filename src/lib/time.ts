@@ -5,7 +5,6 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** Current wall clock for date-stamped renders; the caller owns the value. */
 export function nowDate(): Date {
   return new Date();
 }

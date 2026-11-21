@@ -29,7 +29,6 @@ export interface ImportStateDeps {
   log: Logger;
 }
 
-/** Production wiring: the Tauri seams and the diagnostic logger. */
 export function createImportState(deps: {
   t: Translate;
   count: CountText;
@@ -108,7 +107,6 @@ export class ImportState {
     }
   }
 
-  /** A native file drop imports the first `.txt` it carries. */
   async drop(
     paths: string[],
     blocked: boolean,

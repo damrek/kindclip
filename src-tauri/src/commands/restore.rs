@@ -5,7 +5,6 @@ use super::diagnostics::db_path;
 use super::export::with_suffix;
 use super::CommandError;
 
-/// Whether two paths point at the same file on disk.
 pub(crate) fn same_path(left: &Path, right: &Path) -> bool {
     match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
         (Ok(left), Ok(right)) => left == right,

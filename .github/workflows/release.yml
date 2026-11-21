@@ -44,7 +44,6 @@ jobs:
             exit 0
           fi
 
-          # workflow_dispatch
           INPUT_VERSION="${{ github.event.inputs.version }}"
           if [ -n "$INPUT_VERSION" ]; then
             VERSION="${INPUT_VERSION#v}"
@@ -316,18 +315,14 @@ jobs:
 
       - run: npm run test
 
-      # tauri-action reads target/release on Linux and Windows, so the release
-      # test compile there is reused by the build below. The macOS leg builds a
-      # universal binary into target/<triple>/release, which never reads
-      # target/release, so release mode there is a duplicate compile.
+      # tauri-action reads target/release on Linux and Windows, so their release
+      # test compile feeds the build below. macOS builds into
+      # target/<triple>/release, which never reads it, and ci.yml already runs
+      # this test on macOS for the pull request and the merged commit.
       - name: Test Rust workspace
+        if: matrix.platform != 'macos-latest'
         shell: bash
-        run: |
-          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
-            cargo test --workspace
-          else
-            cargo test --release --workspace
-          fi
+        run: cargo test --release --workspace
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -344,7 +339,7 @@ jobs:
           # true). It merges each leg's platform entry into the existing file
           # and knows the v2 artifact names, which a hand-written manifest got
           # wrong twice: it looked for the v1Compatible `.AppImage.tar.gz` and
-          # dropped the deb/rpm/nsis entries. The job below adds the notes the
+          # dropped the deb and nsis entries. The job below adds the notes the
           # action cannot know and checks the result.
           args: ${{ matrix.args }}
 

@@ -51,7 +51,6 @@ export interface PreferencesDeps {
   log: (scope: string, error: unknown) => void;
 }
 
-/** Production wiring: DB settings, the document and the logger. */
 export function createPreferences(): Preferences {
   return new Preferences({
     getSetting: async (key) => getSetting(await getDb(), key),

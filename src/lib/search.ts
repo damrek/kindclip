@@ -9,7 +9,6 @@ export function searchTerms(query: string): string[] {
   return [...new Set(terms)];
 }
 
-/** One rendered run of text; `match` marks the spans the query hit. */
 export interface HighlightSegment {
   text: string;
   match: boolean;
@@ -32,7 +31,6 @@ function foldWithOrigin(text: string): { folded: string; origin: number[] } {
   return { folded, origin };
 }
 
-/** UTF-16 width of the code point starting at `index`. */
 function charWidthAt(text: string, index: number): number {
   return (text.codePointAt(index) ?? 0) > 0xffff ? 2 : 1;
 }

@@ -21,7 +21,6 @@ export function baseName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
-/** How many automatic snapshots survive pruning (the newest ones). */
 export const AUTO_BACKUP_KEEP = 7;
 
 /** One automatic snapshot as listed by Rust, newest first. */
@@ -47,7 +46,6 @@ export interface AutoBackupPruneReport {
 
 const AUTO_BACKUP_NAME = /^kindclip-backup-\d{4}-\d{2}-\d{2}\.db$/;
 
-/** Whether a file name is one of the dated automatic snapshots. */
 export function isAutoBackupName(name: string): boolean {
   return AUTO_BACKUP_NAME.test(name);
 }

@@ -13,7 +13,6 @@ export interface StatsStateDeps {
   log: Logger;
 }
 
-/** Production wiring: the shared connection, the aggregate query and the logger. */
 export function createStatsState(deps: { t: Translate }): StatsState {
   return new StatsState({
     getPort: () => getDb(),
@@ -32,7 +31,6 @@ export class StatsState {
 
   constructor(private readonly deps: StatsStateDeps) {}
 
-  /** Reset the dialog and load a fresh aggregate set. */
   async show(): Promise<void> {
     this.open = true;
     this.data = null;

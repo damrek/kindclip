@@ -137,7 +137,6 @@ export async function deleteTag(port: DbPort, tagId: number): Promise<boolean> {
   return (result.rowsAffected ?? 0) > 0;
 }
 
-/** Assign a tag to a clipping; assigning twice is a no-op. */
 export async function addClippingTag(
   port: DbPort,
   clippingId: number,
@@ -149,7 +148,6 @@ export async function addClippingTag(
   );
 }
 
-/** Remove one tag from one clipping; removing an absent link is a no-op. */
 export async function removeClippingTag(
   port: DbPort,
   clippingId: number,

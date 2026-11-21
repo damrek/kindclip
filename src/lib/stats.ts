@@ -26,10 +26,8 @@ export interface ReadingStats {
   books: BookStat[];
 }
 
-/** Books shown in the "by book" section; one row per book. */
 export const TOP_BOOKS = 8;
 
-/** Whole-library aggregates: clippings per year, kind and top books. */
 export async function loadReadingStats(port: DbPort): Promise<ReadingStats> {
   const totals = await port.select<{ total: number; book_count: number }>(
     "SELECT COUNT(*) AS total, COUNT(DISTINCT book_id) AS book_count FROM clippings",

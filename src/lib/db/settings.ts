@@ -10,7 +10,6 @@ import {
 import type { ClippingKind } from "../types";
 import type { DbPort } from "./port";
 
-/** Setting keys for user preferences (locale, theme, filters). */
 export const SETTINGS_KEYS = {
   locale: "locale",
   theme: "theme",

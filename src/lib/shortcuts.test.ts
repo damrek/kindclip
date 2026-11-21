@@ -97,7 +97,6 @@ describe("resolveShortcut — search", () => {
     expect(resolve("p", { metaKey: true })).toBe("open-palette");
     expect(resolve("P", { ctrlKey: true, shiftKey: true })).toBe("open-palette");
     expect(resolve("p", { ctrlKey: true }, { typing: true })).toBe("open-palette");
-    // Bare p stays the previous-page key.
     expect(resolve("p")).toBe("prev-page");
   });
 

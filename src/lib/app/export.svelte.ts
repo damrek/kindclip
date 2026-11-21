@@ -68,7 +68,6 @@ export interface ExportStateDeps {
   log: Logger;
 }
 
-/** Production wiring: Tauri dialogs/commands and the logger. */
 export function createExportState(
   deps: Omit<ExportStateDeps, "now" | "backend" | "log">,
 ): ExportState {
@@ -157,7 +156,6 @@ export class ExportState {
     });
   }
 
-  /** S6/S7: one Markdown file per book into a chosen folder. */
   async #oneFilePerBook(rows: ClippingRow[], includeOriginal: boolean): Promise<void> {
     const groups = groupRowsByBook(rows);
     if (groups.length === 0) return;

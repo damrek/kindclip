@@ -1,4 +1,3 @@
-/** Font-size accessibility control: a five-step root scaling. */
 import { writeStored } from "./storage";
 
 export type FontScale = "xs" | "small" | "medium" | "large" | "xl";

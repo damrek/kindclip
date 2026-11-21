@@ -27,7 +27,6 @@
     bookmark: 2,
     note: 3,
   };
-  /** Slice under the pointer; it dims the other slices. */
   let hoveredKind = $state<ClippingKind | null>(null);
   /** Slice whose legend row holds keyboard focus; hover wins while it lasts. */
   let focusedKind = $state<ClippingKind | null>(null);
@@ -36,7 +35,6 @@
   const yearMax = $derived(Math.max(1, ...(stats?.years.map((row) => row.count) ?? [])));
   const bookMax = $derived(Math.max(1, ...(stats?.books.map((row) => row.count) ?? [])));
 
-  /** Bottom fade of the report, measured against the scroller. */
   const fade = new ScrollFade();
 
   /** Bar width for one bucket; every chart scales to its own maximum. */

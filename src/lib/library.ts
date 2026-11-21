@@ -71,7 +71,7 @@ export function filterBooks(books: Book[], query: string): Book[] {
   );
 }
 
-/** One author group shared by the Filters menu and the grouped sidebar (S5). */
+/** One author group shared by the Filters menu and the grouped sidebar. */
 export interface AuthorGroup {
   /** Folded author key; the empty key is the unknown author. */
   key: string;
@@ -133,7 +133,7 @@ export function groupBooksByAuthor(books: Book[]): AuthorGroup[] {
 }
 
 /**
- * Drop selected author keys that no longer exist in the book list (S6).
+ * Drop selected author keys that no longer exist in the book list.
  * Returns the same array when nothing was pruned, so callers can skip a
  * needless filter write.
  */
@@ -172,7 +172,6 @@ export function debounce<Args extends unknown[]>(
   return debounced;
 }
 
-/** The clipping fields needed to build a cited quote. */
 export type QuotableClipping = Pick<
   ClippingRow,
   "title" | "author" | "page" | "location" | "content" | "content_edited"
@@ -206,7 +205,7 @@ export function formatQuoteCitation(clipping: QuotableClipping): string | null {
   return `${quote}\n>\n> ${citation}`;
 }
 
-/** Optimistic favorite flip for the visible page (T6). */
+/** Optimistic favorite flip for the visible page. */
 export function applyFavoriteToggle(
   items: ClippingRow[],
   id: number,
@@ -215,7 +214,7 @@ export function applyFavoriteToggle(
   return items.map((item) => (item.id === id ? { ...item, favorite } : item));
 }
 
-/** Overlay patch (note edit or reset) for the visible page (V2). */
+/** Overlay patch (note edit or reset) for the visible page. */
 export function applyNoteEdit(
   items: ClippingRow[],
   id: number,
@@ -224,7 +223,7 @@ export function applyNoteEdit(
   return items.map((item) => (item.id === id ? { ...item, ...patch } : item));
 }
 
-/** Tag chips shown before the +N toggle (S3). */
+/** Tag chips shown before the +N toggle. */
 export const TAG_CHIP_LIMIT = 3;
 
 /** Append a tag to one clipping's chips, ignoring a duplicate id or name. */
@@ -239,17 +238,14 @@ export function withTag(tags: Tag[], tag: Tag): Tag[] {
   return [...tags, tag];
 }
 
-/** Drop one tag chip by id; unknown ids leave the list untouched. */
 export function withoutTag(tags: Tag[], tagId: number): Tag[] {
   return tags.filter((tag) => tag.id !== tagId);
 }
 
-/** Drop one tag id from the selected filter (a deleted or merged tag). */
 export function withoutTagId(tagIds: number[], tagId: number): number[] {
   return tagIds.filter((id) => id !== tagId);
 }
 
-/** Chips to render and how many stay behind the +N toggle. */
 export function tagOverflow(
   tags: Tag[],
   limit = TAG_CHIP_LIMIT,
@@ -257,7 +253,6 @@ export function tagOverflow(
   return { visible: tags.slice(0, limit), hidden: Math.max(0, tags.length - limit) };
 }
 
-/** Copy card content to the clipboard; `false` when the write fails (T9). */
 export async function copyClippingContent(
   write: (text: string) => Promise<void>,
   text: string,

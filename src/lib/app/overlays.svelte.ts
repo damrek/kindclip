@@ -194,7 +194,6 @@ export class Overlays {
     this.reminder = true;
   }
 
-  /** The dialog closed back into the panel it came from. */
   returnToReminderList(): void {
     this.reminder = false;
     this.reminderList = true;

@@ -25,7 +25,6 @@ pub(crate) fn read_sqlite_magic(path: &Path) -> Result<u64, String> {
     Ok(metadata.len())
 }
 
-/// Pre-flight check for a backup the user picked in the restore dialog.
 #[tauri::command]
 pub fn validate_backup_file(path: String) -> Result<u64, CommandError> {
     let size = read_sqlite_magic(Path::new(&path)).map_err(|err| {

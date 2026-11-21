@@ -1,7 +1,7 @@
 /** Filter state in one object plus the transitions that touch it.
  *
- * Every transition that changes which rows match resets the page; the sort and
- * the sidebar selection keep it. Persistence is a debounced callback supplied
+ * Every transition that changes which rows match resets the page; only the
+ * book-sort controls keep it. Persistence is a debounced callback supplied
  * by the shell, and stays silent until the stored filter has been applied. */
 import {
   clippingSort,
@@ -21,7 +21,6 @@ import type { StoredFilterState } from "../db";
 import type { ClippingFilter, ClippingKind } from "../types";
 
 export interface FilterStateDeps {
-  /** Return the list to its first page. */
   resetPage: () => void;
   /** Debounced write of the persisted shape. */
   persist: (state: StoredFilterState) => void;
@@ -102,13 +101,13 @@ export class FilterState {
     this.deps.resetPage();
   }
 
-  /** Toggle one author in the OR filter (S4); the list reloads from `filter`. */
+  /** Toggle one author in the OR filter; the list reloads from `filter`. */
   toggleAuthor(key: string): void {
     this.values.authors = toggleValue(this.values.authors, key);
     this.deps.resetPage();
   }
 
-  /** Toggle one tag in the AND filter (S4); the list reloads from `filter`. */
+  /** Toggle one tag in the AND filter; the list reloads from `filter`. */
   toggleTag(id: number): void {
     this.values.tagIds = toggleValue(this.values.tagIds, id);
     this.deps.resetPage();

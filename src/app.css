@@ -15,7 +15,7 @@
 
    Components use only these names (bg-surface, text-fg-muted, border-line,
    ...). A theme is a block that redefines them, so adding a palette never
-   touches a component. The light block keeps the v1.14 rendering; the four
+   touches a component. The light block keeps the v1.14 rendering; the seven
    dark blocks follow their upstream palettes with WCAG-AA-adjusted text
    colors (see theme.test.ts).
    --------------------------------------------------------------------------- */
@@ -51,7 +51,6 @@
 [data-palette="light"] {
   color-scheme: light;
 
-  /* Surfaces */
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-hover: #f5f5f5;
@@ -60,18 +59,15 @@
   --inverse: #171717;
   --inverse-fg: #ffffff;
 
-  /* Text */
   --fg: #171717;
   --fg-muted: #5f5f5f;
   --fg-subtle: #a1a1a1;
   --fg-faint: #d4d4d4;
 
-  /* Borders */
   --line: #e5e5e5;
   --line-subtle: #f5f5f5;
   --line-strong: #d4d4d4;
 
-  /* Accent */
   --accent: #d97706;
   --accent-hover: #b45309;
   --accent-text: #92400e;
@@ -85,14 +81,12 @@
   --selection: #feedb8;
   --focus-ring: #d97706;
 
-  /* Danger */
   --danger: #b91c1c;
   --danger-solid: #dc2626;
   --danger-solid-hover: #b91c1c;
   --danger-soft: #fef2f2;
   --danger-border: #fecaca;
 
-  /* Success */
   --success: #047857;
 
   /* Chart series (non-text): at least 3:1 against `surface-raised`. */
@@ -140,7 +134,6 @@
 
   --success: #98c379;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #61afef;
   --chart-2: #98c379;
   --chart-3: #c678dd;
@@ -183,7 +176,6 @@
 
   --success: #97b485;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #6897bb;
   --chart-2: #97b485;
   --chart-3: #b08cc0;
@@ -226,7 +218,6 @@
 
   --success: #a3be8c;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #88c0d0;
   --chart-2: #a3be8c;
   --chart-3: #b48ead;
@@ -269,7 +260,6 @@
 
   --success: #91a318;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #3895d6;
   --chart-2: #859900;
   --chart-3: #9aa5e0;
@@ -312,7 +302,6 @@
 
   --success: #9ccfd8;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #c4a7e7;
   --chart-2: #9ccfd8;
   --chart-3: #f6c177;
@@ -355,7 +344,6 @@
 
   --success: #b8bb26;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #fabd2f;
   --chart-2: #b8bb26;
   --chart-3: #83a598;
@@ -398,7 +386,6 @@
 
   --success: #9ece6a;
 
-  /* Chart series (non-text): at least 3:1 against `surface-raised`. */
   --chart-1: #7aa2f7;
   --chart-2: #9ece6a;
   --chart-3: #bb9af7;

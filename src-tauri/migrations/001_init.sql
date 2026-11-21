@@ -1,4 +1,3 @@
--- kindclip initial schema (S5, S6).
 -- Applied once by tauri-plugin-sql migrations; IF NOT EXISTS keeps
 -- manual sqlite3 testing idempotent.
 

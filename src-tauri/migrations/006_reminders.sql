@@ -1,4 +1,4 @@
--- Clipping reminders (S1): one scheduled notification per clipping.
+-- Clipping reminders: one scheduled notification per clipping.
 -- Rewriting a reminder replaces the row; delivered rows keep `notified_at` so
 -- a delivery is never repeated. Deleting the clipping removes its reminder.
 

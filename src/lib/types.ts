@@ -22,7 +22,6 @@ export interface Book {
   clipping_count: number;
 }
 
-/** A user-defined label attached to one clipping (tags feature, S1). */
 export interface Tag {
   id: number;
   name: string;
@@ -32,7 +31,7 @@ export interface Tag {
 export interface ClippingRow extends ClippingDto {
   id: number;
   favorite: boolean;
-  /** Overlay for note editing (V2): edited text; null = original shown. */
+  /** Overlay for note editing: edited text; null = original shown. */
   content_edited: string | null;
   edited_at: string | null;
   /** Labels attached to this clipping, in link order. */

@@ -1,9 +1,9 @@
 //! kindclip application library entry point.
 //!
-//! Data layer (T3): schema migrations run automatically when the
+//! Data layer: schema migrations run automatically when the
 //! `sqlite:kindclip.db` pool is (pre)loaded. All SQL goes through the
-//! frontend port (`src/lib/db.ts`); Rust owns parsing (T2) and the import and
-//! export entry points (T4).
+//! frontend data layer (`src/lib/db/`); Rust owns parsing and the import and
+//! export entry points.
 
 use tauri::Manager;
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
