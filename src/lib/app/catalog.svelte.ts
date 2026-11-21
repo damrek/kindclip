@@ -19,7 +19,6 @@ export type BookLoader = () => Promise<Book[]>;
 
 type LogSink = (scope: string, error: unknown) => void;
 
-/** Production wiring: the shared connection and the diagnostic logger. */
 export function createClippingList(): ClippingList {
   return new ClippingList(
     async (filter, page, sort) => listClippings(await getDb(), filter, page, sort),

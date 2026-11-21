@@ -9,7 +9,6 @@ export function searchTerms(query: string): string[] {
   return [...new Set(terms)];
 }
 
-/** One rendered run of text; `match` marks the spans the query hit. */
 export interface HighlightSegment {
   text: string;
   match: boolean;

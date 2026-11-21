@@ -172,7 +172,6 @@ export function debounce<Args extends unknown[]>(
   return debounced;
 }
 
-/** The clipping fields needed to build a cited quote. */
 export type QuotableClipping = Pick<
   ClippingRow,
   "title" | "author" | "page" | "location" | "content" | "content_edited"
@@ -239,17 +238,14 @@ export function withTag(tags: Tag[], tag: Tag): Tag[] {
   return [...tags, tag];
 }
 
-/** Drop one tag chip by id; unknown ids leave the list untouched. */
 export function withoutTag(tags: Tag[], tagId: number): Tag[] {
   return tags.filter((tag) => tag.id !== tagId);
 }
 
-/** Drop one tag id from the selected filter (a deleted or merged tag). */
 export function withoutTagId(tagIds: number[], tagId: number): number[] {
   return tagIds.filter((id) => id !== tagId);
 }
 
-/** Chips to render and how many stay behind the +N toggle. */
 export function tagOverflow(
   tags: Tag[],
   limit = TAG_CHIP_LIMIT,
@@ -257,7 +253,6 @@ export function tagOverflow(
   return { visible: tags.slice(0, limit), hidden: Math.max(0, tags.length - limit) };
 }
 
-/** Copy card content to the clipboard; `false` when the write fails. */
 export async function copyClippingContent(
   write: (text: string) => Promise<void>,
   text: string,

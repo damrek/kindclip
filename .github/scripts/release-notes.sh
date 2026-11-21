@@ -63,7 +63,6 @@ while IFS= read -r line; do
   lines+=("$line")
 done <<<"$section"
 
-# Trim leading and trailing blank lines around the section body.
 first=0
 end=${#lines[@]}
 while [ "$first" -lt "$end" ] && [ -z "${lines[$first]}" ]; do

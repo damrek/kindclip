@@ -107,7 +107,6 @@ export function serializeMarkdown(rows: ClippingRow[], opts: MarkdownOptions): s
   return sections.length === 0 ? "" : `${sections.join("\n\n")}\n`;
 }
 
-/** One book's boundary: title and author plus the clipping blocks. */
 export interface BookGroup {
   title: string;
   author: string | null;

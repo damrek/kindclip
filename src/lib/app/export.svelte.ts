@@ -68,7 +68,6 @@ export interface ExportStateDeps {
   log: Logger;
 }
 
-/** Production wiring: Tauri dialogs/commands and the logger. */
 export function createExportState(
   deps: Omit<ExportStateDeps, "now" | "backend" | "log">,
 ): ExportState {

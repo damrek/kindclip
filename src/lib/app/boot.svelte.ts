@@ -68,7 +68,6 @@ export class ShellBoot {
     }
     const bookId = this.filters.values.bookId;
     if (bookId !== null && !this.deps.shelf.has(bookId)) {
-      // Persisted book gone (fresh DB, re-import, …): fall back to all.
       this.filters.values.bookId = null;
       this.deps.list.resetPage();
     }

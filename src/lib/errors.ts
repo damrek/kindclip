@@ -9,7 +9,6 @@ export interface CommandErrorEnvelope {
   message: string;
 }
 
-/** Narrow a rejected command to its envelope; null for any other throw. */
 export function commandError(error: unknown): CommandErrorEnvelope | null {
   if (typeof error !== "object" || error === null) return null;
   const candidate = error as { code?: unknown; message?: unknown };

@@ -1,7 +1,7 @@
 /** Filter state in one object plus the transitions that touch it.
  *
- * Every transition that changes which rows match resets the page; the sort and
- * the sidebar selection keep it. Persistence is a debounced callback supplied
+ * Every transition that changes which rows match resets the page; only the
+ * book-sort controls keep it. Persistence is a debounced callback supplied
  * by the shell, and stays silent until the stored filter has been applied. */
 import {
   clippingSort,

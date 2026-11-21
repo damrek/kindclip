@@ -168,7 +168,7 @@ export async function listClippings(
   };
 }
 
-/** Global palette rows: every book, no list filters, newest first. Tags are
+/** Palette rows across every book, no list filters, newest first. Tags are
  * left empty because the palette does not render them. */
 export async function searchClippings(
   port: DbPort,

@@ -34,7 +34,6 @@ export async function runImportFlow(
   return runImportFromPath(deps, path, onProgress);
 }
 
-/** Import one known path (dropped file, or the picker's choice). */
 export async function runImportFromPath(
   deps: ImportDeps,
   path: string,
@@ -53,12 +52,10 @@ export async function runImportFromPath(
   return { status: "done", report };
 }
 
-/** First dropped `.txt` path, or null when the drop carries none. */
 export function pickDroppedFile(paths: readonly string[]): string | null {
   return paths.find((path) => path.toLowerCase().endsWith(".txt")) ?? null;
 }
 
-/** Production deps backed by the Tauri runtime (dialog + Rust command). */
 export function tauriImportDeps(): ImportDeps {
   return {
     pickFile: async () => {

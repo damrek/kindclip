@@ -15,7 +15,7 @@
 
    Components use only these names (bg-surface, text-fg-muted, border-line,
    ...). A theme is a block that redefines them, so adding a palette never
-   touches a component. The light block keeps the v1.14 rendering; the four
+   touches a component. The light block keeps the v1.14 rendering; the seven
    dark blocks follow their upstream palettes with WCAG-AA-adjusted text
    colors (see theme.test.ts).
    --------------------------------------------------------------------------- */

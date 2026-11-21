@@ -40,7 +40,6 @@ export class ScrollFade {
 
   constructor(private readonly dom: ScrollFadeDom = browserDom()) {}
 
-  /** Svelte action: measure now, then on every scroll, resize or mutation. */
   track = (node: HTMLElement): { destroy: () => void } => {
     this.#stop?.();
     this.#node = node;

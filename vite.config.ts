@@ -31,7 +31,6 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
   },
@@ -52,8 +51,8 @@ export default defineConfig(async () => ({
           reporter: ["text", "html"],
           include: ["src/**/*.{ts,svelte}"],
           exclude: ["src/**/*.test.ts", "src/test/**", "src/**/*.d.ts"],
-          // No thresholds yet: the first report is a map of the gaps, and a
-          // number picked before seeing it would only force a fake gate.
+          // A number picked before the first report would only force a fake
+          // gate, so coverage stays a map of the gaps for now.
           reportsDirectory: "coverage",
         },
       },

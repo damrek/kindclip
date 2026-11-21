@@ -13,7 +13,6 @@ export interface StatsStateDeps {
   log: Logger;
 }
 
-/** Production wiring: the shared connection, the aggregate query and the logger. */
 export function createStatsState(deps: { t: Translate }): StatsState {
   return new StatsState({
     getPort: () => getDb(),

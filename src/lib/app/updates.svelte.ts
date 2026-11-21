@@ -36,7 +36,6 @@ export interface UpdateDeps {
   log: (scope: string, error: unknown) => void;
 }
 
-/** Production wiring: the updater and process plugins plus the logger. */
 export function createUpdatePanel(t: Translate): UpdatePanel {
   return new UpdatePanel({
     check: () => check() as Promise<Update | null>,

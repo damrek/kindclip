@@ -79,7 +79,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     type ShortcutHandlers,
   } from "./lib/app/keyboard";
 
-  /** Run one data-layer call with the shared connection. */
   async function withPort<T>(run: (port: DbPort) => Promise<T>): Promise<T> {
     return run(await getDb());
   }
@@ -137,11 +136,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   let reminderTarget = $state<{ id: number; title: string } | null>(null);
   /** The dialog was opened from the reminders panel and must return to it. */
   let reminderFromList = $state(false);
-  /** Full-window reading session; null when closed. */
   const reading = createReadingState();
-  /** Element that opened the reading view; focus returns to it on close. */
   let listRegion = $state<HTMLElement | null>(null);
-  /** Card selected with j/k; the target of Enter, * and c. */
 
   const library = createLibraryPanel({
     t,
@@ -705,7 +701,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   // wait on the network, and a failure stays silent (see UpdatePanel).
   void updates.checkOnLaunch();
 
-  /** Row shown full-window; null while the reading view is closed. */
   const readingClipping = $derived(reading.current);
 
   const view = createViewModel({

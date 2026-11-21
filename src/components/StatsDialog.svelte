@@ -27,7 +27,6 @@
     bookmark: 2,
     note: 3,
   };
-  /** Slice under the pointer; it dims the other slices. */
   let hoveredKind = $state<ClippingKind | null>(null);
   /** Slice whose legend row holds keyboard focus; hover wins while it lasts. */
   let focusedKind = $state<ClippingKind | null>(null);

@@ -20,7 +20,6 @@ export interface MergeOffer {
 }
 
 export interface RowActionsConfig<T extends { id: number }, D> {
-  /** Draft shown in the rename form for one row. */
   draftOf: (row: T) => D;
   rename: (row: T, draft: D) => Promise<RenameOutcome | null>;
   merge: (sourceId: number, targetId: number) => Promise<boolean>;
@@ -30,7 +29,6 @@ export interface RowActionsConfig<T extends { id: number }, D> {
 }
 
 export class RowActions<T extends { id: number }, D> {
-  /** Row whose rename form is open; null when the form is closed. */
   renameTarget = $state<T | null>(null);
   /** Live form draft; seeded by `startRename` before the form renders. */
   draft = $state<D>({} as D);
@@ -39,7 +37,6 @@ export class RowActions<T extends { id: number }, D> {
   mergeTargetId = $state<number | null>(null);
   /** Rename hit an existing name: the panel offers to merge into it. */
   mergeOffer = $state<MergeOffer | null>(null);
-  /** Row behind the delete confirmation panel. */
   deleteTarget = $state<T | null>(null);
   /** One write at a time, whatever its kind. */
   busy = $state(false);

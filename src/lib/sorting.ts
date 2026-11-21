@@ -23,7 +23,6 @@ export const DEFAULT_CLIPPING_SORT: ClippingSort = { key: "date", dir: "desc" };
 /** Runtime validation lists for the persisted filter payload. */
 export const CLIPPING_SORT_KEYS: ClippingSortKey[] = ["date", "title", "page"];
 export const BOOK_SORT_KEYS: BookSortKey[] = ["title", "author"];
-/** Every sort direction, shared by the clipping and book vocabularies. */
 export const SORT_DIRS: SortDir[] = ["asc", "desc"];
 
 /** Guards for values coming from the DOM or persisted JSON. */

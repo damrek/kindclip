@@ -22,7 +22,6 @@ export interface Book {
   clipping_count: number;
 }
 
-/** A user-defined label attached to one clipping (tags feature). */
 export interface Tag {
   id: number;
   name: string;

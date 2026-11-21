@@ -37,7 +37,6 @@ export type ReadingPageLoader = (
 
 type LogSink = (scope: string, error: unknown) => void;
 
-/** Production wiring: the shared connection and the diagnostic logger. */
 export function createReadingState(): ReadingState {
   return new ReadingState(
     async (filter, page, sort) => listClippings(await getDb(), filter, page, sort),
@@ -50,7 +49,6 @@ export class ReadingState {
   session = $state<ReadingSession | null>(null);
   loading = $state(false);
   error = $state<string | null>(null);
-  /** Search text the view highlights. */
   query = $state("");
   /** Filter/sort the arrows fetch adjacent pages with; null for palette rows. */
   source = $state<ReadingSource | null>(null);
@@ -74,7 +72,6 @@ export class ReadingState {
     return this.session !== null && canStep(this.session, direction);
   }
 
-  /** Open on one row of the visible list page. */
   openList(items: PagedResult<ClippingRow>, id: number, source: ReadingSource, opener: HTMLElement | null): void {
     const session = openReadingSession(items, id);
     if (!session) return;

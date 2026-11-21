@@ -18,7 +18,6 @@ export interface DonutSegment {
   offset: number;
 }
 
-/** Turn per-kind counts into painted arcs; empty buckets are skipped. */
 export function donutSegments(counts: number[], gap = DONUT_GAP): DonutSegment[] {
   const total = counts.reduce((sum, count) => sum + Math.max(0, count), 0);
   if (total === 0) {

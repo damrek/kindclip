@@ -6,10 +6,6 @@ use serde::Serialize;
 use super::backup::read_sqlite_magic;
 use super::CommandError;
 
-/* ------------------------------------------------------------------------- *
- * Automatic rotating backups
- * ------------------------------------------------------------------------- */
-
 /// Automatic snapshots live in a `backups` folder next to the live database.
 const AUTO_BACKUP_PREFIX: &str = "kindclip-backup-";
 const AUTO_BACKUP_SUFFIX: &str = ".db";

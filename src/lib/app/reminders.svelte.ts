@@ -41,7 +41,6 @@ export interface ReminderDeps {
   log: (scope: string, error: unknown) => void;
 }
 
-/** How often the running app looks for due reminders. */
 export const REMINDER_POLL_MS = 30_000;
 
 export class Reminders {
@@ -56,7 +55,6 @@ export class Reminders {
 
   constructor(private readonly deps: ReminderDeps) {}
 
-  /** Pending instant for one clipping, or null. */
   at = (clippingId: number): string | null => this.scheduled[clippingId] ?? null;
 
   /** Milliseconds until the earliest pending reminder, clamped to the safety
@@ -185,7 +183,6 @@ export class Reminders {
   }
 }
 
-/** Production wiring: the shared DB, the OS notification channel and a clock. */
 export function createReminders(noContent: () => string): Reminders {
   return new Reminders({
     listPending: async () => listPendingReminders(await getDb()),

@@ -21,7 +21,6 @@ export function baseName(path: string): string {
   return index >= 0 ? path.slice(index + 1) : path;
 }
 
-/** How many automatic snapshots survive pruning (the newest ones). */
 export const AUTO_BACKUP_KEEP = 7;
 
 /** One automatic snapshot as listed by Rust, newest first. */

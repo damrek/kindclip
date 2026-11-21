@@ -135,7 +135,6 @@ fn content_hash_is_stable_and_unique() {
     hashes.dedup();
     assert_eq!(hashes.len(), first_run.len());
 
-    // Direct API determinism.
     let h1 = Clipping::hash_of(
         "T",
         Some("A"),

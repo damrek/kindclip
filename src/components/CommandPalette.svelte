@@ -92,7 +92,6 @@
     };
   });
 
-  // Keep the keyboard selection visible while the list scrolls.
   $effect(() => {
     if (selectedId === null) return;
     document

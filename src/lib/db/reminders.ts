@@ -64,7 +64,6 @@ export const DUE_REMINDERS_SQL =
   "WHERE r.notified_at IS NULL AND r.remind_at <= $1 " +
   "ORDER BY r.remind_at LIMIT $2";
 
-/** Pending reminders at or before `nowIso`, oldest first, capped by `limit`. */
 export async function dueReminders(
   port: DbPort,
   nowIso: string,

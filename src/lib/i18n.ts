@@ -210,7 +210,6 @@ const es = {
   "export.overwrite": "¿Reemplazar {count} archivos existentes?",
   "export.overwrite.one": "¿Reemplazar 1 archivo existente?",
   "export.doneFolder": "Exportados {clippings} de {books} a {folder}.",
-  // Library management dialog.
   "library.open": "Gestionar biblioteca",
   "library.title": "Gestionar biblioteca",
   "library.books": "Libros",
@@ -252,7 +251,6 @@ const es = {
   "library.statusTagsMerged": "Etiquetas fusionadas: {count} clippings movidos.",
   "library.statusTagsMerged.one": "Etiquetas fusionadas: 1 clipping movido.",
   "library.statusTagDeleted": "Etiqueta borrada.",
-  // Keyboard shortcuts dialog.
   "shortcuts.open": "Atajos de teclado",
   "shortcuts.title": "Atajos de teclado",
   "shortcuts.close": "Cerrar los atajos",
@@ -278,7 +276,6 @@ const es = {
   "shortcuts.copy": "Copiar el contenido",
   "shortcuts.copyQuote": "Copiar como cita",
   "shortcuts.preferences": "Abrir preferencias",
-  // Reading stats dialog.
   "stats.open": "Estadísticas de lectura",
   "stats.title": "Estadísticas de lectura",
   "stats.close": "Cerrar las estadísticas",
