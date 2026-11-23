@@ -10,6 +10,13 @@ listed. History before v1.0.0 is left to the release list.
 
 ## [Unreleased]
 
+### Changed
+
+- **Landing page**: an editorial redesign built around the real app — a new hero
+  with the library screenshot, a capabilities ledger, palette specimens,
+  keyboard shortcuts, install steps and the FAQ. Links, downloads and the
+  no-build GitHub Pages deployment are unchanged.
+
 ## [2.1.2] - 2026-11-21
 
 ### Changed

@@ -6,35 +6,108 @@
     <title>Page not found — kindclip</title>
     <meta name="robots" content="noindex" />
     <link rel="icon" type="image/png" href="/kindclip/icon.png" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c1f26" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f4ee" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310" />
+
+    <script>
+      // Honor the theme chosen on the main site before first paint.
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem("kindclip-site-theme");
+        } catch (e) {
+          // Storage unavailable: follow the system preference.
+        }
+        var dark =
+          stored === "dark" ||
+          (stored !== "light" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
+
     <style>
+      @font-face {
+        font-family: "Inter Variable";
+        src: url("/kindclip/fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Newsreader Variable";
+        src: url("/kindclip/fonts/newsreader-latin-wght-normal.woff2") format("woff2-variations");
+        font-weight: 200 800;
+        font-style: normal;
+        font-display: swap;
+      }
+
       :root {
         color-scheme: light;
-        --page: #ffffff;
-        --fg: #171717;
-        --heading: #171717;
-        --muted: #5f5f5f;
-        --subtle: #737373;
-        --line: #e5e5e5;
-        --accent-text: #92400e;
-        --inverse: #171717;
-        --inverse-fg: #ffffff;
+
+        --font-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font-serif: "Newsreader Variable", Newsreader, "Iowan Old Style",
+          "Palatino Linotype", Palatino, Georgia, serif;
+        --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          monospace;
+
+        --page: #f7f4ee;
+        --surface: #fdfaf5;
+        --inset: #efe8db;
+        --line: #e3dbcd;
+        --heading: #15120e;
+        --fg: #23201b;
+        --muted: #625b51;
+        --subtle: #6f675b;
+        --accent-text: #8b4610;
+        --accent-soft: #f3e4d3;
+        --inverse: #1b1814;
+        --inverse-fg: #faf7f1;
+        --ring: #a65a1f;
+        --glow: rgba(198, 126, 58, 0.16);
       }
 
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root:not([data-theme="light"]) {
           color-scheme: dark;
-          --page: #1c1f26;
-          --fg: #abb2bf;
-          --heading: #eef0f4;
-          --muted: #9ba3ae;
-          --subtle: #8a93a0;
-          --line: #3e4451;
-          --accent-text: #86c2f3;
-          --inverse: #eef0f4;
-          --inverse-fg: #1c1f26;
+
+          --page: #151310;
+          --surface: #1e1b17;
+          --inset: #100e0b;
+          --line: #332e26;
+          --heading: #f2ebdf;
+          --fg: #d5cdc0;
+          --muted: #a9a091;
+          --subtle: #948b7d;
+          --accent-text: #efbe8d;
+          --accent-soft: #2b2218;
+          --inverse: #efe8dc;
+          --inverse-fg: #16130f;
+          --ring: #e0a165;
+          --glow: rgba(224, 161, 101, 0.12);
         }
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+
+        --page: #151310;
+        --surface: #1e1b17;
+        --inset: #100e0b;
+        --line: #332e26;
+        --heading: #f2ebdf;
+        --fg: #d5cdc0;
+        --muted: #a9a091;
+        --subtle: #948b7d;
+        --accent-text: #efbe8d;
+        --accent-soft: #2b2218;
+        --inverse: #efe8dc;
+        --inverse-fg: #16130f;
+        --ring: #e0a165;
+        --glow: rgba(224, 161, 101, 0.12);
       }
 
       * {
@@ -46,46 +119,79 @@
         display: grid;
         place-items: center;
         min-height: 100vh;
-        padding: 24px;
+        min-height: 100svh;
+        padding: 32px 24px;
         background: var(--page);
+        background-image: radial-gradient(
+          620px 420px at 50% -10%,
+          var(--glow),
+          transparent 70%
+        );
         color: var(--fg);
-        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          "Helvetica Neue", Arial, sans-serif;
+        font-family: var(--font-sans);
         font-size: 16px;
-        line-height: 1.6;
+        line-height: 1.65;
         -webkit-font-smoothing: antialiased;
       }
 
+      ::selection {
+        background: var(--accent-soft);
+        color: var(--heading);
+      }
+
       main {
-        max-width: 460px;
+        width: min(480px, 100%);
         text-align: center;
       }
 
       img {
+        display: block;
         width: 44px;
         height: 44px;
+        margin: 0 auto;
         border-radius: 11px;
+        box-shadow: 0 0 0 1px var(--line);
       }
 
-      code {
-        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-          monospace;
-        font-size: 0.875em;
+      .kicker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        margin: 26px 0 0;
         color: var(--accent-text);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .kicker::before {
+        content: "";
+        width: 18px;
+        height: 1px;
+        background: currentColor;
+        opacity: 0.55;
       }
 
       h1 {
-        margin: 22px 0 0;
-        font-size: 1.5rem;
-        font-weight: 620;
-        letter-spacing: -0.02em;
+        margin: 12px 0 0;
         color: var(--heading);
+        font-family: var(--font-serif);
+        font-size: clamp(2.1rem, 6vw, 2.9rem);
+        font-weight: 430;
+        line-height: 1.04;
+        letter-spacing: -0.03em;
+        text-wrap: balance;
       }
 
       p {
-        margin: 12px 0 0;
+        max-width: 40ch;
+        margin: 16px auto 0;
         color: var(--muted);
         font-size: 15px;
+        line-height: 1.65;
+        text-wrap: pretty;
       }
 
       .actions {
@@ -100,27 +206,62 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 11px 20px;
+        height: 42px;
+        padding: 0 18px;
         border: 1px solid var(--line);
-        border-radius: 999px;
+        border-radius: 9px;
+        background: var(--surface);
         color: var(--fg);
         font-size: 14px;
-        font-weight: 550;
+        font-weight: 560;
         text-decoration: none;
+        transition: background-color 150ms ease, border-color 150ms ease,
+          transform 150ms ease;
+      }
+
+      a.btn:hover {
+        border-color: var(--line);
+        background: var(--inset);
       }
 
       a.btn.primary {
         border-color: transparent;
         background: var(--inverse);
         color: var(--inverse-fg);
+        box-shadow: 0 12px 24px -16px rgba(27, 19, 10, 0.7);
+      }
+
+      a.btn.primary:hover {
+        background: var(--inverse);
+        transform: translateY(-1px);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 3px;
+        border-radius: 4px;
       }
 
       footer {
-        margin-top: 36px;
+        margin-top: 38px;
         padding-top: 18px;
         border-top: 1px solid var(--line);
         color: var(--subtle);
-        font-size: 12.5px;
+        font-size: 12px;
+      }
+
+      code {
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+        color: var(--fg);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+        }
       }
     </style>
   </head>
@@ -128,7 +269,8 @@
   <body>
     <main>
       <img src="/kindclip/icon.png" alt="" width="44" height="44" />
-      <h1>This page doesn't exist</h1>
+      <p class="kicker">404 — Not found</p>
+      <h1>This page doesn't exist.</h1>
       <p>
         The link may be old, or the address may have a typo. Everything about
         kindclip lives on the front page.
