@@ -8,7 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Entries describe user-visible behavior. CI, refactors, tests and tooling are not
 listed. History before v1.0.0 is left to the release list.
 
-## [Unreleased]
+## [2.2.0] - 2026-11-24
+
+### Changed
+
+- **Landing page**: an editorial redesign built around the real app — a new hero
+  with the library screenshot, a capabilities ledger, palette specimens,
+  keyboard shortcuts, install steps and the FAQ. Links, downloads and the
+  no-build GitHub Pages deployment are unchanged.
+- **Filter panel**: type and status share one row instead of stacking, so the
+  panel reaches authors and tags sooner. It is slightly wider so longer labels
+  stay whole in every language.
+- **Version button**: the download icon is gone and the version reads as plain
+  text. The accent dot alone reports a newer release, so the header no longer
+  shows the same glyph as the export action under it.
 
 ## [2.1.2] - 2026-11-21
 

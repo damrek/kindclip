@@ -744,8 +744,8 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     <div class="flex items-center gap-2">
       {#if appVersion}
         <!-- The version doubles as the update control: a click looks for a
-             release and always answers, and the dot appears when the launch
-             check already found one. -->
+             release and always answers. The dot at the corner is the only sign
+             that one exists, so the quiet number stays the button's content. -->
         <button
           type="button"
           onclick={() => void updates.open()}
@@ -755,7 +755,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
           disabled={updates.status === "checking" || updates.busy}
           class="relative flex h-9 items-center gap-1.5 rounded-lg px-2 text-xs tabular-nums text-fg-subtle transition hover:bg-surface-hover hover:text-fg disabled:opacity-40"
         >
-          <Icon name="download" />
           <span>{t("prefs.versionShort", { version: appVersion })}</span>
           {#if updates.available}
             <span
