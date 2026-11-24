@@ -51,8 +51,8 @@
   let wasOpen = false;
 
   /** Authors and tags grow with the library, so each facet gets its own search
-   * and a bounded list. Kinds and status are three and two fixed rows and never
-   * need either. */
+   * and a bounded list. Kinds and status are three and two fixed rows that
+   * never need either, and share one row of two columns. */
   let authorQuery = $state("");
   let tagQuery = $state("");
 
@@ -200,50 +200,55 @@
       aria-label={i18n.t("filters.title")}
       tabindex="-1"
       bind:this={panel}
-      class="absolute right-0 z-20 mt-1 max-h-[70vh] w-72 max-w-[calc(100vw-3rem)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface-raised p-2 shadow-lg outline-none"
+      class="absolute right-0 z-20 mt-1 max-h-[70vh] w-80 max-w-[calc(100vw-3rem)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface-raised p-2 shadow-lg outline-none"
     >
-      {@render sectionLabel(i18n.t("filters.kind"), kinds.length, false)}
-      {#each KIND_OPTIONS as option (option)}
-        <label
-          class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
-        >
-          <input
-            type="checkbox"
-            checked={kinds.includes(option)}
-            onchange={() => onToggleKind(option)}
-            class="accent-[var(--accent)]"
-          />
-          <span class="min-w-0 flex-1 truncate">{i18n.t(`kind.${option}`)}</span>
-        </label>
-      {/each}
-
-      {@render sectionLabel(
-        i18n.t("filters.status"),
-        (favoritesOnly ? 1 : 0) + (editedOnly ? 1 : 0),
-        true,
-      )}
-      <label
-        class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
-      >
-        <input
-          type="checkbox"
-          checked={favoritesOnly}
-          onchange={onToggleFavorites}
-          class="accent-[var(--accent)]"
-        />
-        <span class="min-w-0 flex-1 truncate">{i18n.t("fav.toggle")}</span>
-      </label>
-      <label
-        class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
-      >
-        <input
-          type="checkbox"
-          checked={editedOnly}
-          onchange={onToggleEdited}
-          class="accent-[var(--accent)]"
-        />
-        <span class="min-w-0 flex-1 truncate">{i18n.t("edit.toggle")}</span>
-      </label>
+      <div class="grid grid-cols-2 gap-x-1">
+        <div class="min-w-0">
+          {@render sectionLabel(i18n.t("filters.kind"), kinds.length, false)}
+          {#each KIND_OPTIONS as option (option)}
+            <label
+              class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
+            >
+              <input
+                type="checkbox"
+                checked={kinds.includes(option)}
+                onchange={() => onToggleKind(option)}
+                class="accent-[var(--accent)]"
+              />
+              <span class="min-w-0 flex-1 truncate">{i18n.t(`kind.${option}`)}</span>
+            </label>
+          {/each}
+        </div>
+        <div class="min-w-0">
+          {@render sectionLabel(
+            i18n.t("filters.status"),
+            (favoritesOnly ? 1 : 0) + (editedOnly ? 1 : 0),
+            false,
+          )}
+          <label
+            class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
+          >
+            <input
+              type="checkbox"
+              checked={favoritesOnly}
+              onchange={onToggleFavorites}
+              class="accent-[var(--accent)]"
+            />
+            <span class="min-w-0 flex-1 truncate">{i18n.t("fav.toggle")}</span>
+          </label>
+          <label
+            class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-hover"
+          >
+            <input
+              type="checkbox"
+              checked={editedOnly}
+              onchange={onToggleEdited}
+              class="accent-[var(--accent)]"
+            />
+            <span class="min-w-0 flex-1 truncate">{i18n.t("edit.toggle")}</span>
+          </label>
+        </div>
+      </div>
 
       {@render sectionLabel(i18n.t("filters.authors"), authors.length, true)}
       {#if authorGroups.length === 0}
