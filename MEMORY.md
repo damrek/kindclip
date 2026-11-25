@@ -84,6 +84,10 @@ cargo test -p kindclip commands::
   break the operation. Logs never include clipping text, notes or queries.
 - Theming uses semantic CSS tokens in `src/app.css`; `data-mode` controls light
   vs dark and `data-palette` selects the palette.
+- The docs site is dark-first with its own Tokyo Night tokens in
+  `docs/site.css` and a light variant via `data-theme="light"`. It pairs Inter
+  with JetBrains Mono and uses a `data-palette` lab; the remembered choice is
+  the `kindclip-site-theme` localStorage key.
 - Commit titles are Conventional Commits and drive releases: `feat` minor,
   `fix`/`perf`/`refactor` patch, `!`/`BREAKING CHANGE` major. `chore`, `docs`,
   `ci` and test-only commits alone ship nothing.
