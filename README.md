@@ -152,11 +152,14 @@ the database. Logs open from **Preferences → Diagnostics**.
 ## Updates
 
 kindclip checks for a release on launch and again when you click the version in
-the header; a dot means one is waiting, and the dialog shows what changed and
-offers to install it. Bundles are signed and verified against the public key
-embedded in the app, then the app restarts. Nothing is downloaded unless the
-version is newer and its signature matches. The AppImage updates in place;
-`.deb` asks the system for authorization; Windows and macOS update in place.
+the header; a dot means one is waiting. The dialog opens immediately, renders the
+release notes as formatted headings, bullets and links, and offers to install a
+newer signed release. When the installed version is already current, it shows
+that release's changelog instead. Bundles are signed and verified against the
+public key embedded in the app, then the app restarts. Nothing is downloaded
+unless the version is newer and its signature matches. The AppImage updates in
+place; `.deb` asks the system for authorization; Windows and macOS update in
+place.
 
 `.rpm` packages are no longer published. An rpm install from an earlier release
 cannot update itself — reinstall from the AppImage or the `.deb` you prefer,

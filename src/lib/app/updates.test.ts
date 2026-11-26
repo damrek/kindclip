@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { plainNotes, UpdatePanel, type PendingUpdate, type UpdateDeps } from "./updates.svelte";
+import { UpdatePanel, type PendingUpdate, type UpdateDeps } from "./updates.svelte";
 import type { I18nKey, TranslateParams } from "../i18n";
 
 /** Render the key with its params so a test can assert what the line says. */
@@ -20,11 +20,13 @@ function pending(overrides: Partial<PendingUpdate> = {}): PendingUpdate {
 function deps(
   check: UpdateDeps["check"],
   relaunch: UpdateDeps["relaunch"] = async () => {},
+  currentNotes: UpdateDeps["currentNotes"] = () => null,
 ) {
   const logged: string[] = [];
   const value: UpdateDeps = {
     check,
     relaunch,
+    currentNotes,
     t,
     log: (scope) => logged.push(scope),
   };
@@ -123,6 +125,27 @@ describe("UpdatePanel manual check", () => {
     expect(panel.prompt).toBe(true);
   });
 
+  it("opens the dialog while the check is still running", async () => {
+    let finish: (value: PendingUpdate | null) => void = () => {};
+    const checkFn = vi.fn(
+      () =>
+        new Promise<PendingUpdate | null>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { value } = deps(checkFn);
+    const panel = new UpdatePanel(value);
+
+    const opening = panel.open();
+
+    expect(panel.prompt).toBe(true);
+    expect(panel.status).toBe("checking");
+
+    finish(null);
+    await opening;
+    expect(panel.status).toBe("current");
+  });
+
   it("surfaces a failure with the translated message", async () => {
     const { value, logged } = deps(async () => {
       throw new Error("endpoint unreachable");
@@ -151,6 +174,67 @@ describe("UpdatePanel manual check", () => {
 
     expect(panel.status).toBe("current");
     expect(panel.error).toBeNull();
+  });
+});
+
+describe("UpdatePanel dialog notes", () => {
+  it("shows the current version changelog when up to date", async () => {
+    const { value } = deps(nothing, async () => {}, () => "### Fixed\n\n- One crash.");
+    const panel = new UpdatePanel(value);
+
+    await panel.checkNow();
+
+    expect(panel.notesToShow).toBe("### Fixed\n\n- One crash.");
+  });
+
+  it("prefers the pending release notes over the current changelog", async () => {
+    const { value } = deps(
+      async () => pending({ body: "Faster imports." }),
+      async () => {},
+      () => "Current notes.",
+    );
+    const panel = new UpdatePanel(value);
+
+    await panel.checkOnLaunch();
+
+    expect(panel.notesToShow).toBe("Faster imports.");
+  });
+
+  it("does not fall back to the current changelog for a pending release without notes", async () => {
+    const { value } = deps(
+      async () => pending({ body: null }),
+      async () => {},
+      () => "Current notes.",
+    );
+    const panel = new UpdatePanel(value);
+
+    await panel.checkOnLaunch();
+
+    expect(panel.notesToShow).toBe("");
+  });
+
+  it("shows no changelog when the check fails", async () => {
+    const { value } = deps(
+      async () => {
+        throw new Error("endpoint unreachable");
+      },
+      async () => {},
+      () => "Current notes.",
+    );
+    const panel = new UpdatePanel(value);
+
+    await panel.checkNow();
+
+    expect(panel.notesToShow).toBe("");
+  });
+
+  it("shows no changelog when the current version has no section", async () => {
+    const { value } = deps(nothing, async () => {}, () => null);
+    const panel = new UpdatePanel(value);
+
+    await panel.checkNow();
+
+    expect(panel.notesToShow).toBe("");
   });
 });
 
@@ -221,28 +305,5 @@ describe("UpdatePanel install", () => {
 
     // The install's own check plus the launch one; the manual one was ignored.
     expect(checkFn).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("plainNotes", () => {
-  it("drops the markdown heading marks and keeps the bullets", () => {
-    const notes = "### Added\n\n- **Reminders**: one per clipping.\n- Faster import.\n\n### Fixed\n\n- One crash.";
-
-    expect(plainNotes(notes)).toBe(
-      "Added\n\n- **Reminders**: one per clipping.\n- Faster import.\n\nFixed\n\n- One crash.",
-    );
-  });
-
-  it("trims the blank lines a release body starts and ends with", () => {
-    expect(plainNotes("\n\n### Fixed\n\n- One crash.\n\n")).toBe("Fixed\n\n- One crash.");
-  });
-
-  it("renders an absent body as an empty string", () => {
-    expect(plainNotes(null)).toBe("");
-    expect(plainNotes("")).toBe("");
-  });
-
-  it("leaves a line that only looks like a heading alone", () => {
-    expect(plainNotes("#hashtag stays")).toBe("#hashtag stays");
   });
 });

@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Entries describe user-visible behavior. CI, refactors, tests and tooling are not
 listed. History before v1.0.0 is left to the release list.
 
+## [2.3.0] - 2026-11-26
+
+### Added
+
+- **Release notes for the running version**: clicking the version while already
+  up to date now shows that release's changelog instead of only a status line.
+
+### Changed
+
+- **Landing page**: rebuilt around the file kindclip reads, with a new hero
+  specimen, a shorter feature tour, updated screenshots and a dark-first theme
+  that remembers a light choice.
+- **Update dialog**: release notes render as formatted section headings, bullet
+  lists, inline code and links instead of raw markdown; the dialog also opens
+  immediately with its checking state, and long notes scroll inside the panel.
+
 ## [2.2.0] - 2026-11-24
 
 ### Changed

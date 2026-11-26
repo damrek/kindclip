@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,7 +11,7 @@
     <link rel="canonical" href="https://damrek.github.io/kindclip/" />
     <link rel="icon" type="image/png" href="icon.png" />
     <link rel="apple-touch-icon" href="icon-180.png" sizes="180x180" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark light" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="kindclip" />
@@ -41,8 +41,7 @@
       name="twitter:image:alt"
       content="kindclip: the library view in the Tokyo Night palette, next to the tagline “Your Kindle highlights, finally in one place.”"
     />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f4ee" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310" />
+    <meta name="theme-color" content="#16161f" />
 
     <script type="application/ld+json">
       {
@@ -137,40 +136,30 @@
     </script>
 
     <script>
-      // Resolve the color theme before first paint so a remembered choice
-      // never flashes the other mode.
       (function () {
         var stored = null;
         try {
           stored = localStorage.getItem("kindclip-site-theme");
-        } catch (e) {
-          // Storage unavailable: follow the system preference.
-        }
-        var dark =
-          stored === "dark" ||
-          (stored !== "light" &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        } catch (e) {}
+        var dark = stored !== "light";
         document.documentElement.dataset.theme = dark ? "dark" : "light";
+        var color = dark ? "#16161f" : "#f5f7fc";
+        document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+          meta.setAttribute("content", color);
+        });
       })();
     </script>
 
     <link
       rel="preload"
-      href="fonts/newsreader-latin-wght-normal.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="fonts/newsreader-latin-wght-italic.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
       href="fonts/inter-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/jetbrains-mono-latin-wght-normal.woff2"
       as="font"
       type="font/woff2"
       crossorigin
@@ -226,7 +215,7 @@
             <button
               type="button"
               data-theme-value="dark"
-              aria-pressed="false"
+              aria-pressed="true"
               aria-label="Dark theme"
               title="Dark theme"
             >
@@ -236,7 +225,7 @@
             </button>
           </div>
 
-          <a class="header-github" href="https://github.com/damrek/kindclip">GitHub ↗</a>
+          <a class="header-github" href="https://github.com/damrek/kindclip">GitHub</a>
           <a
             class="btn btn-primary btn-sm header-cta"
             href="https://github.com/damrek/kindclip/releases/latest"
@@ -250,16 +239,14 @@
       <section class="hero" id="top" aria-labelledby="hero-title">
         <div class="wrap hero-grid">
           <div class="hero-copy">
-            <p class="kicker">Kindle clippings · Desktop library</p>
-
             <h1 id="hero-title">
-              Your Kindle highlights, <em>finally</em> in one place.
+              Your Kindle highlights,<br />finally in one place.
             </h1>
 
             <p class="lede">
-              kindclip reads <code>My Clippings.txt</code> once and turns years of
-              highlights, notes and bookmarks into a fast, searchable library,
-              with reading stats and reminders for what you mean to revisit.
+              One plain-text file becomes a searchable library: tags, notes,
+              reading stats, reminders and Markdown exports. Local-first, with
+              no account and no upload.
             </p>
 
             <div class="cta-row">
@@ -280,86 +267,109 @@
             </div>
 
             <p class="micro">
-              <span data-release-version="v2.2.0" title="Latest release"
-                >v2.2.0</span
-              ><span class="sep">·</span><span>Free</span
-              ><span class="sep">·</span><span>MIT-licensed</span
-              ><span class="sep">·</span><span>No account</span>
+              <span data-release-version="v2.3.0" title="Latest release"
+                >v2.3.0</span
+              ><span>Free and MIT-licensed</span><span>No account</span
+              ><span>Windows, macOS and Linux</span>
             </p>
           </div>
 
-          <ul class="hero-rail" aria-label="What makes kindclip different">
-            <li class="rail-item">
-              <span class="rail-num" aria-hidden="true">01</span>
-              <div>
-                <strong>Local-first</strong>
-                <p>One SQLite file on your disk. Nothing is uploaded, ever.</p>
-              </div>
-            </li>
-            <li class="rail-item">
-              <span class="rail-num" aria-hidden="true">02</span>
-              <div>
-                <strong>No account</strong>
-                <p>No sign-up, no subscription, no sync service in the middle.</p>
-              </div>
-            </li>
-            <li class="rail-item">
-              <span class="rail-num" aria-hidden="true">03</span>
-              <div>
-                <strong>Native on three OSes</strong>
-                <p>Windows, macOS and Linux, as small native builds.</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-
-        <div class="wrap hero-figure">
-          <figure class="plate">
-            <div class="plate-frame">
-              <img
-                src="screens/dark_theme.png"
-                width="1250"
-                height="998"
-                fetchpriority="high"
-                decoding="async"
-                alt="kindclip in the Tokyo Night palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
-              />
+          <div class="file-panel" aria-label="Example My Clippings.txt contents">
+            <div class="file-head">
+              <span class="file-dot" aria-hidden="true"></span>
+              <span class="file-name">My Clippings.txt</span>
+              <span class="file-tag">UTF-16</span>
             </div>
-            <figcaption class="plate-caption">
-              <span class="plate-fig">Fig. 01</span>
-              <span class="plate-title">The library, in Tokyo Night</span>
-              <span class="plate-note">Unedited screenshot</span>
-            </figcaption>
-          </figure>
+            <div class="file-body">
+              <p>
+                <span class="file-book">The Time Machine<br />H. G. Wells</span
+                ><br /><span class="file-key">- Your Highlight</span> on page 17
+                | Location 254-256
+              </p>
+              <p class="file-sep">==========</p>
+              <p class="file-quote">
+                “There is no difference between Time and any of the three
+                dimensions of Space except that our consciousness moves along
+                it.”
+              </p>
+              <p class="file-sep">==========</p>
+            </div>
+            <div class="file-status">
+              <span class="file-status-dot" aria-hidden="true"></span>
+              <span
+                >Parsed: <b>42</b> clippings, <b>18</b> books,
+                <b>0</b> uploads</span
+              >
+            </div>
+          </div>
         </div>
       </section>
 
       <section class="ledger" aria-label="kindclip at a glance">
         <ul class="wrap ledger-grid">
           <li class="ledger-item">
-            <p class="ledger-value">1 <span>file</span></p>
+            <p class="ledger-value">1 <span>file in</span></p>
             <p class="ledger-label">the only thing you import</p>
-          </li>
-          <li class="ledger-item">
-            <p class="ledger-value">0 <span>accounts</span></p>
-            <p class="ledger-label">servers, sync or sign-up</p>
           </li>
           <li class="ledger-item">
             <p class="ledger-value">8 <span>palettes</span></p>
             <p class="ledger-label">each checked for WCAG AA</p>
           </li>
           <li class="ledger-item">
-            <p class="ledger-value">6 <span>locales</span></p>
+            <p class="ledger-value">6 <span>date locales</span></p>
             <p class="ledger-label">Kindle date formats parsed</p>
           </li>
+          <li class="ledger-item">
+            <p class="ledger-value">0 <span>accounts</span></p>
+            <p class="ledger-label">servers, sync or sign-up</p>
+          </li>
         </ul>
+      </section>
+
+      <section class="proof" aria-labelledby="proof-title">
+        <div class="wrap proof-grid">
+          <figure class="plate proof-shot">
+            <div class="plate-frame">
+              <img
+                src="screens/dark_theme.png"
+                width="1250"
+                height="998"
+                loading="lazy"
+                decoding="async"
+                alt="kindclip in the Tokyo Night palette: a book sidebar with clipping counts, removable filter chips, and clipping cards showing quotes, titles, pages and dates."
+              />
+            </div>
+            <figcaption class="plate-caption">
+              <span class="plate-title">The library, in Tokyo Night</span>
+              <span class="plate-note">Unedited screenshot</span>
+            </figcaption>
+          </figure>
+
+          <div class="proof-copy">
+            <h2 id="proof-title">A library, not a folder of text.</h2>
+            <p>
+              Search every book, tag what matters, copy a quote as Markdown.
+              The same library in eight palettes, from Atom One Dark to Tokyo
+              Night.
+            </p>
+            <div class="palette-chips" aria-hidden="true">
+              <span class="chip" style="background: #ffffff"></span>
+              <span class="chip" style="background: #282c34"></span>
+              <span class="chip" style="background: #2b2b2b"></span>
+              <span class="chip" style="background: #2e3440"></span>
+              <span class="chip" style="background: #002b36"></span>
+              <span class="chip" style="background: #191724"></span>
+              <span class="chip" style="background: #282828"></span>
+              <span class="chip" style="background: #1a1b26"></span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="section" id="features" aria-labelledby="features-title">
         <div class="wrap">
           <header class="section-head">
             <div>
-              <p class="kicker">01 — Capabilities</p>
               <h2 id="features-title">Everything you kept, finally within reach.</h2>
             </div>
             <p class="section-lede">
@@ -378,7 +388,6 @@
                     <path d="M9 13h6M9 17h4" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">01</span>
               </div>
               <h3>A parser that doesn't flinch</h3>
               <p>
@@ -395,7 +404,6 @@
                     <path d="m20.5 20.5-4-4" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">02</span>
               </div>
               <h3>Search that covers everything</h3>
               <p>
@@ -412,7 +420,6 @@
                     <circle cx="8" cy="8" r="1.4" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">03</span>
               </div>
               <h3>Organization without a cloud</h3>
               <p>
@@ -429,7 +436,6 @@
                     <path d="M12 6v14" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">04</span>
               </div>
               <h3>Read, edit, keep the original</h3>
               <p>
@@ -447,7 +453,6 @@
                     <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">05</span>
               </div>
               <h3>Export, quote, back up</h3>
               <p>
@@ -464,7 +469,6 @@
                     <path d="M13.7 21a2 2 0 0 1-3.4 0" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">06</span>
               </div>
               <h3>Reminders that resurface</h3>
               <p>
@@ -483,7 +487,6 @@
                     <circle cx="7" cy="18" r="2" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">07</span>
               </div>
               <h3>Make it yours</h3>
               <p>
@@ -500,7 +503,6 @@
                     <path d="M8 20h8M12 16v4" />
                   </svg>
                 </span>
-                <span class="feature-index" aria-hidden="true">08</span>
               </div>
               <h3>Native where it counts</h3>
               <p>
@@ -522,7 +524,6 @@
               />
             </div>
             <figcaption class="plate-caption">
-              <span class="plate-fig">Fig. 02</span>
               <span class="plate-title">Reading stats, by year, kind and book</span>
               <span class="plate-note">Unedited screenshot</span>
             </figcaption>
@@ -538,7 +539,6 @@
         <div class="wrap">
           <header class="section-head">
             <div>
-              <p class="kicker">02 — The file</p>
               <h2 id="clippings-title">What is My Clippings.txt?</h2>
             </div>
             <p class="section-lede">
@@ -620,16 +620,122 @@
         <div class="wrap">
           <header class="section-head">
             <div>
-              <p class="kicker">03 — Themes</p>
               <h2 id="themes-title">Eight palettes, one design system.</h2>
             </div>
             <p class="section-lede">
               A light theme and seven dark palettes — Atom One Dark, Darcula,
               Nord, Solarized Dark, Rosé Pine, Gruvbox Dark and Tokyo Night —
-              ported token by token. Every text pair is tuned to clear WCAG AA on
-              the surfaces it lands on.
+              ported token by token. Every text pair is tuned to clear WCAG AA.
             </p>
           </header>
+
+          <div class="theme-lab">
+            <div class="theme-stage p-tokyo" data-palette="tokyo">
+              <div class="theme-chrome">
+                <span class="theme-dot" aria-hidden="true"></span>
+                <span>kindclip</span>
+                <span class="stage-name" aria-live="polite">Tokyo Night</span>
+              </div>
+              <div class="sample-card">
+                <p class="sample-quote">
+                  “It is not that we have a short time to live, but that we waste
+                  a lot of it.”
+                </p>
+                <div class="sample-foot">
+                  <p class="sample-title">On the Shortness of Life</p>
+                  <p class="sample-author">Seneca</p>
+                  <div class="sample-meta">
+                    <span class="sample-kind">Highlight</span>
+                    <span class="sample-page">p. 7</span>
+                    <span class="sample-page">pos. 98–101</span>
+                  </div>
+                </div>
+              </div>
+              <p class="theme-note">The same clipping, in the selected palette.</p>
+            </div>
+
+            <div class="palette-picker">
+              <p class="picker-label">Palette</p>
+              <div class="palette-list" role="group" aria-label="Color palette">
+                <button
+                  class="palette-button p-light"
+                  type="button"
+                  data-palette="light"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Light</span>
+                </button>
+                <button
+                  class="palette-button p-atom"
+                  type="button"
+                  data-palette="atom"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Atom One Dark</span>
+                </button>
+                <button
+                  class="palette-button p-darcula"
+                  type="button"
+                  data-palette="darcula"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Darcula</span>
+                </button>
+                <button
+                  class="palette-button p-nord"
+                  type="button"
+                  data-palette="nord"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Nord</span>
+                </button>
+                <button
+                  class="palette-button p-solarized"
+                  type="button"
+                  data-palette="solarized"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Solarized Dark</span>
+                </button>
+                <button
+                  class="palette-button p-rose-pine"
+                  type="button"
+                  data-palette="rose-pine"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Rosé Pine</span>
+                </button>
+                <button
+                  class="palette-button p-gruvbox"
+                  type="button"
+                  data-palette="gruvbox"
+                  aria-pressed="false"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Gruvbox Dark</span>
+                </button>
+                <button
+                  class="palette-button p-tokyo"
+                  type="button"
+                  data-palette="tokyo"
+                  aria-pressed="true"
+                >
+                  <span class="swatch" aria-hidden="true"></span>
+                  <span>Tokyo Night</span>
+                </button>
+              </div>
+              <p class="picker-note">
+                Seven dark palettes and a light theme. Every pair is checked for
+                contrast, and the app remembers your choice.
+              </p>
+            </div>
+          </div>
 
           <figure class="plate theme-plate">
             <div class="plate-frame">
@@ -643,213 +749,10 @@
               />
             </div>
             <figcaption class="plate-caption">
-              <span class="plate-fig">Fig. 03</span>
               <span class="plate-title">The same library, in the light theme</span>
               <span class="plate-note">Unedited screenshot</span>
             </figcaption>
           </figure>
-
-          <div class="palettes">
-            <article class="palette p-light">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    A comfortable life is a fine thing, but it rarely produces a
-                    good story.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">The Hobbit</p>
-                    <p class="mini-meta">J. R. R. Tolkien · p. 13</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Light</span>
-              </div>
-            </article>
-
-            <article class="palette p-atom">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    Even the smallest person can change the course of the future,
-                    if he keeps walking.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">The Lord of the Rings</p>
-                    <p class="mini-meta">J. R. R. Tolkien · p. 42</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Atom One Dark</span>
-              </div>
-            </article>
-
-            <article class="palette p-darcula">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    Books are dangerous because they let one person think another
-                    person's thoughts twice.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">Fahrenheit 451</p>
-                    <p class="mini-meta">Ray Bradbury · p. 20</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Darcula</span>
-              </div>
-            </article>
-
-            <article class="palette p-nord">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    Knowledge without mercy becomes a kind of monster long before
-                    any creature walks.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">Frankenstein</p>
-                    <p class="mini-meta">Mary Shelley · p. 19</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Nord</span>
-              </div>
-            </article>
-
-            <article class="palette p-solarized">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    A society that removes pain also removes the strength that pain
-                    can create.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">Brave New World</p>
-                    <p class="mini-meta">Aldous Huxley · p. 9</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Solarized Dark</span>
-              </div>
-            </article>
-
-            <article class="palette p-rose-pine">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    The happiness of your life depends upon the quality of your
-                    thoughts.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">Meditations</p>
-                    <p class="mini-meta">Marcus Aurelius · p. 34</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Rosé Pine</span>
-              </div>
-            </article>
-
-            <article class="palette p-gruvbox">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    It is not that we have a short time to live, but that we waste
-                    a lot of it.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">On the Shortness of Life</p>
-                    <p class="mini-meta">Seneca · p. 7</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Gruvbox Dark</span>
-              </div>
-            </article>
-
-            <article class="palette p-tokyo">
-              <div class="palette-frame">
-                <div class="mini">
-                  <p class="mini-quote">
-                    No man ever steps in the same river twice, for it is not the
-                    same river and he is not the same man.
-                  </p>
-                  <div class="mini-foot">
-                    <p class="mini-title">Fragments</p>
-                    <p class="mini-meta">Heraclitus · p. 12</p>
-                    <span class="mini-kind">Highlight</span>
-                  </div>
-                </div>
-              </div>
-              <div class="palette-meta">
-                <span class="swatches" aria-hidden="true">
-                  <i style="background: var(--p-surface)"></i>
-                  <i style="background: var(--p-raised)"></i>
-                  <i style="background: var(--p-accent)"></i>
-                  <i style="background: var(--p-fg)"></i>
-                </span>
-                <span class="palette-name">Tokyo Night</span>
-              </div>
-            </article>
-          </div>
         </div>
       </section>
 
@@ -860,7 +763,6 @@
       >
         <div class="wrap split">
           <div class="split-copy">
-            <p class="kicker">04 — Keyboard</p>
             <h2 id="shortcuts-title">Every clipping, one shortcut away.</h2>
             <p>
               <code>Ctrl/Cmd+P</code> searches the whole library — across books
@@ -923,7 +825,6 @@
               />
             </div>
             <figcaption class="plate-caption">
-              <span class="plate-fig">Fig. 04</span>
               <span class="plate-title">The global palette, over everything</span>
               <span class="plate-note">Ctrl/Cmd+P</span>
             </figcaption>
@@ -935,7 +836,6 @@
         <div class="wrap">
           <header class="section-head">
             <div>
-              <p class="kicker">05 — Install</p>
               <h2 id="install-title">Install kindclip in three steps.</h2>
             </div>
             <p class="section-lede">
@@ -992,7 +892,7 @@
                         Linux
                       </span>
                     </th>
-                    <td>.AppImage · .deb</td>
+                    <td>.AppImage, .deb</td>
                   </tr>
                   <tr>
                     <th scope="row">
@@ -1032,7 +932,6 @@
       <section class="section section--tint" id="faq" aria-labelledby="faq-title">
         <div class="wrap faq-layout">
           <div class="faq-aside">
-            <p class="kicker">06 — Questions</p>
             <h2 id="faq-title">Kindle highlights FAQ</h2>
             <p>
               Everything else lives in the
@@ -1105,7 +1004,7 @@
       <section class="closing" aria-labelledby="closing-title">
         <div class="wrap closing-grid">
           <div>
-            <p class="kicker">Download</p>
+            <p class="kicker">My Clippings.txt → kindclip.db</p>
             <h2 id="closing-title">Take your reading with you.</h2>
           </div>
 
@@ -1124,7 +1023,7 @@
                 >View source</a
               >
             </div>
-            <p class="closing-platforms">Linux · Windows · macOS</p>
+            <p class="closing-platforms">Linux, Windows, macOS</p>
           </div>
         </div>
       </section>
@@ -1151,7 +1050,7 @@
 
       <div class="wrap footer-base">
         <p>
-          Set in Newsreader &amp; Inter · Built with Tauri, Svelte 5 and Rust.
+          Set in Inter and JetBrains Mono. Built with Tauri, Svelte 5 and Rust.
           Your clipping text never leaves your machine.
         </p>
         <a href="#top">Back to top ↑</a>
@@ -1159,9 +1058,6 @@
     </footer>
 
     <script>
-      // Theme switch: the explicit choice wins on later visits; until one is
-      // made, the page keeps following the OS. ARIA state and the browser
-      // chrome color move with it.
       (function () {
         var STORAGE_KEY = "kindclip-site-theme";
         var root = document.documentElement;
@@ -1171,12 +1067,8 @@
         function readChoice() {
           try {
             var value = localStorage.getItem(STORAGE_KEY);
-            if (value === "light" || value === "dark") {
-              return value;
-            }
-          } catch (e) {
-            // Storage unavailable: the choice just won't persist.
-          }
+            if (value === "light" || value === "dark") return value;
+          } catch (e) {}
           return null;
         }
 
@@ -1189,7 +1081,7 @@
             );
           });
           metas.forEach(function (meta) {
-            meta.setAttribute("content", mode === "dark" ? "#151310" : "#f7f4ee");
+            meta.setAttribute("content", mode === "dark" ? "#16161f" : "#f5f7fc");
           });
         }
 
@@ -1199,25 +1091,48 @@
             apply(mode);
             try {
               localStorage.setItem(STORAGE_KEY, mode);
-            } catch (e) {
-              // Non-fatal: the mode simply won't persist.
-            }
+            } catch (e) {}
           });
         });
 
-        var system = window.matchMedia("(prefers-color-scheme: dark)");
-        function followSystem(event) {
-          if (!readChoice()) {
-            apply(event.matches ? "dark" : "light");
-          }
-        }
-        if (typeof system.addEventListener === "function") {
-          system.addEventListener("change", followSystem);
-        } else if (typeof system.addListener === "function") {
-          system.addListener(followSystem);
+        apply(readChoice() || "dark");
+      })();
+
+      (function () {
+        var stage = document.querySelector(".theme-stage");
+        if (!stage) return;
+        var buttons = Array.prototype.slice.call(
+          document.querySelectorAll(".palette-button"),
+        );
+        var name = stage.querySelector(".stage-name");
+        var names = {
+          light: "Light",
+          atom: "Atom One Dark",
+          darcula: "Darcula",
+          nord: "Nord",
+          solarized: "Solarized Dark",
+          "rose-pine": "Rosé Pine",
+          gruvbox: "Gruvbox Dark",
+          tokyo: "Tokyo Night",
+        };
+
+        function select(palette) {
+          buttons.forEach(function (button) {
+            var on = button.getAttribute("data-palette") === palette;
+            button.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+          stage.className = "theme-stage p-" + palette;
+          stage.setAttribute("data-palette", palette);
+          if (name) name.textContent = names[palette] || palette;
         }
 
-        apply(root.dataset.theme === "dark" ? "dark" : "light");
+        buttons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            select(button.getAttribute("data-palette"));
+          });
+        });
+
+        select("tokyo");
       })();
     </script>
   </body>

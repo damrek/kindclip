@@ -1,29 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Page not found — kindclip</title>
     <meta name="robots" content="noindex" />
     <link rel="icon" type="image/png" href="/kindclip/icon.png" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f4ee" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#16161f" />
 
     <script>
-      // Honor the theme chosen on the main site before first paint.
       (function () {
         var stored = null;
         try {
           stored = localStorage.getItem("kindclip-site-theme");
         } catch (e) {
-          // Storage unavailable: follow the system preference.
+          // Storage unavailable: keep the dark default.
         }
-        var dark =
-          stored === "dark" ||
-          (stored !== "light" &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches);
-        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        var theme = stored === "light" ? "light" : "dark";
+        document.documentElement.dataset.theme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute("content", theme === "dark" ? "#16161f" : "#f5f7fc");
+        }
       })();
     </script>
 
@@ -37,77 +36,54 @@
       }
 
       @font-face {
-        font-family: "Newsreader Variable";
-        src: url("/kindclip/fonts/newsreader-latin-wght-normal.woff2") format("woff2-variations");
-        font-weight: 200 800;
+        font-family: "JetBrains Mono Variable";
+        src: url("/kindclip/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations");
+        font-weight: 100 800;
         font-style: normal;
         font-display: swap;
       }
 
       :root {
-        color-scheme: light;
+        color-scheme: dark;
 
         --font-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont,
           "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        --font-serif: "Newsreader Variable", Newsreader, "Iowan Old Style",
-          "Palatino Linotype", Palatino, Georgia, serif;
-        --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-          monospace;
+        --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace,
+          SFMono-Regular, Menlo, Consolas, monospace;
 
-        --page: #f7f4ee;
-        --surface: #fdfaf5;
-        --inset: #efe8db;
-        --line: #e3dbcd;
-        --heading: #15120e;
-        --fg: #23201b;
-        --muted: #625b51;
-        --subtle: #6f675b;
-        --accent-text: #8b4610;
-        --accent-soft: #f3e4d3;
-        --inverse: #1b1814;
-        --inverse-fg: #faf7f1;
-        --ring: #a65a1f;
-        --glow: rgba(198, 126, 58, 0.16);
+        --page: #16161f;
+        --surface: #1c1d29;
+        --inset: #101119;
+        --hover: #262838;
+        --line: #2f3245;
+        --line-strong: #3d4158;
+        --heading: #e6e9f5;
+        --fg: #c8d0e8;
+        --muted: #9aa3bd;
+        --subtle: #7e87a3;
+        --accent: #7aa2f7;
+        --accent-text: #9ab8ff;
+        --accent-contrast: #12131b;
+        --ring: #7aa2f7;
       }
 
-      @media (prefers-color-scheme: dark) {
-        :root:not([data-theme="light"]) {
-          color-scheme: dark;
+      :root[data-theme="light"] {
+        color-scheme: light;
 
-          --page: #151310;
-          --surface: #1e1b17;
-          --inset: #100e0b;
-          --line: #332e26;
-          --heading: #f2ebdf;
-          --fg: #d5cdc0;
-          --muted: #a9a091;
-          --subtle: #948b7d;
-          --accent-text: #efbe8d;
-          --accent-soft: #2b2218;
-          --inverse: #efe8dc;
-          --inverse-fg: #16130f;
-          --ring: #e0a165;
-          --glow: rgba(224, 161, 101, 0.12);
-        }
-      }
-
-      :root[data-theme="dark"] {
-        color-scheme: dark;
-
-        --page: #151310;
-        --surface: #1e1b17;
-        --inset: #100e0b;
-        --line: #332e26;
-        --heading: #f2ebdf;
-        --fg: #d5cdc0;
-        --muted: #a9a091;
-        --subtle: #948b7d;
-        --accent-text: #efbe8d;
-        --accent-soft: #2b2218;
-        --inverse: #efe8dc;
-        --inverse-fg: #16130f;
-        --ring: #e0a165;
-        --glow: rgba(224, 161, 101, 0.12);
+        --page: #f5f7fc;
+        --surface: #ffffff;
+        --inset: #e9edf6;
+        --hover: #e3e8f3;
+        --line: #d8deea;
+        --line-strong: #b9c2d5;
+        --heading: #141827;
+        --fg: #2a3045;
+        --muted: #5d657b;
+        --subtle: #6f778c;
+        --accent: #3b63c9;
+        --accent-text: #2f55b8;
+        --accent-contrast: #ffffff;
+        --ring: #3b63c9;
       }
 
       * {
@@ -117,16 +93,11 @@
       body {
         margin: 0;
         display: grid;
-        place-items: center;
         min-height: 100vh;
         min-height: 100svh;
+        place-items: center;
         padding: 32px 24px;
         background: var(--page);
-        background-image: radial-gradient(
-          620px 420px at 50% -10%,
-          var(--glow),
-          transparent 70%
-        );
         color: var(--fg);
         font-family: var(--font-sans);
         font-size: 16px;
@@ -135,12 +106,12 @@
       }
 
       ::selection {
-        background: var(--accent-soft);
-        color: var(--heading);
+        background: var(--accent);
+        color: var(--accent-contrast);
       }
 
       main {
-        width: min(480px, 100%);
+        width: min(500px, 100%);
         text-align: center;
       }
 
@@ -150,43 +121,29 @@
         height: 44px;
         margin: 0 auto;
         border-radius: 11px;
-        box-shadow: 0 0 0 1px var(--line);
+        box-shadow: 0 0 0 1px var(--line-strong);
       }
 
-      .kicker {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 9px;
+      .code {
         margin: 26px 0 0;
         color: var(--accent-text);
+        font-family: var(--font-mono);
         font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-      }
-
-      .kicker::before {
-        content: "";
-        width: 18px;
-        height: 1px;
-        background: currentColor;
-        opacity: 0.55;
+        font-weight: 500;
       }
 
       h1 {
-        margin: 12px 0 0;
+        margin: 10px 0 0;
         color: var(--heading);
-        font-family: var(--font-serif);
-        font-size: clamp(2.1rem, 6vw, 2.9rem);
-        font-weight: 430;
-        line-height: 1.04;
-        letter-spacing: -0.03em;
+        font-size: clamp(2rem, 6vw, 2.8rem);
+        font-weight: 640;
+        line-height: 1.02;
+        letter-spacing: -0.045em;
         text-wrap: balance;
       }
 
       p {
-        max-width: 40ch;
+        max-width: 42ch;
         margin: 16px auto 0;
         color: var(--muted);
         font-size: 15px;
@@ -207,33 +164,30 @@
         align-items: center;
         justify-content: center;
         height: 42px;
-        padding: 0 18px;
-        border: 1px solid var(--line);
-        border-radius: 9px;
+        padding: 0 17px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
         background: var(--surface);
         color: var(--fg);
-        font-size: 14px;
-        font-weight: 560;
+        font-size: 13.5px;
+        font-weight: 620;
         text-decoration: none;
         transition: background-color 150ms ease, border-color 150ms ease,
-          transform 150ms ease;
+          color 150ms ease;
       }
 
       a.btn:hover {
-        border-color: var(--line);
-        background: var(--inset);
+        background: var(--hover);
       }
 
       a.btn.primary {
         border-color: transparent;
-        background: var(--inverse);
-        color: var(--inverse-fg);
-        box-shadow: 0 12px 24px -16px rgba(27, 19, 10, 0.7);
+        background: var(--accent);
+        color: var(--accent-contrast);
       }
 
       a.btn.primary:hover {
-        background: var(--inverse);
-        transform: translateY(-1px);
+        background: color-mix(in srgb, var(--accent) 88%, var(--fg));
       }
 
       :focus-visible {
@@ -247,13 +201,18 @@
         padding-top: 18px;
         border-top: 1px solid var(--line);
         color: var(--subtle);
-        font-size: 12px;
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        line-height: 1.6;
       }
 
       code {
         font-family: var(--font-mono);
-        font-size: 0.9em;
-        color: var(--fg);
+        font-size: 0.92em;
+        background: var(--inset);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 5px;
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -269,7 +228,7 @@
   <body>
     <main>
       <img src="/kindclip/icon.png" alt="" width="44" height="44" />
-      <p class="kicker">404 — Not found</p>
+      <p class="code">404</p>
       <h1>This page doesn't exist.</h1>
       <p>
         The link may be old, or the address may have a typo. Everything about
