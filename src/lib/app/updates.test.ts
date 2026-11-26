@@ -307,4 +307,3 @@ describe("UpdatePanel install", () => {
     expect(checkFn).toHaveBeenCalledTimes(1);
   });
 });
-
