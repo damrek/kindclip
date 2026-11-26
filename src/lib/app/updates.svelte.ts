@@ -7,6 +7,8 @@
  * always reports what happened. */
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import changelog from "../../../CHANGELOG.md?raw";
+import { changelogSection } from "../changelog";
 import { describeError } from "../errors";
 import { logger } from "../log";
 import type { Translate } from "../format";
@@ -32,31 +34,22 @@ export interface UpdateDeps {
   check: () => Promise<PendingUpdate | null>;
   /** Restart into the version that was just installed. */
   relaunch: () => Promise<void>;
+  currentNotes: () => string | null;
   t: Translate;
   log: (scope: string, error: unknown) => void;
 }
 
-export function createUpdatePanel(t: Translate): UpdatePanel {
+export function createUpdatePanel(
+  t: Translate,
+  currentVersion: () => string | null,
+): UpdatePanel {
   return new UpdatePanel({
     check: () => check() as Promise<Update | null>,
     relaunch: () => relaunch(),
+    currentNotes: () => changelogSection(changelog, currentVersion()),
     t,
     log: logger.error,
   });
-}
-
-/** The release notes are the CHANGELOG section the release was published with.
- * Drop the markdown heading marks so the dialog reads as prose; the bullets
- * stay, because they are the point. */
-export function plainNotes(notes: string | null): string {
-  if (notes === null) {
-    return "";
-  }
-  return notes
-    .split("\n")
-    .map((line) => line.replace(/^#{1,6}\s+/, ""))
-    .join("\n")
-    .trim();
 }
 
 export class UpdatePanel {
@@ -74,6 +67,13 @@ export class UpdatePanel {
 
   get available(): boolean {
     return this.#pending !== null;
+  }
+
+  get notesToShow(): string {
+    if (this.available) {
+      return this.notes ?? "";
+    }
+    return this.status === "current" ? (this.deps.currentNotes() ?? "") : "";
   }
 
   /** Launch check: silent unless there is something to install, and it only
@@ -102,6 +102,7 @@ export class UpdatePanel {
   /** Manual check: always reports its outcome, "up to date" included. */
   async checkNow(): Promise<void> {
     if (this.busy) return;
+    this.prompt = true;
     this.status = "checking";
     this.error = null;
     try {
@@ -115,7 +116,6 @@ export class UpdatePanel {
       this.error = this.deps.t("updates.error", { message: describeError(cause) });
       this.deps.log("update-check", cause);
     }
-    this.prompt = true;
   }
 
   async install(): Promise<void> {

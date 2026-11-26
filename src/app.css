@@ -471,6 +471,10 @@ body {
   outline-offset: 2px;
 }
 
+.update-panel:focus {
+  outline: none;
+}
+
 /* A field that owns its focus affordance instead of the global ring: an offset
    outline around an edge-to-edge input is clipped by a rounded, overflow-hidden
    shell. Kept unlayered and more specific on purpose, because the rule above

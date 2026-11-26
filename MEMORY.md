@@ -105,6 +105,9 @@ cargo test -p kindclip commands::
 - Signing a local release needs `TAURI_SIGNING_PRIVATE_KEY` and
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; never commit their values. The public key
   is embedded in `tauri.conf.json`.
+- The update dialog takes a pending release's notes from `latest.json` and the
+  running version's changelog from the bundled `CHANGELOG.md`; the updater
+  returns no notes when no newer version exists.
 - `.github/workflows/*.yml` and `tauri.conf.json` are asserted textually by
   `src/lib/ci-workflows.test.ts`; update that test with workflow changes.
   `src/lib/comment-ratchet.test.ts` guards the comment tooling.

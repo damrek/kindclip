@@ -65,7 +65,7 @@
     "src/lib/app/snapshot.svelte.ts": 21,
     "src/lib/app/snapshot.test.ts": 1,
     "src/lib/app/stats.svelte.ts": 2,
-    "src/lib/app/updates.svelte.ts": 13,
+    "src/lib/app/updates.svelte.ts": 12,
     "src/lib/app/updates.test.ts": 5,
     "src/lib/app/viewModel.ts": 7,
     "src/lib/asyncTask.svelte.ts": 8,

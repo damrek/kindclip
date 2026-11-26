@@ -15,6 +15,7 @@
   import RestoreDialog from "./components/RestoreDialog.svelte";
   import ShortcutsDialog from "./components/ShortcutsDialog.svelte";
   import StatsDialog from "./components/StatsDialog.svelte";
+  import UpdateDialog from "./components/UpdateDialog.svelte";
   import { getVersion } from "@tauri-apps/api/app";
   import appIcon from "./assets/icon.png";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -64,7 +65,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
   import { createReadingState } from "./lib/app/reading.svelte";
   import { createLibraryPanel } from "./lib/app/library.svelte";
   import { createSnapshotState } from "./lib/app/snapshot.svelte";
-  import { createUpdatePanel, plainNotes } from "./lib/app/updates.svelte";
+  import { createUpdatePanel } from "./lib/app/updates.svelte";
   import { createImportState, type ImportRunner } from "./lib/app/import.svelte";
   import { createExportState } from "./lib/app/export.svelte";
   import { createStatsState } from "./lib/app/stats.svelte";
@@ -153,7 +154,7 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
     },
   });
   /** Signed auto-update: the launch check and the Preferences control. */
-  const updates = createUpdatePanel(t);
+  const updates = createUpdatePanel(t, () => appVersion);
 
   /** The version button is also the update control: its tooltip says what a
    * click would do right now. */
@@ -162,21 +163,6 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
       ? t("updates.available", { version: updates.version ?? "" })
       : t("updates.check"),
   );
-  const updateHeadline = $derived.by(() => {
-    switch (updates.status) {
-      case "available":
-        return t("updates.available", { version: updates.version ?? "" });
-      case "current":
-        return t("updates.current");
-      case "checking":
-        return t("updates.checking");
-      case "installing":
-        return t("updates.installing");
-      default:
-        return t("updates.title");
-    }
-  });
-  const updateNotes = $derived(plainNotes(updates.notes));
   setContext<I18nContext>(I18N_CONTEXT_KEY, {
     get locale() {
       return prefs.locale;
@@ -1211,42 +1197,17 @@ import type { Book, ClippingKind, ClippingRow } from "./lib/types";
 {/if}
 
 {#if updates.prompt}
-  <Modal
-    label={t("updates.title")}
-    onClose={() => updates.dismiss()}
+  <UpdateDialog
+    status={updates.status}
+    version={updates.version}
+    notes={updates.notesToShow}
+    error={updates.error}
+    {appVersion}
     busy={updates.busy}
-    panel="w-full max-w-md rounded-2xl border border-line bg-surface-raised p-5"
-  >
-    <p class="text-sm font-medium text-fg">{updateHeadline}</p>
-    {#if updateNotes}
-      <p class="mt-2 max-h-56 overflow-y-auto text-sm whitespace-pre-line text-fg-muted">
-        {updateNotes}
-      </p>
-    {/if}
-    {#if updates.error}
-      <p class="mt-2 text-xs text-danger" role="alert">{updates.error}</p>
-    {/if}
-    <div class="mt-4 flex items-center justify-end gap-2">
-      <button
-        type="button"
-        onclick={() => updates.dismiss()}
-        disabled={updates.busy}
-        class="rounded-full border border-line px-3.5 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-surface-hover disabled:opacity-40"
-      >
-        {updates.available ? t("updates.later") : t("updates.close")}
-      </button>
-      {#if updates.available}
-        <button
-          type="button"
-          onclick={() => void updates.install()}
-          disabled={updates.busy}
-          class="rounded-full bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-fg transition hover:bg-accent-hover disabled:opacity-40"
-        >
-          {t("updates.install")}
-        </button>
-      {/if}
-    </div>
-  </Modal>
+    available={updates.available}
+    onClose={() => updates.dismiss()}
+    onInstall={() => void updates.install()}
+  />
 {/if}
 
 {#if overlays.preferences}
