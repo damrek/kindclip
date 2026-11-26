@@ -17,6 +17,9 @@ listed. History before v1.0.0 is left to the release list.
 
 ### Changed
 
+- **Landing page**: rebuilt around the file kindclip reads, with a new hero
+  specimen, a shorter feature tour, updated screenshots and a dark-first theme
+  that remembers a light choice.
 - **Update dialog**: release notes render as formatted section headings, bullet
   lists, inline code and links instead of raw markdown; the dialog also opens
   immediately with its checking state, and long notes scroll inside the panel.
