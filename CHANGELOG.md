@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Entries describe user-visible behavior. CI, refactors, tests and tooling are not
 listed. History before v1.0.0 is left to the release list.
 
+## [2.3.1] - 2026-11-28
+
+### Fixed
+
+- **Remembered window size on Linux**: the window grew by its titlebar and
+  shadow on every launch, so after a few restarts it opened maximized. It now
+  restores the last size that fits the screen and recovers from an oversized
+  saved state.
+
 ## [2.3.0] - 2026-11-26
 
 ### Added

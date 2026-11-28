@@ -111,6 +111,12 @@ cargo test -p kindclip commands::
 - `.github/workflows/*.yml` and `tauri.conf.json` are asserted textually by
   `src/lib/ci-workflows.test.ts`; update that test with workflow changes.
   `src/lib/comment-ratchet.test.ts` guards the comment tooling.
+- `tauri-plugin-window-state` cannot restore the main window alone on Linux: it
+  saves the decorated GTK surface size but `set_size` takes the content size, so
+  the window grows by the CSD shadow/titlebar every launch (upstream
+  `tauri-apps/plugins-workspace#3553`). Its restore is skipped;
+  `src-tauri/src/window_geometry.rs` validates against the work area and
+  compensates for the decoration extent.
 - `npm run dev` alone serves the UI but shows a message instead of running the
   app; use `npx tauri dev`.
 - The app opens one shared SQLite connection, runs migrations at startup and
