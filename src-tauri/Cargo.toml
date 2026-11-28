@@ -1,6 +1,6 @@
 [package]
 name = "kindclip"
-version = "2.3.0"
+version = "2.3.1"
 description = "Kindle clippings viewer"
 authors = []
 edition = "2021"
