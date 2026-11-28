@@ -5,12 +5,13 @@
 //! frontend data layer (`src/lib/db/`); Rust owns parsing and the import and
 //! export entry points.
 
-use tauri::Manager;
+use tauri::{LogicalSize, Manager};
 use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri_plugin_window_state::StateFlags;
 
 mod commands;
+mod window_geometry;
 
 const DB_URL: &str = "sqlite:kindclip.db";
 const LOG_MAX_BYTES: u128 = 1_000_000;
@@ -92,6 +93,7 @@ pub fn run() {
         )
         .plugin(
             tauri_plugin_window_state::Builder::default()
+                .skip_initial_state("main")
                 .with_state_flags(
                     StateFlags::SIZE
                         | StateFlags::POSITION
@@ -114,6 +116,18 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            let default_size = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|config| config.label == "main")
+                .map(|config| LogicalSize::new(config.width, config.height))
+                .unwrap_or(LogicalSize::new(1120.0, 760.0));
+            if let Some(window) = app.get_webview_window("main") {
+                window_geometry::show_restored_window(app.handle(), &window, default_size)?;
+            }
+
             let db_path = app.path().app_config_dir()?.join("kindclip.db");
             log::info!(
                 "kindclip {} started on {} {} (db: {})",

@@ -2400,6 +2400,7 @@ name = "kindclip"
 version = "2.3.0"
 dependencies = [
  "clippings-parser",
+ "gtk",
  "log",
  "serde",
  "serde_json",
